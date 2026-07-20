@@ -11,9 +11,9 @@ export default defineConfig({
   },
   plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact(), netlify()],
   server: {
-    port: 5432,
+    port: 5454,
   },
   preview: {
-    port: 5432,
+    port: 5454,
   },
 });
