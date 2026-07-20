@@ -13,3 +13,4 @@ __unconfig*
 todos.json
 .vscode/
 .zed/
+.netlify/
