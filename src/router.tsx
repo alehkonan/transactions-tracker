@@ -1,5 +1,6 @@
 import { createRouter } from "@tanstack/react-router";
 import { NotFound } from "~/components/NotFound";
+import { PageLoader } from "~/components/PageLoader";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
@@ -9,6 +10,10 @@ export function getRouter() {
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
     defaultNotFoundComponent: NotFound,
+    // Render the new route's pending UI immediately instead of blocking on the
+    // old page while the loader runs (default is a 1s delay, which feels laggy).
+    defaultPendingComponent: PageLoader,
+    defaultPendingMs: 0,
   });
 
   return router;
