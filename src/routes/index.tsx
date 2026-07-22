@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Page } from "~/components/Page";
 import { getAccounts } from "~/lib/accounts";
 
 export const Route = createFileRoute("/")({
@@ -10,8 +11,7 @@ function HomePage() {
   const accounts = Route.useLoaderData();
 
   return (
-    <main>
-      <h1>Accounts</h1>
+    <Page title="Accounts">
       {accounts.length === 0 ? (
         <p>No accounts yet.</p>
       ) : (
@@ -23,6 +23,6 @@ function HomePage() {
           ))}
         </ul>
       )}
-    </main>
+    </Page>
   );
 }
