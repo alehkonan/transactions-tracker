@@ -9,7 +9,17 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact(), netlify()],
+  plugins: [
+    tanstackStart({
+      importProtection: {
+        behavior: "error",
+      },
+    }),
+    devtools(),
+    netlify(),
+    viteReact(),
+    tailwindcss(),
+  ],
   server: {
     port: 5454,
     host: true,
