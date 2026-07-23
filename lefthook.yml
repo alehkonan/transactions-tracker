@@ -1,0 +1,15 @@
+pre-commit:
+  jobs:
+    - name: format
+      run: pnpm format {staged_files}
+      stage_fixed: true
+
+    - name: lint
+      glob: "*.{js,jsx,ts,tsx}"
+      run: pnpm lint:fix {staged_files}
+      stage_fixed: true
+
+pre-push:
+  jobs:
+    - name: typecheck
+      run: pnpm typecheck
