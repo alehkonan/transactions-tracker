@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Page } from "~/components/Page";
-import { getAccounts } from "~/lib/accounts";
+import { getAccounts } from "~/utils/account.functions";
 
 export const Route = createFileRoute("/")({
   loader: () => getAccounts(),

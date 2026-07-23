@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Page } from "~/components/Page";
-import { getTransactions } from "~/lib/transactions";
+import { getTransactions } from "~/utils/transaction.functions";
 
 export const Route = createFileRoute("/transactions")({
   loader: () => getTransactions(),

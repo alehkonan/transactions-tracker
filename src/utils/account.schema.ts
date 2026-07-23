@@ -1,5 +1,5 @@
 import z from "zod";
-import { CurrencyCodeSchema } from "./currency";
+import { CurrencyCodeSchema } from "./currency.schema";
 
 export const AccountTypeSchema = z.enum(["CURRENT", "SAVING"]);
 

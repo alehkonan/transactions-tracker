@@ -1,5 +1,5 @@
 import z from "zod";
-import { AccountSchema } from "./account";
+import { AccountSchema } from "./account.schema";
 
 export const TransactionNecessityLevel = z.enum(["LOW", "MEDIUM", "HIGH", "ESSENTIAL"]);
 
