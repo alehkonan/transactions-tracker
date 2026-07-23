@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
-import { AccountSchema } from "~/model/account";
 import { accounts } from "~/drizzle/schema";
+import { AccountSchema } from "~/model/account";
 import { getDb } from "./db";
 
 export const getAccounts = createServerFn({ method: "GET" }).handler(async () => {

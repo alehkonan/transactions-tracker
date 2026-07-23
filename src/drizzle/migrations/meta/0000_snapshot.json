@@ -147,12 +147,8 @@
           "name": "transactions_src_account_id_accounts_id_fk",
           "tableFrom": "transactions",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "src_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["src_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -160,12 +156,8 @@
           "name": "transactions_dest_account_id_accounts_id_fk",
           "tableFrom": "transactions",
           "tableTo": "accounts",
-          "columnsFrom": [
-            "dest_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dest_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -173,12 +165,8 @@
           "name": "transactions_category_id_categories_id_fk",
           "tableFrom": "transactions",
           "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -194,46 +182,27 @@
     "public.account_status": {
       "name": "account_status",
       "schema": "public",
-      "values": [
-        "ACTIVE",
-        "ARCHIVED"
-      ]
+      "values": ["ACTIVE", "ARCHIVED"]
     },
     "public.account_type": {
       "name": "account_type",
       "schema": "public",
-      "values": [
-        "CURRENT",
-        "SAVING"
-      ]
+      "values": ["CURRENT", "SAVING"]
     },
     "public.currency_code": {
       "name": "currency_code",
       "schema": "public",
-      "values": [
-        "USD",
-        "GEL"
-      ]
+      "values": ["USD", "GEL"]
     },
     "public.necessity_level": {
       "name": "necessity_level",
       "schema": "public",
-      "values": [
-        "LOW",
-        "MEDIUM",
-        "HIGH",
-        "ESSENTIAL"
-      ]
+      "values": ["LOW", "MEDIUM", "HIGH", "ESSENTIAL"]
     },
     "public.transaction_type": {
       "name": "transaction_type",
       "schema": "public",
-      "values": [
-        "INCOME",
-        "OUTCOME",
-        "TRANSFER",
-        "DEBT"
-      ]
+      "values": ["INCOME", "OUTCOME", "TRANSFER", "DEBT"]
     }
   },
   "schemas": {},
