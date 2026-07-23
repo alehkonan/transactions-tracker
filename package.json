@@ -3,13 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "lefthook install",
     "dev": "vite dev",
     "generate-routes": "tsr generate",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "format": "oxfmt",
     "lint": "oxlint",
-    "format": "oxfmt"
+    "lint:fix": "oxlint --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -40,6 +43,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",
+    "lefthook": "^2.1.10",
     "oxfmt": "^0.59.0",
     "oxlint": "^1.74.0",
     "typescript": "^6.0.3",
