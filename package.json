@@ -12,7 +12,8 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:push-dev": "drizzle-kit push"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
