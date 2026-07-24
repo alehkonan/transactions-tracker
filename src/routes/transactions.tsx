@@ -1,5 +1,8 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { PageContainer } from "~/components/PageContainer";
+import { Title } from "~/components/Title";
+import { AddTransactionButton } from "~/features/add-transaction/AddTransactionButton";
+import { TransactionsImportButton } from "~/features/transactions-import/TransactionsImportButton";
 import { getTransactions } from "~/utils/transaction.functions";
 
 export const Route = createFileRoute("/transactions")({
@@ -11,6 +14,13 @@ export const Route = createFileRoute("/transactions")({
 
     return (
       <PageContainer>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <Title variant="page">Transactions</Title>
+          <div className="flex flex-wrap gap-2">
+            <TransactionsImportButton />
+            <AddTransactionButton />
+          </div>
+        </div>
         {transactions.length === 0 ? (
           <p className="text-slate-600 dark:text-slate-400">No transactions yet.</p>
         ) : (
