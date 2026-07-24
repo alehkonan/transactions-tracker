@@ -2,11 +2,19 @@ import { twJoin } from "tailwind-merge";
 
 type Props = {
   children: string;
-  variant?: "card";
+  variant: "page" | "card";
 };
 
-export function Title({ children, variant = "card" }: Props) {
+export function Title({ children, variant }: Props) {
   return (
-    <p className={twJoin(variant === "card" && "text-xl font-semibold text-text")}>{children}</p>
+    <p
+      className={twJoin(
+        "text-text",
+        variant === "page" && "text-3xl font-bold",
+        variant === "card" && "text-xl font-semibold",
+      )}
+    >
+      {children}
+    </p>
   );
 }
