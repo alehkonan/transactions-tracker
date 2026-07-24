@@ -31,7 +31,12 @@ const navItems: NavItem[] = [
 export function Navbar() {
   return (
     <nav className="pointer-events-auto">
-      <ul className="bg-surface grid grid-flow-col-dense gap-1 rounded-3xl shadow-lg">
+      <ul
+        className={twJoin(
+          "bg-surface grid grid-flow-col-dense gap-1 rounded-2xl",
+          "transition-shadow hover:shadow",
+        )}
+      >
         {navItems.map((link) => (
           <li key={link.to} className="p-0.5">
             <Link
@@ -44,7 +49,7 @@ export function Navbar() {
                 return (
                   <span
                     className={twJoin(
-                      "flex items-center gap-2 rounded-3xl px-3 py-2",
+                      "flex items-center gap-2 rounded-2xl px-3 py-2",
                       isActive ? "text-surface bg-accent" : "text-text",
                     )}
                   >
