@@ -29,12 +29,14 @@ export const Route = createFileRoute("/transactions")({
               <thead>
                 <tr className="border-b border-slate-300 text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <th className="px-4 py-2 font-semibold">ID</th>
-                  <th className="px-4 py-2 font-semibold">Type</th>
-                  <th className="px-4 py-2 font-semibold">Amount</th>
+                  <th className="px-4 py-2 font-semibold">Income</th>
+                  <th className="px-4 py-2 font-semibold">Outcome</th>
                   <th className="px-4 py-2 font-semibold">From</th>
                   <th className="px-4 py-2 font-semibold">To</th>
                   <th className="px-4 py-2 font-semibold">Category</th>
                   <th className="px-4 py-2 font-semibold">Necessity</th>
+                  <th className="px-4 py-2 font-semibold">Comment</th>
+                  <th className="px-4 py-2 font-semibold">Created</th>
                 </tr>
               </thead>
               <tbody>
@@ -44,12 +46,24 @@ export const Route = createFileRoute("/transactions")({
                     className="border-b border-slate-200 text-slate-800 dark:border-slate-800 dark:text-slate-200"
                   >
                     <td className="px-4 py-2">{transaction.id}</td>
-                    <td className="px-4 py-2">{transaction.type}</td>
-                    <td className="px-4 py-2">{transaction.amount}</td>
-                    <td className="px-4 py-2">{transaction.srcAccountId ?? "—"}</td>
-                    <td className="px-4 py-2">{transaction.destAccountId ?? "—"}</td>
+                    <td className="px-4 py-2">
+                      {transaction.incomeAmount == null
+                        ? "—"
+                        : `${transaction.incomeAmount} ${transaction.incomeCurrencyCode ?? ""}`}
+                    </td>
+                    <td className="px-4 py-2">
+                      {transaction.outcomeAmount == null
+                        ? "—"
+                        : `${transaction.outcomeAmount} ${transaction.outcomeCurrencyCode ?? ""}`}
+                    </td>
+                    <td className="px-4 py-2">{transaction.outcomeAccountId ?? "—"}</td>
+                    <td className="px-4 py-2">{transaction.incomeAccountId ?? "—"}</td>
                     <td className="px-4 py-2">{transaction.categoryId ?? "—"}</td>
                     <td className="px-4 py-2">{transaction.necessityLevel ?? "—"}</td>
+                    <td className="px-4 py-2">{transaction.comment ?? "—"}</td>
+                    <td className="px-4 py-2">
+                      {new Date(transaction.createdAt).toISOString().slice(0, 10)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

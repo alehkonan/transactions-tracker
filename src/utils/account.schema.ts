@@ -8,7 +8,8 @@ export const AccountStatusSchema = z.enum(["ACTIVE", "ARCHIVED"]);
 export const AccountSchema = z.object({
   id: z.number(),
   name: z.string(),
-  balance: z.number(),
+  // numeric(14,2) — Drizzle represents it as a decimal string to keep precision.
+  balance: z.string(),
   type: AccountTypeSchema,
   currencyCode: CurrencyCodeSchema,
   status: AccountStatusSchema,
