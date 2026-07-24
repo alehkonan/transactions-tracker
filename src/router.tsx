@@ -1,6 +1,6 @@
 import { createRouter } from "@tanstack/react-router";
-import { NotFound } from "~/components/NotFound";
 import { PageLoader } from "~/components/PageLoader";
+import { NotFound } from "~/pages/NotFound";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {

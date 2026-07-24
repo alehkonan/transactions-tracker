@@ -1,10 +1,9 @@
 import { LoaderCircleIcon } from "lucide-react";
-import { Page } from "~/components/Page";
 
 export function PageLoader() {
   return (
-    <Page center>
+    <div className="grid place-items-center p-20">
       <LoaderCircleIcon className="size-8 animate-spin text-slate-400" aria-label="Loading" />
-    </Page>
+    </div>
   );
 }
