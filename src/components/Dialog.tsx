@@ -11,7 +11,9 @@ export function Dialog({ children, ref }: Props) {
     <dialog
       ref={ref}
       closedby="none"
-      className={twJoin("border-border m-auto w-full rounded-xl border p-4 sm:w-2xl")}
+      className={twJoin(
+        "border-border m-auto max-h-[85dvh] w-full overflow-y-auto rounded-xl border p-4 sm:w-2xl",
+      )}
     >
       {children}
     </dialog>

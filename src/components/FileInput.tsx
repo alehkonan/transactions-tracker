@@ -8,8 +8,10 @@ type Props = {
   accept?: string;
 };
 
-// Whether a dropped file satisfies the `accept` string. The native file picker
-// already enforces `accept`, but drag-and-drop bypasses it, so we re-check here.
+/**
+ * Whether a dropped file satisfies the `accept` string. The native file picker
+ * already enforces `accept`, but drag-and-drop bypasses it, so we re-check here.
+ */
 function isAccepted(file: File, accept: string) {
   return accept.split(",").some((token) => {
     const type = token.trim();
