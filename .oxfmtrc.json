@@ -14,5 +14,7 @@
     ]
   },
   "sortPackageJson": true,
-  "sortTailwindcss": true
+  "sortTailwindcss": {
+    "functions": ["twJoin", "twMerge"]
+  }
 }
