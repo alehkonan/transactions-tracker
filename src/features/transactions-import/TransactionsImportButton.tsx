@@ -1,13 +1,21 @@
 import { UploadIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { FileInput } from "~/components/FileInput";
 import { Title } from "~/components/Title";
+import { CsvMapper } from "./CsvMapper";
+import { CsvPreview } from "./CsvPreview";
+import { useCsvImport } from "./useCsvImport";
 
 export function TransactionsImportButton() {
-  const [file, setFile] = useState<File | null>(null);
+  const { file, csv, mapping, canUpload, selectFile, setMapping, reset } = useCsvImport();
   const dialogRef = useRef<HTMLDialogElement>(null);
+
+  const handleCancel = () => {
+    reset();
+    dialogRef.current?.close();
+  };
 
   return (
     <>
@@ -23,13 +31,19 @@ export function TransactionsImportButton() {
       <Dialog ref={dialogRef}>
         <Title variant="card">Import CSV</Title>
         <div className="mt-4">
-          <FileInput file={file} onFileChange={setFile} accept="text/csv" />
+          <FileInput file={file} onFileChange={selectFile} accept="text/csv" />
         </div>
-        <footer className="mt-2 flex justify-center gap-2">
-          <Button variant="secondary" onClick={() => dialogRef.current?.close()}>
+        {csv && (
+          <div className="mt-4 flex flex-col gap-4">
+            <CsvPreview csv={csv} />
+            <CsvMapper headers={csv.headers} mapping={mapping} onMappingChange={setMapping} />
+          </div>
+        )}
+        <footer className="mt-4 flex justify-center gap-2">
+          <Button variant="secondary" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button variant="primary" disabled={!file}>
+          <Button variant="primary" disabled={!canUpload}>
             Upload
           </Button>
         </footer>
