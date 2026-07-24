@@ -15,7 +15,11 @@ export default defineConfig({
         behavior: "error",
       },
     }),
-    devtools(),
+    devtools({
+      // data-tsd-source attributes diverge between the SSR and client
+      // transforms in devtools-vite, causing hydration mismatch warnings.
+      injectSource: { enabled: false },
+    }),
     netlify(),
     viteReact(),
     tailwindcss(),
