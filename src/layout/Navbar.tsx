@@ -31,12 +31,7 @@ const navItems: NavItem[] = [
 export function Navbar() {
   return (
     <nav className="pointer-events-auto">
-      <ul
-        className={twJoin(
-          "bg-surface grid grid-flow-col-dense gap-1 rounded-2xl",
-          "transition-shadow hover:shadow",
-        )}
-      >
+      <ul className={twJoin("bg-surface grid grid-flow-col-dense gap-1 rounded-2xl shadow")}>
         {navItems.map((link) => (
           <li key={link.to} className="p-0.5">
             <Link
