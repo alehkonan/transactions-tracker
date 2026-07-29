@@ -18,8 +18,7 @@
   "categories": {
     "correctness": "error",
     "perf": "warn",
-    "suspicious": "warn",
-    "nursery": "warn"
+    "suspicious": "warn"
   },
   "rules": {
     "react/react-in-jsx-scope": "off"
