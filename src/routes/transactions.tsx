@@ -4,7 +4,7 @@ import { getTransactions } from "~/api/transaction.functions";
 import { Button } from "~/components/Button";
 import { DataTable } from "~/components/DataTable";
 import { Dialog } from "~/components/Dialog";
-import { NavLink } from "~/components/Navlink";
+import { NavLink } from "~/components/NavLink";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { TransactionForm } from "~/modules/transactions/TransactionForm";

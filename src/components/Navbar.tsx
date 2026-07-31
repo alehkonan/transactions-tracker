@@ -1,7 +1,7 @@
 import { ChartNoAxesCombinedIcon, LayoutDashboardIcon, ReceiptTextIcon } from "lucide-react";
 import { type JSX } from "react";
 import { twJoin } from "tailwind-merge";
-import { NavLink } from "./Navlink";
+import { NavLink } from "./NavLink";
 import type { FileRouteTypes } from "~/routeTree.gen";
 
 type NavItem = {
