@@ -1,4 +1,4 @@
-import { type ComponentProps, memo } from "react";
+import { type ComponentProps } from "react";
 import { twMerge } from "tailwind-merge";
 
 export type SelectOption = {
@@ -13,17 +13,13 @@ type Props = ComponentProps<"select"> & {
   placeholderDisabled?: boolean;
 };
 
-/**
- * Reusable styled `<select>`. Memoized so it only re-renders when its own props
- * change — pass a stable `options` reference and `onChange` to benefit from it.
- */
-export const Select = memo(function Select({
+export const Select = ({
   options,
   placeholder,
   placeholderDisabled,
   className,
   ...props
-}: Props) {
+}: Props) => {
   return (
     <select
       className={twMerge(
@@ -44,4 +40,4 @@ export const Select = memo(function Select({
       ))}
     </select>
   );
-});
+};

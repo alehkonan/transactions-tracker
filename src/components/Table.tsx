@@ -38,7 +38,6 @@ export function Table<T>({ data, columns, getRowKey }: Props<T>) {
         </thead>
         <tbody>
           {data.map((row, index) => (
-            // oxlint-disable-next-line react/no-array-index-key -- index is the default key; callers pass getRowKey when rows have ids
             <tr key={getRowKey?.(row, index) ?? index}>
               {columns.map((column) => (
                 <td
