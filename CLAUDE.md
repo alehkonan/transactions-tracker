@@ -22,7 +22,7 @@ Linting/formatting use **oxlint** and **oxfmt** (not ESLint/Prettier). Lefthook 
 
 ## Stack
 
-TanStack Start (React 19, full-stack SSR) · TanStack Router (file-based) · Drizzle ORM + postgres-js (PostgreSQL) · Zod v4 · Tailwind CSS v4 · Vite 8 · TypeScript 6. Package manager is **pnpm**.
+TanStack Start (React 19, full-stack SSR) · TanStack Router (file-based) · TanStack Table (`DataTable`) · Drizzle ORM + postgres-js (PostgreSQL) · Zustand (client state, e.g. the CSV import flow) · Zod v4 · Tailwind CSS v4 · Vite 8 · TypeScript 6. Package manager is **pnpm**.
 
 Path alias: `~/*` → `./src/*` (defined in `tsconfig.json`). Use it for all intra-`src` imports.
 
@@ -30,19 +30,19 @@ Path alias: `~/*` → `./src/*` (defined in `tsconfig.json`). Use it for all int
 
 **Data flow is: route `loader` → server function → Drizzle → PostgreSQL**, all rendered via SSR. There is no client-side data-fetching layer (no TanStack Query).
 
-- **Server functions** live in `src/utils/*.functions.ts`, created with `createServerFn`. GET handlers read; POST handlers mutate and use `.validator(zodSchema)` for input. Routes call them directly from their `loader`.
-- **`src/lib/db.server.ts`** exposes `getDb()`, a lazily-initialized Drizzle singleton. It has **no top-level side effects** so the TanStack Start compiler can tree-shake the postgres driver out of the client bundle — never create the DB connection at module scope; always inside a server-fn handler via `getDb()`. Files with `.server.ts` are server-only.
-- **`src/drizzle/schema.ts`** is the single source of truth for tables/enums. Migrations are generated into `src/drizzle/migrations/` by drizzle-kit; `drizzle.config.ts` reads `DATABASE_URL` from `.env.local`.
-- **Zod schemas** in `src/utils/*.schema.ts` mirror the Drizzle tables and are the validation layer for server-fn inputs. They compose (e.g. `AccountSchema` → `CurrencyCodeSchema`; insert payloads use `.omit({ id: true })`). Keep these in sync with `schema.ts` by hand.
+- **Server functions** live in `src/api/*.functions.ts`, created with `createServerFn`. GET handlers read; POST handlers mutate. Every server function is composed with `.middleware([loggerMiddleware, authMiddleware])` from `src/api/*.middleware.ts` — both are currently no-op `TODO` stubs. Routes call the functions directly from their `loader`.
+- **`src/database/getDb.server.ts`** exposes `getDb()`, a lazily-initialized Drizzle singleton. It has **no top-level side effects** so the TanStack Start compiler can tree-shake the postgres driver out of the client bundle — never create the DB connection at module scope; always inside a server-fn handler via `getDb()`. Files with `.server.ts` are server-only.
+- **`src/database/schema.ts`** is the single source of truth for tables/enums. Migrations are generated into `src/database/migrations/` by drizzle-kit; `drizzle.config.ts` reads `DATABASE_URL` from `.env.local`.
+- There is currently **no input-validation layer** on server functions — the previous `src/utils/*.schema.ts` Zod schemas (and the mutations that used them, e.g. `createAccount`/`deleteAccount`) were removed pending rework. `zod` is still a dependency; when a mutation needs `.validator(zodSchema)` input validation again, add the schema next to the server function in `src/api/`.
 
 ### Directory layout
 
 - `src/routes/` — file-based routes; `__root.tsx` is the SSR shell. `routeTree.gen.ts` is **generated — never edit by hand**.
-- `src/features/<feature>/` — self-contained feature UI (e.g. `add-transaction/`, `transactions-import/`).
-- `src/components/` — shared presentational primitives (`Button`, `Card`, `Dialog`, `Title`, …).
-- `src/layout/` — app chrome (`Body`, `Header`, `Navbar`).
-- `src/pages/` — non-route page components (e.g. `NotFound`).
-- `src/utils/` — server functions (`*.functions.ts`) and Zod schemas (`*.schema.ts`).
+- `src/api/` — server functions (`*.functions.ts`) and middleware (`*.middleware.ts`), created with `createServerFn`/`createMiddleware`.
+- `src/database/` — Drizzle schema (`schema.ts`), generated migrations (`migrations/`), and the `getDb()` singleton (`getDb.server.ts`).
+- `src/modules/<domain>/` — self-contained domain UI/logic, grouped by feature rather than file type (e.g. `transactions/TransactionForm.tsx`, `transactions/transactionsTableColumns.tsx`, `transactions/import/useTransactionsImport.ts`).
+- `src/components/` — shared presentational primitives (`Button`, `Card`, `Dialog`, `Table`, `DataTable`, `Title`, …) and app chrome (`Navbar`, `NavLink`, `NotFoundPage`, `Loader`).
+- `src/utils/` — generic, framework-agnostic helpers with no server/DB dependency (e.g. `parseCsv.ts`).
 
 ## Conventions
 
