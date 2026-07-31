@@ -1,29 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ListChecksIcon, UploadIcon } from "lucide-react";
 import { PageContainer } from "~/components/PageContainer";
-import { Title } from "~/components/Title";
-import {
-  actions,
-  useTransactionsImport,
-} from "~/modules/transactions/import/useTransactionsImport";
+import { Step, Stepper } from "~/components/Stepper";
+import { CheckHeadersStep } from "~/modules/transactions/import/CheckHeadersStep";
+import { UploadStep } from "~/modules/transactions/import/UploadStep";
+import { useTransactionsImport } from "~/modules/transactions/import/useTransactionsImport";
 
 export const Route = createFileRoute("/transactions-import")({
   component: () => {
-    const { csv, fileName } = useTransactionsImport();
+    const { csv } = useTransactionsImport();
+
+    const isUploadStep = !csv;
+    const isCheckStep = !!csv;
 
     return (
       <PageContainer>
-        <Title variant="page">Import</Title>
-        {!csv && (
-          <input
-            type="file"
-            onChange={(e) => {
-              const file = e.target.files?.item(0);
-              if (!file) return console.warn("No file is chosen");
-              actions.uploadAndParse(file);
-            }}
+        <Stepper>
+          <Step
+            icon={<UploadIcon className="size-4" />}
+            label="Upload file"
+            isActive={isUploadStep}
           />
-        )}
-        {csv && <p>Uploaded file: {fileName}</p>}
+          <Step icon={<ListChecksIcon className="size-4" />} label="Check" isActive={isCheckStep} />
+        </Stepper>
+        <div className="p-3" />
+        {isUploadStep && <UploadStep />}
+        {isCheckStep && <CheckHeadersStep csv={csv} />}
       </PageContainer>
     );
   },
