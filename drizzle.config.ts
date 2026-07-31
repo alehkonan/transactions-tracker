@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "drizzle-kit";
 
 process.loadEnvFile(".env.local");
@@ -9,8 +10,8 @@ if (!process.env.DATABASE_URL) {
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./src/drizzle/schema.ts",
-  out: "./src/drizzle/migrations",
+  schema: path.join("src", "database", "schema.ts"),
+  out: path.join("src", "database", "migrations"),
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },

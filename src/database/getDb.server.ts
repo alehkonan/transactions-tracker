@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "~/drizzle/schema";
+import * as schema from "./schema";
 
 // No top-level side effects: this module must be fully tree-shakeable so the
 // TanStack Start compiler can drop it (and the postgres driver) from the client

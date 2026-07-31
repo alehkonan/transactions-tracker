@@ -24,14 +24,14 @@ export const categories = pgTable("categories", {
 
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   categoryId: integer("category_id").references(() => categories.id),
   necessityLevel: necessityLevelEnum("necessity_level"),
-  incomeAmount: money("income_amount"),
   incomeAccountId: integer("income_account_id").references(() => accounts.id),
-  incomeCurrencyCode: currencyCodeEnum("income_currency_code"),
-  outcomeAmount: money("outcome_amount"),
+  incomeAmount: money("income_amount"),
+  incomeCurrency: currencyCodeEnum("income_currency"),
   outcomeAccountId: integer("outcome_account_id").references(() => accounts.id),
-  outcomeCurrencyCode: currencyCodeEnum("outcome_currency_code"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  outcomeAmount: money("outcome_amount"),
+  outcomeCurrency: currencyCodeEnum("outcome_currency"),
   comment: text("comment"),
 });
