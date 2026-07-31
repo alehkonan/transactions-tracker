@@ -1,16 +1,17 @@
 import { twMerge } from "tailwind-merge";
 import type { ComponentProps } from "react";
 
-type ButtonProps = ComponentProps<"button"> & {
+type ButtonProps = {
   variant: "primary" | "secondary";
-};
+} & ComponentProps<"button">;
 
-export function Button({ variant, className, ...props }: ButtonProps) {
+export function Button({ variant, className, type = "button", ...props }: ButtonProps) {
   return (
     <button
+      type={type}
       className={twMerge(
         className,
-        "inline-flex gap-1 rounded-2xl px-3 py-1.5",
+        "inline-flex items-center justify-center gap-1 rounded-2xl px-3 py-1.5",
         "transition-shadow not-disabled:hover:shadow",
         variant === "primary" && "bg-accent text-surface disabled:bg-accent-muted",
         variant === "secondary" &&
