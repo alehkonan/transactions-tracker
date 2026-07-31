@@ -1,8 +1,8 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
+import { getAccounts } from "~/api/account.functions";
 import { Card } from "~/components/Card";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
-import { getAccounts } from "~/utils/account.functions";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
