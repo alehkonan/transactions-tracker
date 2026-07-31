@@ -27,7 +27,7 @@ export function CheckHeadersStep({ csv }: Props) {
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-2">
         <Title variant="section">Accounts</Title>
-        <div className="grid min-h-32 grid-cols-[auto_1fr] gap-4">
+        <div className="grid h-48 grid-cols-[auto_1fr] gap-4">
           <Select
             multiple
             value={accountColumns}
@@ -36,7 +36,7 @@ export function CheckHeadersStep({ csv }: Props) {
             }
             options={csv.headers}
           />
-          <div className="border-border bg-surface-muted flex flex-1 flex-wrap gap-2 rounded-xl border p-3">
+          <div className="border-border bg-surface-muted flex flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
             {accountValues.length > 0 ? (
               accountValues.map((value) => (
                 <span
@@ -57,7 +57,7 @@ export function CheckHeadersStep({ csv }: Props) {
       </section>
       <section className="flex flex-col gap-2">
         <Title variant="section">Categories</Title>
-        <div className="grid min-h-32 grid-cols-[auto_1fr] gap-4">
+        <div className="grid h-48 grid-cols-[auto_1fr] gap-4">
           <Select
             multiple
             value={categoryColumns}
@@ -66,7 +66,7 @@ export function CheckHeadersStep({ csv }: Props) {
             }
             options={csv.headers}
           />
-          <div className="border-border bg-surface-muted flex flex-1 flex-wrap gap-2 rounded-xl border p-3">
+          <div className="border-border bg-surface-muted flex flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
             {categoryValues.length > 0 ? (
               categoryValues.map((value) => (
                 <span
