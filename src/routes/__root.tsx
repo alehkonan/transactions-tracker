@@ -1,8 +1,7 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { Body } from "~/layout/Body";
-import { Header } from "~/layout/Header";
+import { Navbar } from "~/components/Navbar";
 import appCss from "~/styles.css?url";
 
 export const Route = createRootRoute({
@@ -20,8 +19,10 @@ export const Route = createRootRoute({
         <head>
           <HeadContent />
         </head>
-        <Body>
-          <Header />
+        <body className="bg-background min-h-dvh">
+          <header className="pointer-events-none sticky top-0 flex items-center justify-center p-4">
+            <Navbar />
+          </header>
           {children}
           <TanStackDevtools
             plugins={[
@@ -32,7 +33,7 @@ export const Route = createRootRoute({
             ]}
           />
           <Scripts />
-        </Body>
+        </body>
       </html>
     );
   },

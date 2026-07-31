@@ -1,13 +1,13 @@
-import { Link } from "@tanstack/react-router";
 import { ChartNoAxesCombinedIcon, LayoutDashboardIcon, ReceiptTextIcon } from "lucide-react";
-import { type ReactNode } from "react";
+import { type JSX } from "react";
 import { twJoin } from "tailwind-merge";
+import { NavLink } from "./Navlink";
 import type { FileRouteTypes } from "~/routeTree.gen";
 
 type NavItem = {
   to: FileRouteTypes["fullPaths"];
   label: string;
-  icon: ReactNode;
+  icon: JSX.Element;
 };
 
 const navItems: NavItem[] = [
@@ -34,26 +34,9 @@ export function Navbar() {
       <ul className={twJoin("bg-surface grid grid-flow-col-dense gap-1 rounded-2xl shadow")}>
         {navItems.map((link) => (
           <li key={link.to} className="p-0.5">
-            <Link
-              className="cursor-default"
-              to={link.to}
-              aria-label={link.label}
-              activeOptions={{ exact: link.to === "/" }}
-            >
-              {({ isActive }) => {
-                return (
-                  <span
-                    className={twJoin(
-                      "flex items-center gap-2 rounded-2xl px-3 py-2",
-                      isActive ? "text-surface bg-accent" : "text-text",
-                    )}
-                  >
-                    {link.icon}
-                    <span className="hidden sm:inline">{link.label}</span>
-                  </span>
-                );
-              }}
-            </Link>
+            <NavLink to={link.to} aria-label={link.label} icon={link.icon}>
+              {link.label}
+            </NavLink>
           </li>
         ))}
       </ul>

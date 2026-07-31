@@ -1,6 +1,6 @@
 import { PageContainer } from "~/components/PageContainer";
 
-export function NotFound() {
+export function NotFoundPage() {
   return (
     <PageContainer>
       <h1 className="text-text text-center text-2xl font-bold">Oops! Page not found</h1>
