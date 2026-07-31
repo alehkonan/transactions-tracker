@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button } from "~/components/Button";
+import { Chip } from "~/components/Chip";
 import { Select } from "~/components/Select";
 import { Title } from "~/components/Title";
 import { actions } from "./useTransactionsImport";
@@ -38,14 +39,7 @@ export function CheckHeadersStep({ csv }: Props) {
           />
           <div className="border-border bg-surface-muted flex flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
             {accountValues.length > 0 ? (
-              accountValues.map((value) => (
-                <span
-                  key={value}
-                  className="bg-surface border-border rounded-full border px-2 py-0.5 text-sm"
-                >
-                  {value}
-                </span>
-              ))
+              accountValues.map((value) => <Chip key={value}>{value}</Chip>)
             ) : (
               <span className="text-text-muted text-sm">Empty</span>
             )}
@@ -68,14 +62,7 @@ export function CheckHeadersStep({ csv }: Props) {
           />
           <div className="border-border bg-surface-muted flex flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
             {categoryValues.length > 0 ? (
-              categoryValues.map((value) => (
-                <span
-                  key={value}
-                  className="bg-surface border-border rounded-full border px-2 py-0.5 text-sm"
-                >
-                  {value}
-                </span>
-              ))
+              categoryValues.map((value) => <Chip key={value}>{value}</Chip>)
             ) : (
               <span className="text-text-muted text-sm">Empty</span>
             )}
