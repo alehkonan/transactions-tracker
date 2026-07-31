@@ -3,7 +3,7 @@ import { type DragEvent, useId, useRef, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
 type Props = {
-  file: File | null;
+  file?: File | null;
   onFileChange: (file: File | null) => void;
   accept?: string;
 };
@@ -22,7 +22,7 @@ function isAccepted(file: File, accept: string) {
   });
 }
 
-export function FileInput({ file, onFileChange, accept = "text/csv" }: Props) {
+export function FileInput({ file = null, onFileChange, accept = "text/csv" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
