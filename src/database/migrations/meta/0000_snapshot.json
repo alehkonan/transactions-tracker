@@ -1,5 +1,5 @@
 {
-  "id": "59477d32-e216-4223-bad5-4b07d013c563",
+  "id": "7bb87c21-f6ff-4d24-93ab-f7e0ee797cb6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -22,10 +22,10 @@
         },
         "balance": {
           "name": "balance",
-          "type": "real",
+          "type": "numeric(14, 2)",
           "primaryKey": false,
           "notNull": true,
-          "default": 0
+          "default": "'0'"
         },
         "type": {
           "name": "type",
@@ -102,30 +102,12 @@
           "primaryKey": true,
           "notNull": true
         },
-        "type": {
-          "name": "type",
-          "type": "transaction_type",
-          "typeSchema": "public",
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
-        },
-        "amount": {
-          "name": "amount",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "src_account_id": {
-          "name": "src_account_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dest_account_id": {
-          "name": "dest_account_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "now()"
         },
         "category_id": {
           "name": "category_id",
@@ -139,33 +121,77 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
+        },
+        "income_account_id": {
+          "name": "income_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "income_amount": {
+          "name": "income_amount",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "income_currency": {
+          "name": "income_currency",
+          "type": "currency_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome_account_id": {
+          "name": "outcome_account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome_amount": {
+          "name": "outcome_amount",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome_currency": {
+          "name": "outcome_currency",
+          "type": "currency_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "transactions_src_account_id_accounts_id_fk": {
-          "name": "transactions_src_account_id_accounts_id_fk",
-          "tableFrom": "transactions",
-          "tableTo": "accounts",
-          "columnsFrom": ["src_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "transactions_dest_account_id_accounts_id_fk": {
-          "name": "transactions_dest_account_id_accounts_id_fk",
-          "tableFrom": "transactions",
-          "tableTo": "accounts",
-          "columnsFrom": ["dest_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "transactions_category_id_categories_id_fk": {
           "name": "transactions_category_id_categories_id_fk",
           "tableFrom": "transactions",
           "tableTo": "categories",
           "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_income_account_id_accounts_id_fk": {
+          "name": "transactions_income_account_id_accounts_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "accounts",
+          "columnsFrom": ["income_account_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "transactions_outcome_account_id_accounts_id_fk": {
+          "name": "transactions_outcome_account_id_accounts_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "accounts",
+          "columnsFrom": ["outcome_account_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -198,11 +224,6 @@
       "name": "necessity_level",
       "schema": "public",
       "values": ["LOW", "MEDIUM", "HIGH", "ESSENTIAL"]
-    },
-    "public.transaction_type": {
-      "name": "transaction_type",
-      "schema": "public",
-      "values": ["INCOME", "OUTCOME", "TRANSFER", "DEBT"]
     }
   },
   "schemas": {},
