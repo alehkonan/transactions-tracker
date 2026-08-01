@@ -12,7 +12,15 @@ const globalForDb = globalThis as unknown as {
 
 export function getDb() {
   if (!globalForDb.db) {
-    const client = globalForDb.client ?? postgres(process.env.DATABASE_URL!, { prepare: false });
+    const client =
+      globalForDb.client ??
+      postgres({
+        user: process.env.POSTGRES_USER,
+        password: process.env.POSTGRES_PASSWORD,
+        host: process.env.POSTGRES_HOST,
+        port: Number(process.env.POSTGRES_PORT),
+        database: process.env.POSTGRES_DB,
+      });
     if (process.env.NODE_ENV !== "production") globalForDb.client = client;
     globalForDb.db = drizzle(client, { schema });
   }
