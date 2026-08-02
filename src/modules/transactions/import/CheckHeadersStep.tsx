@@ -65,7 +65,7 @@ export function CheckHeadersStep({ csv }: Props) {
         <Button variant="secondary" onClick={actions.reset}>
           Reset
         </Button>
-        <Button variant="primary" disabled={!canProceed}>
+        <Button variant="primary" disabled={!canProceed} onClick={actions.proceedToMapping}>
           Proceed
         </Button>
       </div>
