@@ -1,15 +1,45 @@
 import { createServerFn } from "@tanstack/react-start";
+import { eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { getDb } from "~/database/getDb.server";
-import { currencyCodeEnum, necessityLevelEnum, transactions } from "~/database/schema";
+import {
+  accounts,
+  categories,
+  currencyCodeEnum,
+  necessityLevelEnum,
+  transactions,
+} from "~/database/schema";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
+
+const incomeAccounts = alias(accounts, "income_accounts");
+const outcomeAccounts = alias(accounts, "outcome_accounts");
 
 export const getTransactions = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
   .handler(async () => {
-    return getDb().select().from(transactions);
+    return getDb()
+      .select({
+        id: transactions.id,
+        createdAt: transactions.createdAt,
+        category: categories.name,
+        necessityLevel: transactions.necessityLevel,
+        incomeAccount: incomeAccounts.name,
+        incomeAmount: transactions.incomeAmount,
+        incomeCurrency: transactions.incomeCurrency,
+        outcomeAccount: outcomeAccounts.name,
+        outcomeAmount: transactions.outcomeAmount,
+        outcomeCurrency: transactions.outcomeCurrency,
+        comment: transactions.comment,
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(incomeAccounts, eq(transactions.incomeAccountId, incomeAccounts.id))
+      .leftJoin(outcomeAccounts, eq(transactions.outcomeAccountId, outcomeAccounts.id));
   });
+
+export type TransactionRow = Awaited<ReturnType<typeof getTransactions>>[number];
 
 const transactionInputSchema = z.object({
   createdAt: z.string().optional(),
