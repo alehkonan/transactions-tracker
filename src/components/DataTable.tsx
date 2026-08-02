@@ -8,7 +8,7 @@ import {
   type RowData,
 } from "@tanstack/react-table";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 type Props<TData extends RowData> = {
   columns: ColumnDef<TData, any>[];
@@ -20,8 +20,12 @@ const defaultPagination = {
   pageSize: 10,
 } as const;
 
+const pageSizeOptions = [10, 20, 50, 100] as const;
+
 export function DataTable<TData extends RowData>({ columns, data }: Props<TData>) {
   const [pagination, setPagination] = useState<PaginationState>(defaultPagination);
+  const pageSizeId = useId();
+  const pageNumberId = useId();
 
   const table = useReactTable({
     columns,
@@ -74,19 +78,45 @@ export function DataTable<TData extends RowData>({ columns, data }: Props<TData>
         </tbody>
       </table>
       {data.length ? (
-        <div className="flex justify-between gap-1 p-2">
-          <select
-            name="page_number h-8"
-            value={pagination.pageIndex}
-            onChange={(e) => table.setPageIndex(+e.target.value)}
-            className="bg-surface border-border rounded-lg border p-1 transition-shadow hover:shadow"
-          >
-            {table.getPageOptions().map((pageOption) => (
-              <option key={pageOption} value={pageOption}>
-                {pageOption + 1}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-end justify-between gap-1 p-2">
+          <div className="flex items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label htmlFor={pageSizeId} className="text-text-muted text-xs">
+                Page size
+              </label>
+              <select
+                id={pageSizeId}
+                name="page_size"
+                value={pagination.pageSize}
+                onChange={(e) => table.setPageSize(+e.target.value)}
+                className="bg-surface border-border rounded-lg border p-1 transition-shadow hover:shadow"
+              >
+                {pageSizeOptions.map((pageSize) => (
+                  <option key={pageSize} value={pageSize}>
+                    {pageSize}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor={pageNumberId} className="text-text-muted text-xs">
+                Page number
+              </label>
+              <select
+                id={pageNumberId}
+                name="page_number"
+                value={pagination.pageIndex}
+                onChange={(e) => table.setPageIndex(+e.target.value)}
+                className="bg-surface border-border rounded-lg border p-1 transition-shadow hover:shadow"
+              >
+                {table.getPageOptions().map((pageOption) => (
+                  <option key={pageOption} value={pageOption}>
+                    {pageOption + 1}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="flex gap-1.5">
             <button
               className="border-border size-8 place-items-center rounded-lg border not-disabled:hover:shadow disabled:bg-transparent"
