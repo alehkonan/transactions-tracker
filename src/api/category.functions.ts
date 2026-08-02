@@ -4,18 +4,12 @@ import { getDb } from "~/database/getDb.server";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
 
-export const getAccounts = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(() => {
-    return getDb().query.accounts.findMany();
-  });
-
-export const checkAccountNames = createServerFn()
+export const checkCategoryNames = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
   .validator(z.record(z.string(), z.number().optional()))
   .handler(async ({ data: bindings }) => {
-    const res = await getDb().query.accounts.findMany({
-      where: (accounts, { inArray }) => inArray(accounts.name, Object.keys(bindings)),
+    const res = await getDb().query.categories.findMany({
+      where: (categories, { inArray }) => inArray(categories.name, Object.keys(bindings)),
       columns: { id: true, name: true },
     });
 

@@ -1,17 +1,33 @@
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { twJoin } from "tailwind-merge";
 import { Button } from "~/components/Button";
 import { Chip } from "~/components/Chip";
 import { Select } from "~/components/Select";
 import { Title } from "~/components/Title";
 
+type Bindings = Record<string, number | undefined>;
+
 type Props = {
   title: string;
   options: string[];
   getValues: (selectedOptions: string[]) => string[];
+  bindIds: (bindings: Bindings) => Promise<Bindings>;
 };
 
-export function CheckHeadersSection({ title, options, getValues }: Props) {
+export function CheckHeadersSection({ title, options, getValues, bindIds }: Props) {
+  const [isPending, startTransition] = useTransition();
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [bindings, setBindings] = useState<Bindings>({});
+
+  useEffect(() => {
+    setBindings(Object.fromEntries(getValues(selectedOptions).map((value) => [value, undefined])));
+  }, [selectedOptions, getValues]);
+
+  const handleCheck = () => {
+    startTransition(async () => {
+      setBindings(await bindIds(bindings));
+    });
+  };
 
   return (
     <section className="flex flex-col gap-2">
@@ -20,17 +36,29 @@ export function CheckHeadersSection({ title, options, getValues }: Props) {
         <Select
           multiple
           value={selectedOptions}
-          onChange={(e) => setSelectedOptions(Array.from(e.target.selectedOptions, (o) => o.value))}
+          onChange={(e) => {
+            setSelectedOptions(Array.from(e.target.selectedOptions, (o) => o.value));
+            setBindings({});
+          }}
           options={options}
         />
         <div className="border-border bg-surface-muted flex flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
-          {getValues(selectedOptions).map((value) => (
-            <Chip key={value}>{value}</Chip>
+          {Object.keys(bindings).map((value) => (
+            <Chip
+              key={value}
+              className={twJoin(
+                bindings[value] ? "border-accent text-accent" : "text-text-muted border-dashed",
+              )}
+            >
+              {value}
+            </Chip>
           ))}
         </div>
       </div>
       <footer className="flex justify-end">
-        <Button variant="secondary">Check in database</Button>
+        <Button variant="secondary" disabled={isPending} onClick={handleCheck}>
+          {isPending ? "Checking…" : "Check in database"}
+        </Button>
       </footer>
     </section>
   );
