@@ -4,28 +4,57 @@ import { Button } from "~/components/Button";
 import { Chip } from "~/components/Chip";
 import { Select } from "~/components/Select";
 import { Title } from "~/components/Title";
-
-type Bindings = Record<string, number | undefined>;
+import type { Bindings } from "./useTransactionsImport";
 
 type Props = {
   title: string;
   options: string[];
   getValues: (selectedOptions: string[]) => string[];
+  bindings: Bindings;
+  onBindingsChange: (bindings: Bindings) => void;
   bindIds: (bindings: Bindings) => Promise<Bindings>;
+  createMissing: (names: string[]) => Promise<{ id: number; name: string }[]>;
 };
 
-export function CheckHeadersSection({ title, options, getValues, bindIds }: Props) {
+export function CheckHeadersSection({
+  title,
+  options,
+  getValues,
+  bindings,
+  onBindingsChange,
+  bindIds,
+  createMissing,
+}: Props) {
   const [isPending, startTransition] = useTransition();
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [bindings, setBindings] = useState<Bindings>({});
+  const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {
-    setBindings(Object.fromEntries(getValues(selectedOptions).map((value) => [value, undefined])));
-  }, [selectedOptions, getValues]);
+    const initialBindings = Object.fromEntries(
+      getValues(selectedOptions).map((value) => [value, undefined]),
+    );
+    onBindingsChange(initialBindings);
+    setHasChecked(false);
 
-  const handleCheck = () => {
+    if (Object.keys(initialBindings).length === 0) return;
+
     startTransition(async () => {
-      setBindings(await bindIds(bindings));
+      onBindingsChange(await bindIds(initialBindings));
+      setHasChecked(true);
+    });
+  }, [selectedOptions, getValues, bindIds, onBindingsChange]);
+
+  const missingNames = Object.entries(bindings)
+    .filter(([, id]) => id === undefined)
+    .map(([name]) => name);
+
+  const handleCreateMissing = () => {
+    startTransition(async () => {
+      const created = await createMissing(missingNames);
+      onBindingsChange({
+        ...bindings,
+        ...Object.fromEntries(created.map(({ id, name }) => [name, id])),
+      });
     });
   };
 
@@ -36,10 +65,7 @@ export function CheckHeadersSection({ title, options, getValues, bindIds }: Prop
         <Select
           multiple
           value={selectedOptions}
-          onChange={(e) => {
-            setSelectedOptions(Array.from(e.target.selectedOptions, (o) => o.value));
-            setBindings({});
-          }}
+          onChange={(e) => setSelectedOptions(Array.from(e.target.selectedOptions, (o) => o.value))}
           options={options}
         />
         <div className="border-border bg-surface-muted flex flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
@@ -56,8 +82,12 @@ export function CheckHeadersSection({ title, options, getValues, bindIds }: Prop
         </div>
       </div>
       <footer className="flex justify-end">
-        <Button variant="secondary" disabled={isPending} onClick={handleCheck}>
-          {isPending ? "Checking…" : "Check in database"}
+        <Button
+          variant="secondary"
+          disabled={isPending || !hasChecked || missingNames.length === 0}
+          onClick={handleCreateMissing}
+        >
+          Add missing ({missingNames.length})
         </Button>
       </footer>
     </section>
