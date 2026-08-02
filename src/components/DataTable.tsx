@@ -36,7 +36,12 @@ export function DataTable<TData extends RowData>({ columns, data }: Props<TData>
 
   return (
     <div className="border-border bg-surface overflow-x-auto rounded-xl border">
-      <table className="w-full border-collapse">
+      <table className="w-full table-fixed border-collapse tabular-nums">
+        <colgroup>
+          {table.getVisibleLeafColumns().map((column) => (
+            <col key={column.id} style={{ width: column.getSize() }} />
+          ))}
+        </colgroup>
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id} className="border-border last-of-type:border-b">
@@ -45,7 +50,7 @@ export function DataTable<TData extends RowData>({ columns, data }: Props<TData>
                   <th
                     key={header.id}
                     colSpan={header.colSpan}
-                    className="border-border px-3 py-1 whitespace-nowrap not-last-of-type:border-r"
+                    className="border-border truncate px-3 py-1 not-last-of-type:border-r"
                   >
                     {header.isPlaceholder
                       ? null
@@ -60,7 +65,7 @@ export function DataTable<TData extends RowData>({ columns, data }: Props<TData>
           {table.getRowModel().rows.map((row) => (
             <tr key={row.id}>
               {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="border-border border-b px-3 py-1 whitespace-nowrap">
+                <td key={cell.id} className="border-border truncate border-b px-3 py-1">
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
               ))}
