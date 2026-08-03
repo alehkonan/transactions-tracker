@@ -33,6 +33,7 @@ type State = {
   accountBindings: Bindings;
   categoryBindings: Bindings;
   columnMapping: ColumnMapping;
+  uploadError?: string;
 };
 
 const initState: StateCreator<State> = () => ({
@@ -50,10 +51,18 @@ export const actions = {
   },
   uploadAndParse: async (file: File) => {
     const text = await file.text();
+    const csv = parseCsv(text);
+
+    if (csv.rows.length === 0) {
+      useTransactionsImport.setState({ uploadError: "This file has no data rows to import." });
+      return;
+    }
+
     useTransactionsImport.setState({
       fileName: file.name,
-      csv: parseCsv(text),
+      csv,
       step: "check",
+      uploadError: undefined,
     });
   },
   setAccountBindings: (accountBindings: Bindings) => {
