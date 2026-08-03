@@ -23,6 +23,7 @@ export const Select = ({
   label,
   className,
   id,
+  multiple,
   ...props
 }: Props) => {
   const generatedId = useId();
@@ -37,8 +38,12 @@ export const Select = ({
       )}
       <select
         id={selectId}
+        multiple={multiple}
         className={twMerge(
-          "border-border bg-surface text-text flex-1 rounded-lg border px-2 py-1.5",
+          "border-border bg-surface text-text rounded-lg border px-2",
+          // A multi-select is a listbox that should fill its container, not a
+          // single-line control matching Button/NavLink's fixed height.
+          multiple ? "h-full" : "h-9",
           className,
         )}
         {...props}

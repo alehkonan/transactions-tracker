@@ -10,7 +10,7 @@ export function Button({ variant, className, type = "button", ...props }: Button
     <button
       type={type}
       className={twMerge(
-        "inline-flex items-center justify-center gap-1 rounded-2xl px-3 py-1.5",
+        "inline-flex h-9 items-center justify-center gap-1 rounded-2xl px-3",
         "transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow",
         variant === "primary" && "bg-accent text-surface disabled:bg-accent-muted",
         variant === "secondary" &&
