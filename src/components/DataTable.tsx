@@ -6,13 +6,17 @@ import {
   type ColumnDef,
   type PaginationState,
   type RowData,
+  type RowSelectionState,
 } from "@tanstack/react-table";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { Checkbox } from "./Checkbox";
 
 type Props<TData extends RowData> = {
   columns: ColumnDef<TData, any>[];
   data: TData[];
+  enableRowSelection?: boolean;
+  onSelectionChange?: (selectedRows: TData[]) => void;
 };
 
 const defaultPagination = {
@@ -22,21 +26,60 @@ const defaultPagination = {
 
 const pageSizeOptions = [10, 20, 50, 100] as const;
 
-export function DataTable<TData extends RowData>({ columns, data }: Props<TData>) {
+const selectionColumn: ColumnDef<any, any> = {
+  id: "select",
+  size: 40,
+  header: ({ table }) => (
+    <Checkbox
+      checked={table.getIsAllPageRowsSelected()}
+      indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
+      onChange={table.getToggleAllPageRowsSelectedHandler()}
+    />
+  ),
+  cell: ({ row }) => (
+    <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+  ),
+};
+
+export function DataTable<TData extends RowData>({
+  columns,
+  data,
+  enableRowSelection,
+  onSelectionChange,
+}: Props<TData>) {
   const [pagination, setPagination] = useState<PaginationState>(defaultPagination);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const pageSizeId = useId();
   const pageNumberId = useId();
 
+  const tableColumns = useMemo(
+    () => (enableRowSelection ? [selectionColumn as ColumnDef<TData, any>, ...columns] : columns),
+    [columns, enableRowSelection],
+  );
+
   const table = useReactTable({
-    columns,
+    columns: tableColumns,
     data,
+    enableRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
     state: {
       pagination,
+      rowSelection,
     },
   });
+
+  // Selection only ever applies to the current page, and stale IDs from a
+  // previous page/data set shouldn't stay selected once either changes.
+  useEffect(() => {
+    setRowSelection({});
+  }, [data, pagination.pageIndex]);
+
+  useEffect(() => {
+    onSelectionChange?.(table.getSelectedRowModel().rows.map((row) => row.original));
+  }, [rowSelection, table, onSelectionChange]);
 
   return (
     <div className="border-border bg-surface overflow-x-auto rounded-xl border">
