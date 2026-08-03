@@ -16,4 +16,4 @@ pre-push:
       run: pnpm typecheck
 
     - name: test
-      run: pnpm test
+      run: pnpm test:unit

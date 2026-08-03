@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pnpm dev              # vite dev on http://localhost:5454 (host exposed on LAN)
 pnpm build            # production build (client + SSR) into dist/
 pnpm preview          # preview the production build (port 5454)
-pnpm test             # vitest run (no test files exist yet)
+pnpm test:unit        # vitest run (no test files exist yet)
+pnpm test:e2e         # playwright test — e2e/ (starts the dev server if not already running)
 pnpm typecheck        # tsc --noEmit
 pnpm lint             # oxlint  (lint:fix to autofix)
 pnpm format           # oxfmt

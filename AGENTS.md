@@ -43,7 +43,8 @@ across accounts. Full-stack SSR with a PostgreSQL database via Drizzle ORM.
 pnpm dev              # vite dev on http://localhost:5454 (host exposed on LAN)
 pnpm build            # production build (client + SSR) into dist/
 pnpm preview          # preview the production build (port 5454)
-pnpm test             # vitest run
+pnpm test:unit        # vitest run
+pnpm test:e2e         # playwright test
 pnpm typecheck        # tsc --noEmit
 pnpm lint             # oxlint  (lint:fix to autofix)
 pnpm format           # oxfmt
