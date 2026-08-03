@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@netlify/vite-plugin-tanstack-start": "^1.3.17",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/devtools-vite": "latest",
     "@tanstack/router-cli": "^1.167.21",
