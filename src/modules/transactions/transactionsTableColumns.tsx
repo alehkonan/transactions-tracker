@@ -1,3 +1,4 @@
+import { DeleteTransactionButton } from "~/modules/transactions/DeleteTransactionButton";
 import { NecessityLevelTag } from "~/modules/transactions/NecessityLevelTag";
 import { formatDateTime } from "~/utils/formatDate";
 import { formatMoney } from "~/utils/formatMoney";
@@ -62,5 +63,11 @@ export const transactionsTableColumns: ColumnDef<TransactionRow>[] = [
         cell: ({ row }) => formatMoney(row.original.outcomeAmount, row.original.outcomeCurrency),
       },
     ],
+  },
+  {
+    id: "actions",
+    header: "",
+    size: 60,
+    cell: ({ row }) => <DeleteTransactionButton id={row.original.id} />,
   },
 ];

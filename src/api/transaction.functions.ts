@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { getDb } from "~/database/getDb.server";
@@ -55,6 +55,14 @@ const transactionInputSchema = z.object({
 
 // Postgres allows at most 65535 bind parameters per query; each row here uses up to 8.
 const INSERT_CHUNK_SIZE = 1000;
+
+export const deleteTransactions = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(z.array(z.number()))
+  .handler(async ({ data: ids }) => {
+    if (ids.length === 0) return;
+    await getDb().delete(transactions).where(inArray(transactions.id, ids));
+  });
 
 export const createTransactions = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
