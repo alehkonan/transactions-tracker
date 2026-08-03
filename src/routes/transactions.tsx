@@ -30,17 +30,6 @@ export const Route = createFileRoute("/transactions")({
             {selectedRows.length > 0 && (
               <DeleteSelectedTransactionsButton ids={selectedRows.map((row) => row.id)} />
             )}
-            <Dialog
-              title="Add transaction"
-              renderTrigger={({ onOpen }) => (
-                <Button variant="primary" onClick={onOpen}>
-                  <PlusIcon />
-                  <span className="hidden sm:block">Add transaction</span>
-                </Button>
-              )}
-            >
-              <TransactionForm />
-            </Dialog>
             <NavLink
               className="border-border bg-surface border"
               to="/transactions-import"
@@ -48,6 +37,17 @@ export const Route = createFileRoute("/transactions")({
             >
               Import
             </NavLink>
+            <Dialog
+              title="Add transaction"
+              renderTrigger={({ onOpen }) => (
+                <Button variant="primary" onClick={onOpen}>
+                  <PlusIcon />
+                  <span className="hidden sm:block">Add</span>
+                </Button>
+              )}
+            >
+              <TransactionForm />
+            </Dialog>
           </div>
         </div>
         <div className="py-4" />
