@@ -4,7 +4,16 @@ const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
 
 export const accountTypeEnum = pgEnum("account_type", ["CURRENT", "SAVING"]);
 export const accountStatusEnum = pgEnum("account_status", ["ACTIVE", "ARCHIVED"]);
-export const currencyCodeEnum = pgEnum("currency_code", ["USD", "GEL"]);
+export const currencyCodeEnum = pgEnum("currency_code", [
+  "USD",
+  "GEL",
+  "BYN",
+  "KZT",
+  "RUB",
+  "TRY",
+  "EUR",
+  "UZS",
+]);
 export const necessityLevelEnum = pgEnum("necessity_level", ["LOW", "MEDIUM", "HIGH", "ESSENTIAL"]);
 
 export const accounts = pgTable("accounts", {
