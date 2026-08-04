@@ -6,6 +6,12 @@ import { categoriesTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
 
+export const getCategories = createServerFn()
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(() => {
+    return getDb().query.categoriesTable.findMany();
+  });
+
 export const checkCategoryNames = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
   .validator(z.record(z.string(), z.number().optional()))

@@ -1,6 +1,8 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { PlusIcon, UploadIcon } from "lucide-react";
 import { useState } from "react";
+import { getAccounts } from "~/api/account.functions";
+import { getCategories } from "~/api/category.functions";
 import { getTransactions, type TransactionRow } from "~/api/transaction.functions";
 import { Button } from "~/components/Button";
 import { DataTable } from "~/components/DataTable";
@@ -13,11 +15,16 @@ import { TransactionForm } from "~/modules/transactions/TransactionForm";
 import { transactionsTableColumns } from "~/modules/transactions/transactionsTableColumns";
 
 export const Route = createFileRoute("/transactions")({
-  loader: () => {
-    return getTransactions();
+  loader: async () => {
+    const [transactions, accounts, categories] = await Promise.all([
+      getTransactions(),
+      getAccounts(),
+      getCategories(),
+    ]);
+    return { transactions, accounts, categories };
   },
   component: () => {
-    const transactions = useLoaderData({
+    const { transactions, accounts, categories } = useLoaderData({
       from: "/transactions",
     });
     const [selectedRows, setSelectedRows] = useState<TransactionRow[]>([]);
@@ -46,7 +53,7 @@ export const Route = createFileRoute("/transactions")({
                 </Button>
               )}
             >
-              <TransactionForm />
+              <TransactionForm accounts={accounts} categories={categories} />
             </Dialog>
           </div>
         </div>
