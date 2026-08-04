@@ -46,7 +46,7 @@ export function Dialog({ children, renderTrigger, title, requireAction }: Props)
           <BaseDialog.Backdrop
             className={twJoin(
               "fixed inset-0 bg-black/50 transition-opacity duration-150",
-              "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
+              "data-ending-style:opacity-0 data-starting-style:opacity-0",
             )}
           />
           <BaseDialog.Viewport className="fixed inset-0 flex items-center justify-center p-4">
@@ -54,8 +54,8 @@ export function Dialog({ children, renderTrigger, title, requireAction }: Props)
               className={twJoin(
                 "border-border bg-surface max-h-[85dvh] w-full overflow-y-auto rounded-xl border p-4 sm:w-2xl",
                 "transition-[opacity,transform] duration-150",
-                "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
-                "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
+                "data-ending-style:scale-95 data-ending-style:opacity-0",
+                "data-starting-style:scale-95 data-starting-style:opacity-0",
               )}
             >
               <Title variant="card">{title}</Title>

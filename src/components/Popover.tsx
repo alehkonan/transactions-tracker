@@ -38,8 +38,8 @@ export function Popover({ children, renderTrigger }: Props) {
               className={twJoin(
                 "border-border bg-surface text-text m-0 rounded-xl border p-3 shadow-lg",
                 "transition-[opacity,transform] duration-150 ease-out",
-                "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
-                "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
+                "data-starting-style:scale-95 data-starting-style:opacity-0",
+                "data-ending-style:scale-95 data-ending-style:opacity-0",
               )}
             >
               {children}

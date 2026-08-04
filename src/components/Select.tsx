@@ -95,7 +95,7 @@ export function Select({
         className={twMerge(
           "border-border bg-surface text-text flex h-9 items-center justify-between gap-2 rounded-lg border px-2",
           "transition-shadow hover:shadow",
-          "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
+          "data-disabled:cursor-not-allowed data-disabled:opacity-50",
           className,
         )}
       >
@@ -127,7 +127,7 @@ export function Select({
               <BaseSelect.Item
                 key={item.value}
                 value={item.value}
-                className="data-[highlighted]:bg-surface-muted flex cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm"
+                className="data-highlighted:bg-surface-muted flex cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm"
               >
                 <BaseSelect.ItemIndicator className="text-accent">
                   <CheckIcon className="size-4" />

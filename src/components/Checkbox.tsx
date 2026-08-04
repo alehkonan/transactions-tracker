@@ -29,8 +29,8 @@ export function Checkbox({
         "focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2",
         disabled ? "cursor-not-allowed" : "cursor-pointer",
         !disabled && "hover:shadow",
-        "data-[checked]:bg-accent data-[checked]:border-accent",
-        "data-[indeterminate]:bg-accent data-[indeterminate]:border-accent",
+        "data-checked:bg-accent data-checked:border-accent",
+        "data-indeterminate:bg-accent data-indeterminate:border-accent",
         disabled && "bg-surface-muted",
         className,
       )}
