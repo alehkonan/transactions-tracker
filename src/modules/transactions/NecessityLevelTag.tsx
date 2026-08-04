@@ -7,7 +7,7 @@ type Props = {
   level: NecessityLevel;
 };
 
-const necessityLevelStyles: Record<NecessityLevel, string> = {
+export const necessityLevelStyles: Record<NecessityLevel, string> = {
   LOW: "bg-red-100 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/40",
   MEDIUM:
     "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/40",

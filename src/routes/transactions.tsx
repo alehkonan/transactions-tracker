@@ -1,6 +1,6 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { PlusIcon, UploadIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { getAccounts } from "~/api/account.functions";
 import { getCategories } from "~/api/category.functions";
 import { getTransactions, type TransactionRow } from "~/api/transaction.functions";
@@ -10,9 +10,9 @@ import { Dialog } from "~/components/Dialog";
 import { NavLink } from "~/components/NavLink";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
+import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
 import { DeleteSelectedTransactionsButton } from "~/modules/transactions/DeleteSelectedTransactionsButton";
-import { TransactionForm } from "~/modules/transactions/TransactionForm";
-import { transactionsTableColumns } from "~/modules/transactions/transactionsTableColumns";
+import { buildTransactionsTableColumns } from "~/modules/transactions/transactionsTableColumns";
 
 export const Route = createFileRoute("/transactions")({
   loader: async () => {
@@ -28,6 +28,10 @@ export const Route = createFileRoute("/transactions")({
       from: "/transactions",
     });
     const [selectedRows, setSelectedRows] = useState<TransactionRow[]>([]);
+    const columns = useMemo(
+      () => buildTransactionsTableColumns({ accounts, categories }),
+      [accounts, categories],
+    );
 
     return (
       <PageContainer>
@@ -59,7 +63,7 @@ export const Route = createFileRoute("/transactions")({
         </div>
         <div className="py-4" />
         <DataTable
-          columns={transactionsTableColumns}
+          columns={columns}
           data={transactions}
           enableRowSelection
           onSelectionChange={setSelectedRows}
