@@ -1,42 +1,30 @@
 import { createServerFn } from "@tanstack/react-start";
 import { eq, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
+import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
-import {
-  accounts,
-  categories,
-  currencyCodeEnum,
-  necessityLevelEnum,
-  transactions,
-} from "~/database/schema";
+import { accountsTable, categoriesTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
-
-const incomeAccounts = alias(accounts, "income_accounts");
-const outcomeAccounts = alias(accounts, "outcome_accounts");
 
 export const getTransactions = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
   .handler(async () => {
     return getDb()
       .select({
-        id: transactions.id,
-        createdAt: transactions.createdAt,
-        category: categories.name,
-        necessityLevel: transactions.necessityLevel,
-        incomeAccount: incomeAccounts.name,
-        incomeAmount: transactions.incomeAmount,
-        incomeCurrency: transactions.incomeCurrency,
-        outcomeAccount: outcomeAccounts.name,
-        outcomeAmount: transactions.outcomeAmount,
-        outcomeCurrency: transactions.outcomeCurrency,
-        comment: transactions.comment,
+        id: transactionsTable.id,
+        createdAt: transactionsTable.createdAt,
+        category: categoriesTable.name,
+        necessityLevel: transactionsTable.necessityLevel,
+        type: transactionsTable.type,
+        account: accountsTable.name,
+        amount: transactionsTable.amount,
+        currencyCode: accountsTable.currencyCode,
+        comment: transactionsTable.comment,
       })
-      .from(transactions)
-      .leftJoin(categories, eq(transactions.categoryId, categories.id))
-      .leftJoin(incomeAccounts, eq(transactions.incomeAccountId, incomeAccounts.id))
-      .leftJoin(outcomeAccounts, eq(transactions.outcomeAccountId, outcomeAccounts.id));
+      .from(transactionsTable)
+      .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
+      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id));
   });
 
 export type TransactionRow = Awaited<ReturnType<typeof getTransactions>>[number];
@@ -45,15 +33,13 @@ const transactionInputSchema = z.object({
   createdAt: z.string().optional(),
   categoryId: z.number().optional(),
   necessityLevel: z.enum(necessityLevelEnum.enumValues).optional(),
-  incomeAccountId: z.number().optional(),
-  incomeAmount: z.string().optional(),
-  incomeCurrency: z.enum(currencyCodeEnum.enumValues).optional(),
-  outcomeAccountId: z.number().optional(),
-  outcomeAmount: z.string().optional(),
-  outcomeCurrency: z.enum(currencyCodeEnum.enumValues).optional(),
+  type: z.enum(transactionTypeEnum.enumValues),
+  accountId: z.number().optional(),
+  amount: z.string(),
+  comment: z.string().optional(),
 });
 
-// Postgres allows at most 65535 bind parameters per query; each row here uses up to 8.
+// Postgres allows at most 65535 bind parameters per query; each row here uses up to 6.
 const INSERT_CHUNK_SIZE = 1000;
 
 export const deleteTransactions = createServerFn({ method: "POST" })
@@ -61,7 +47,7 @@ export const deleteTransactions = createServerFn({ method: "POST" })
   .validator(z.array(z.number()))
   .handler(async ({ data: ids }) => {
     if (ids.length === 0) return;
-    await getDb().delete(transactions).where(inArray(transactions.id, ids));
+    await getDb().delete(transactionsTable).where(inArray(transactionsTable.id, ids));
   });
 
 export const createTransactions = createServerFn({ method: "POST" })
@@ -77,7 +63,7 @@ export const createTransactions = createServerFn({ method: "POST" })
 
     const db = getDb();
     for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
-      await db.insert(transactions).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
+      await db.insert(transactionsTable).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
     }
 
     return { count: inputs.length };

@@ -31,38 +31,20 @@ export const transactionsTableColumns: ColumnDef<TransactionRow>[] = [
     },
   },
   {
-    id: "income",
-    header: "From",
-    columns: [
-      {
-        accessorKey: "incomeAccount",
-        header: "Account",
-        size: 140,
-      },
-      {
-        id: "incomeAmount",
-        header: "Amount",
-        size: 100,
-        cell: ({ row }) => formatMoney(row.original.incomeAmount, row.original.incomeCurrency),
-      },
-    ],
+    accessorKey: "type",
+    header: "Type",
+    size: 100,
   },
   {
-    id: "to",
-    header: "To",
-    columns: [
-      {
-        accessorKey: "outcomeAccount",
-        header: "Account",
-        size: 140,
-      },
-      {
-        id: "outcomeAmount",
-        header: "Amount",
-        size: 100,
-        cell: ({ row }) => formatMoney(row.original.outcomeAmount, row.original.outcomeCurrency),
-      },
-    ],
+    accessorKey: "account",
+    header: "Account",
+    size: 140,
+  },
+  {
+    id: "amount",
+    header: "Amount",
+    size: 100,
+    cell: ({ row }) => formatMoney(row.original.amount, row.original.currencyCode),
   },
   {
     id: "actions",

@@ -1,5 +1,5 @@
 import { twMerge } from "tailwind-merge";
-import { necessityLevelEnum } from "~/database/schema";
+import { necessityLevelEnum } from "~/database/enums";
 
 type NecessityLevel = (typeof necessityLevelEnum.enumValues)[number];
 

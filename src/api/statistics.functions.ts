@@ -1,30 +1,22 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "~/database/getDb.server";
-import { accounts, transactions } from "~/database/schema";
+import { accountsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currencyRates.server";
 import { loggerMiddleware } from "./logger.middleware";
 
-// "No amount" is stored as either NULL or a literal 0, depending on import source.
-const hasOutcome = sql`${transactions.outcomeAmount} is not null and ${transactions.outcomeAmount}::numeric != 0`;
-const hasNoIncome = or(
-  isNull(transactions.incomeAmount),
-  sql`${transactions.incomeAmount}::numeric = 0`,
-);
-
-// Spending = an outcome with no matching income. Both set = a transfer between own
-// accounts; income only = income. Neither counts as spending.
-const isSpending = and(hasOutcome, hasNoIncome);
+// TRANSFER rows move money between own accounts and don't count as spending or income.
+const isSpending = eq(transactionsTable.type, "EXPENSE");
 
 export const getAvailableSpendingMonths = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
   .handler(async () => {
-    const monthExpr = sql<string>`date_trunc('month', ${transactions.createdAt})`;
+    const monthExpr = sql<string>`date_trunc('month', ${transactionsTable.createdAt})`;
     const rows = await getDb()
       .selectDistinct({ month: monthExpr })
-      .from(transactions)
+      .from(transactionsTable)
       .where(isSpending)
       .orderBy(sql`${monthExpr} desc`);
 
@@ -52,23 +44,19 @@ export const getMonthlySpendingTrend = createServerFn()
     const monthEnd = new Date(Date.UTC(year, monthNum, 1));
     const daysInMonth = (monthEnd.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24);
 
-    // Some imported rows have no per-transaction outcome_currency; fall back to the
-    // outcome account's own currency in that case.
     const rows = await getDb()
       .select({
-        day: sql<number>`extract(day from ${transactions.createdAt})`,
-        amount: transactions.outcomeAmount,
-        currency: sql<
-          string | null
-        >`coalesce(${transactions.outcomeCurrency}, ${accounts.currencyCode})`,
+        day: sql<number>`extract(day from ${transactionsTable.createdAt})`,
+        amount: transactionsTable.amount,
+        currency: accountsTable.currencyCode,
       })
-      .from(transactions)
-      .leftJoin(accounts, eq(transactions.outcomeAccountId, accounts.id))
+      .from(transactionsTable)
+      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
       .where(
         and(
           isSpending,
-          gte(transactions.createdAt, monthStart),
-          lt(transactions.createdAt, monthEnd),
+          gte(transactionsTable.createdAt, monthStart),
+          lt(transactionsTable.createdAt, monthEnd),
         ),
       );
 

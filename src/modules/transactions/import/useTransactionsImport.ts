@@ -18,10 +18,8 @@ export type ColumnMapping = {
   necessityLevel?: string;
   incomeAccountId?: string;
   incomeAmount?: string;
-  incomeCurrency?: string;
   outcomeAccountId?: string;
   outcomeAmount?: string;
-  outcomeCurrency?: string;
 };
 
 export type Step = "upload" | "check" | "map";

@@ -1,4 +1,4 @@
-import { currencyCodeEnum, necessityLevelEnum } from "~/database/schema";
+import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import type { Bindings, ColumnMapping } from "./useTransactionsImport";
 import type { ParsedCsv } from "~/utils/parseCsv";
 
@@ -25,7 +25,7 @@ export function getMappedValue(csv: ParsedCsv, row: string[], header: string | u
 }
 
 type NecessityLevel = (typeof necessityLevelEnum.enumValues)[number];
-type CurrencyCode = (typeof currencyCodeEnum.enumValues)[number];
+type TransactionType = (typeof transactionTypeEnum.enumValues)[number];
 
 /** Narrows a raw CSV value to one of `values`, or `undefined` if it doesn't match any of them. */
 function toEnumValue<T extends string>(
@@ -41,45 +41,61 @@ export type TransactionInput = {
   createdAt?: string;
   categoryId?: number;
   necessityLevel?: NecessityLevel;
-  incomeAccountId?: number;
-  incomeAmount?: string;
-  incomeCurrency?: CurrencyCode;
-  outcomeAccountId?: number;
-  outcomeAmount?: string;
-  outcomeCurrency?: CurrencyCode;
+  type: TransactionType;
+  accountId?: number;
+  amount: string;
 };
 
-/** Builds one `transactions` insert row per CSV row, resolving account/category names to ids via the given bindings. */
+/**
+ * Builds one `transactionsTable` insert row per side of each CSV row: an outcome
+ * account/amount becomes an EXPENSE row and an income account/amount becomes an
+ * INCOME row on that account. Rows with both are transfers between own accounts,
+ * so both legs are tagged TRANSFER instead so they're excluded from spending/income
+ * statistics.
+ */
 export function buildTransactionInputs(
   csv: ParsedCsv,
   columnMapping: ColumnMapping,
   accountBindings: Bindings,
   categoryBindings: Bindings,
 ): TransactionInput[] {
-  return csv.rows.map((row) => {
+  const inputs: TransactionInput[] = [];
+
+  for (const row of csv.rows) {
     const category = getMappedValue(csv, row, columnMapping.category);
     const incomeAccount = getMappedValue(csv, row, columnMapping.incomeAccountId);
     const outcomeAccount = getMappedValue(csv, row, columnMapping.outcomeAccountId);
+    const incomeAmount = getMappedValue(csv, row, columnMapping.incomeAmount);
+    const outcomeAmount = getMappedValue(csv, row, columnMapping.outcomeAmount);
+    const isTransfer = incomeAccount !== undefined && outcomeAccount !== undefined;
 
-    return {
+    const shared = {
       createdAt: getMappedValue(csv, row, columnMapping.createdAt),
       categoryId: category ? categoryBindings[category] : undefined,
       necessityLevel: toEnumValue(
         necessityLevelEnum.enumValues,
         getMappedValue(csv, row, columnMapping.necessityLevel),
       ),
-      incomeAccountId: incomeAccount ? accountBindings[incomeAccount] : undefined,
-      incomeAmount: getMappedValue(csv, row, columnMapping.incomeAmount),
-      incomeCurrency: toEnumValue(
-        currencyCodeEnum.enumValues,
-        getMappedValue(csv, row, columnMapping.incomeCurrency),
-      ),
-      outcomeAccountId: outcomeAccount ? accountBindings[outcomeAccount] : undefined,
-      outcomeAmount: getMappedValue(csv, row, columnMapping.outcomeAmount),
-      outcomeCurrency: toEnumValue(
-        currencyCodeEnum.enumValues,
-        getMappedValue(csv, row, columnMapping.outcomeCurrency),
-      ),
     };
-  });
+
+    if (outcomeAccount !== undefined && outcomeAmount !== undefined) {
+      inputs.push({
+        ...shared,
+        type: isTransfer ? "TRANSFER" : "EXPENSE",
+        accountId: accountBindings[outcomeAccount],
+        amount: outcomeAmount,
+      });
+    }
+
+    if (incomeAccount !== undefined && incomeAmount !== undefined) {
+      inputs.push({
+        ...shared,
+        type: isTransfer ? "TRANSFER" : "INCOME",
+        accountId: accountBindings[incomeAccount],
+        amount: incomeAmount,
+      });
+    }
+  }
+
+  return inputs;
 }

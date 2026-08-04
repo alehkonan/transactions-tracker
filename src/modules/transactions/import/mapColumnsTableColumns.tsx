@@ -124,18 +124,6 @@ export function getMapColumnsTableColumns({
           ),
           cell: mappedCell("incomeAmount"),
         },
-        {
-          id: "incomeCurrency",
-          header: () => (
-            <HeaderCell
-              label="Currency"
-              csv={csv}
-              value={columnMapping.incomeCurrency}
-              onChange={(header) => onMappingChange("incomeCurrency", header)}
-            />
-          ),
-          cell: mappedCell("incomeCurrency"),
-        },
       ],
     },
     {
@@ -165,18 +153,6 @@ export function getMapColumnsTableColumns({
             />
           ),
           cell: mappedCell("outcomeAmount"),
-        },
-        {
-          id: "outcomeCurrency",
-          header: () => (
-            <HeaderCell
-              label="Currency"
-              csv={csv}
-              value={columnMapping.outcomeCurrency}
-              onChange={(header) => onMappingChange("outcomeCurrency", header)}
-            />
-          ),
-          cell: mappedCell("outcomeCurrency"),
         },
       ],
     },
