@@ -41,7 +41,7 @@ Path alias: `~/*` → `./src/*` (defined in `tsconfig.json`). Use it for all int
 - `src/routes/` — file-based routes; `__root.tsx` is the SSR shell. `routeTree.gen.ts` is **generated — never edit by hand**.
 - `src/api/` — server functions (`*.functions.ts`) and middleware (`*.middleware.ts`), created with `createServerFn`/`createMiddleware`.
 - `src/database/` — Drizzle schema (`schema.ts`), generated migrations (`migrations/`), and the `getDb()` singleton (`getDb.server.ts`).
-- `src/modules/<domain>/` — self-contained domain UI/logic, grouped by feature rather than file type (e.g. `transactions/TransactionForm.tsx`, `transactions/transactionsTableColumns.tsx`, `transactions/import/useTransactionsImport.ts`).
+- `src/modules/<domain>/` — self-contained domain UI/logic, grouped by feature rather than file type (e.g. `transactions/transactionsTableColumns.tsx`, `transactions/import/useTransactionsImport.ts`). A sub-feature that outgrows its parent domain folder gets promoted to its own sibling module (e.g. `transaction-form/` split out of `transactions/`).
 - `src/components/` — shared presentational primitives (`Button`, `Card`, `Dialog`, `Table`, `DataTable`, `Title`, …) and app chrome (`Navbar`, `NavLink`, `NotFoundPage`, `Loader`).
 - `src/utils/` — generic, framework-agnostic helpers with no server/DB dependency (e.g. `parseCsv.ts`).
 
