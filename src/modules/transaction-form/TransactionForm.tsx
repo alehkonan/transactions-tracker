@@ -1,11 +1,11 @@
-import { Field } from "@base-ui/react/field";
 import { Toggle } from "@base-ui/react/toggle";
-import { ToggleGroup } from "@base-ui/react/toggle-group";
 import { ArrowDownIcon } from "lucide-react";
-import { Controller } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
-import { Select } from "~/components/Select";
+import { InputControl } from "~/components/InputControl";
+import { SelectControl } from "~/components/SelectControl";
+import { TextareaControl } from "~/components/TextareaControl";
+import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { useTransactionForm } from "~/modules/transaction-form/useTransactionForm";
 import { necessityLevelStyles } from "~/modules/transactions/NecessityLevelTag";
@@ -57,11 +57,6 @@ function BalancePreview({ account, projectedBalance }: BalancePreviewProps) {
   );
 }
 
-function FieldErrorText({ message }: { message: string | undefined }) {
-  if (!message) return null;
-  return <p className="text-danger text-sm">{message}</p>;
-}
-
 export function TransactionForm({ accounts, categories, transaction }: Props) {
   const {
     form,
@@ -78,7 +73,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
     isPending,
     rootError,
   } = useTransactionForm({ accounts, transaction });
-  const { control, register, formState } = form;
+  const { control } = form;
 
   const activeAccountOptions = accounts
     .filter((account) => account.status === "ACTIVE")
@@ -94,82 +89,57 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-2">
-      <Field.Root className="flex flex-col gap-1">
-        <Controller
-          control={control}
-          name="type"
-          render={({ field }) => (
-            <ToggleGroup
-              aria-label="Type"
-              value={[field.value]}
-              onValueChange={([value]) => value && field.onChange(value)}
-              className="border-border bg-surface flex gap-1 rounded-lg border p-1"
-            >
-              {typeOptions.map((option) => (
-                <Toggle
-                  key={option.value}
-                  value={option.value}
-                  className="text-text data-[pressed]:bg-accent data-[pressed]:text-surface not-data-[pressed]:hover:bg-surface-muted h-9 flex-1 rounded-md px-3 text-sm transition-colors"
-                >
-                  {option.label}
-                </Toggle>
-              ))}
-            </ToggleGroup>
-          )}
-        />
-      </Field.Root>
+      <ToggleGroupControl
+        control={control}
+        name="type"
+        aria-label="Type"
+        className="border-border bg-surface flex gap-1 rounded-lg border p-1"
+      >
+        {typeOptions.map((option) => (
+          <Toggle
+            key={option.value}
+            value={option.value}
+            className="text-text data-pressed:bg-accent data-pressed:text-surface not-data-pressed:hover:bg-surface-muted h-9 flex-1 rounded-md px-3 text-sm transition-colors"
+          >
+            {option.label}
+          </Toggle>
+        ))}
+      </ToggleGroupControl>
 
       {type !== "TRANSFER" && (
         <div className="grid grid-cols-2 gap-3">
-          <Field.Root className="flex flex-col gap-1">
-            <Field.Label className="text-text text-sm font-bold">Category</Field.Label>
-            <Controller
-              control={control}
-              name="categoryId"
-              render={({ field }) => (
-                <Select
-                  name="categoryId"
-                  value={field.value}
-                  onValueChange={(value) => field.onChange(value ?? "")}
-                  options={categoryOptions}
-                  placeholder="None"
-                />
-              )}
-            />
-          </Field.Root>
+          <SelectControl
+            control={control}
+            name="categoryId"
+            label="Category"
+            options={categoryOptions}
+            placeholder="None"
+          />
 
-          <Field.Root className="flex flex-col gap-1">
-            <Field.Label className="text-text text-sm font-bold">Necessity</Field.Label>
-            <Controller
-              control={control}
-              name="necessityLevel"
-              render={({ field }) => (
-                <ToggleGroup
-                  aria-label="Necessity"
-                  value={field.value ? [field.value] : []}
-                  onValueChange={([value]) => field.onChange(value ?? "")}
-                  className="border-border bg-surface flex h-9 items-center gap-1 rounded-lg border p-1"
-                >
-                  {necessityOptions.map((option) => (
-                    <Toggle
-                      key={option.value}
-                      value={option.value}
-                      className={(toggleState) =>
-                        twMerge(
-                          "h-full flex-1 rounded-md border border-transparent text-sm capitalize transition-colors",
-                          toggleState.pressed
-                            ? necessityLevelStyles[option.value]
-                            : "text-text-muted hover:bg-surface-muted",
-                        )
-                      }
-                    >
-                      {option.label}
-                    </Toggle>
-                  ))}
-                </ToggleGroup>
-              )}
-            />
-          </Field.Root>
+          <ToggleGroupControl
+            control={control}
+            name="necessityLevel"
+            label="Necessity"
+            aria-label="Necessity"
+            className="border-border bg-surface flex h-9 items-center gap-1 rounded-lg border p-1"
+          >
+            {necessityOptions.map((option) => (
+              <Toggle
+                key={option.value}
+                value={option.value}
+                className={(toggleState) =>
+                  twMerge(
+                    "h-full flex-1 rounded-md border border-transparent text-sm capitalize transition-colors",
+                    toggleState.pressed
+                      ? necessityLevelStyles[option.value]
+                      : "text-text-muted hover:bg-surface-muted",
+                  )
+                }
+              >
+                {option.label}
+              </Toggle>
+            ))}
+          </ToggleGroupControl>
         </div>
       )}
 
@@ -177,38 +147,26 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         <div className="flex flex-col gap-1">
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <Field.Root className="flex flex-col gap-1">
-                <Field.Label className="text-text text-sm font-bold">Account</Field.Label>
-                <Controller
+              <div className="flex flex-col gap-1">
+                <SelectControl
                   control={control}
                   name="accountId"
+                  label="Account"
                   rules={{ required: "Account is required." }}
-                  render={({ field, fieldState }) => (
-                    <>
-                      <Select
-                        name="accountId"
-                        value={field.value}
-                        onValueChange={(value) => field.onChange(value ?? "")}
-                        options={activeAccountOptions}
-                        placeholder="Select account"
-                      />
-                      <FieldErrorText message={fieldState.error?.message} />
-                    </>
-                  )}
+                  options={activeAccountOptions}
+                  placeholder="Select account"
                 />
                 <BalancePreview account={selectedAccount} projectedBalance={projectedBalance} />
-              </Field.Root>
-              <Field.Root className="flex flex-col gap-1">
-                <Field.Label className="text-text text-sm font-bold">Amount</Field.Label>
-                <Field.Control
-                  className="border-border bg-surface text-text h-9 rounded-lg border px-2"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  {...register("amount", { required: "Amount is required." })}
-                />
-                <FieldErrorText message={formState.errors.amount?.message} />
-              </Field.Root>
+              </div>
+              <InputControl
+                control={control}
+                name="amount"
+                label="Amount"
+                rules={{ required: "Amount is required." }}
+                type="number"
+                step="0.01"
+                min="0.01"
+              />
             </div>
           </div>
 
@@ -216,95 +174,58 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <Field.Root className="flex flex-col gap-1">
-                <Field.Label className="text-text text-sm font-bold">Account</Field.Label>
-                <Controller
+              <div className="flex flex-col gap-1">
+                <SelectControl
                   control={control}
                   name="toAccountId"
+                  label="Account"
                   rules={{ required: "Account is required." }}
-                  render={({ field, fieldState }) => (
-                    <>
-                      <Select
-                        name="toAccountId"
-                        value={field.value}
-                        onValueChange={(value) => field.onChange(value ?? "")}
-                        options={activeAccountOptions}
-                        placeholder="Select account"
-                      />
-                      <FieldErrorText message={fieldState.error?.message} />
-                    </>
-                  )}
+                  options={activeAccountOptions}
+                  placeholder="Select account"
                 />
                 <BalancePreview account={selectedToAccount} projectedBalance={projectedToBalance} />
-              </Field.Root>
-              <Field.Root className="flex flex-col gap-1">
-                <Field.Label className="text-text text-sm font-bold">Amount</Field.Label>
-                <Field.Control
-                  className="border-border bg-surface text-text h-9 rounded-lg border px-2"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  {...register("toAmount", {
-                    required: "Amount is required.",
-                    onChange: markToAmountTouched,
-                  })}
-                />
-                <FieldErrorText message={formState.errors.toAmount?.message} />
-              </Field.Root>
+              </div>
+              <InputControl
+                control={control}
+                name="toAmount"
+                label="Amount"
+                rules={{ required: "Amount is required." }}
+                type="number"
+                step="0.01"
+                min="0.01"
+                onChange={markToAmountTouched}
+              />
             </div>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          <Field.Root className="flex flex-col gap-1">
-            <Field.Label className="text-text text-sm font-bold">Account</Field.Label>
-            <Controller
+          <div className="flex flex-col gap-1">
+            <SelectControl
               control={control}
               name="accountId"
+              label="Account"
               rules={{ required: "Account is required." }}
-              render={({ field, fieldState }) => (
-                <>
-                  <Select
-                    name="accountId"
-                    value={field.value}
-                    onValueChange={(value) => field.onChange(value ?? "")}
-                    options={activeAccountOptions}
-                    placeholder="Select account"
-                  />
-                  <FieldErrorText message={fieldState.error?.message} />
-                </>
-              )}
+              options={activeAccountOptions}
+              placeholder="Select account"
             />
             <BalancePreview account={selectedAccount} projectedBalance={projectedBalance} />
-          </Field.Root>
-          <Field.Root className="flex flex-col gap-1">
-            <Field.Label className="text-text text-sm font-bold">Amount</Field.Label>
-            <Field.Control
-              className="border-border bg-surface text-text h-9 rounded-lg border px-2"
-              type="number"
-              step="0.01"
-              min="0.01"
-              {...register("amount", { required: "Amount is required." })}
-            />
-            <FieldErrorText message={formState.errors.amount?.message} />
-          </Field.Root>
+          </div>
+          <InputControl
+            control={control}
+            name="amount"
+            label="Amount"
+            rules={{ required: "Amount is required." }}
+            type="number"
+            step="0.01"
+            min="0.01"
+          />
         </div>
       )}
 
-      <Field.Root className="flex flex-col gap-1">
-        <Field.Label className="text-text text-sm font-bold">Comment</Field.Label>
-        <Field.Control
-          render={
-            <textarea
-              rows={3}
-              className="border-border bg-surface text-text resize-none rounded-lg border px-2 py-2"
-            />
-          }
-          {...register("comment")}
-        />
-      </Field.Root>
+      <TextareaControl control={control} name="comment" label="Comment" rows={3} />
 
-      <FieldErrorText message={rootError} />
+      {rootError && <p className="text-danger text-sm">{rootError}</p>}
 
       <footer className="mt-2 flex justify-center gap-2">
         <Button className="min-w-20" variant="secondary" type="button" onClick={onClose}>
