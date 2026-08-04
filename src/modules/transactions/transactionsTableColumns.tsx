@@ -1,6 +1,7 @@
 import { DeleteTransactionButton } from "~/modules/transactions/DeleteTransactionButton";
 import { EditTransactionButton } from "~/modules/transactions/EditTransactionButton";
 import { NecessityLevelTag } from "~/modules/transactions/NecessityLevelTag";
+import { TransactionTypeTag } from "~/modules/transactions/TransactionTypeTag";
 import { formatDateTime } from "~/utils/formatDate";
 import { formatMoney } from "~/utils/formatMoney";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -46,6 +47,11 @@ export function buildTransactionsTableColumns({
       accessorKey: "type",
       header: "Type",
       size: 100,
+      cell: ({ getValue }) => (
+        <div className="flex justify-center">
+          <TransactionTypeTag type={getValue<TransactionRow["type"]>()} />
+        </div>
+      ),
     },
     {
       accessorKey: "account",

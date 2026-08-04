@@ -9,6 +9,10 @@ import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { useTransactionForm } from "~/modules/transaction-form/useTransactionForm";
 import { necessityLevelStyles } from "~/modules/transactions/NecessityLevelTag";
+import {
+  transactionTypeIcons,
+  transactionTypeStyles,
+} from "~/modules/transactions/TransactionTypeTag";
 import { formatMoney } from "~/utils/formatMoney";
 import type { getAccounts } from "~/api/account.functions";
 import type { getCategories } from "~/api/category.functions";
@@ -95,15 +99,26 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         aria-label="Type"
         className="border-border bg-surface flex gap-1 rounded-lg border p-1"
       >
-        {typeOptions.map((option) => (
-          <Toggle
-            key={option.value}
-            value={option.value}
-            className="text-text data-pressed:bg-accent data-pressed:text-surface not-data-pressed:hover:bg-surface-muted h-9 flex-1 rounded-md px-3 text-sm transition-colors"
-          >
-            {option.label}
-          </Toggle>
-        ))}
+        {typeOptions.map((option) => {
+          const Icon = transactionTypeIcons[option.value];
+          return (
+            <Toggle
+              key={option.value}
+              value={option.value}
+              className={(toggleState) =>
+                twMerge(
+                  "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors",
+                  toggleState.pressed
+                    ? transactionTypeStyles[option.value]
+                    : "text-text-muted hover:bg-surface-muted",
+                )
+              }
+            >
+              <Icon className="size-4" />
+              {option.label}
+            </Toggle>
+          );
+        })}
       </ToggleGroupControl>
 
       {type !== "TRANSFER" && (
