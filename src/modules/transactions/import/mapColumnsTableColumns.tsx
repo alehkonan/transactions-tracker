@@ -29,9 +29,9 @@ function HeaderCell({
     <div className="flex flex-col gap-1 py-1 text-left font-normal">
       <span>{label}</span>
       <Select
-        value={value ?? ""}
+        value={value}
         placeholder="Not mapped"
-        onChange={(e) => onChange(e.target.value || undefined)}
+        onValueChange={onChange}
         options={csv.headers}
       />
     </div>

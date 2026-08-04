@@ -1,12 +1,5 @@
-import {
-  cloneElement,
-  createContext,
-  useId,
-  useMemo,
-  useRef,
-  type JSX,
-  type ReactNode,
-} from "react";
+import { Popover as BasePopover } from "@base-ui/react/popover";
+import { createContext, useMemo, useState, type JSX, type ReactNode } from "react";
 import { twJoin } from "tailwind-merge";
 
 type PopoverContextProps = {
@@ -25,38 +18,35 @@ export const PopoverContext = createContext<PopoverContextProps>({
 });
 
 export function Popover({ children, renderTrigger }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  const anchorName = `--popover-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const [open, setOpen] = useState(false);
 
   const contextProps = useMemo<PopoverContextProps>(
     () => ({
-      onOpen: () => ref.current?.showPopover(),
-      onClose: () => ref.current?.hidePopover(),
+      onOpen: () => setOpen(true),
+      onClose: () => setOpen(false),
     }),
     [],
   );
 
-  const trigger = renderTrigger(contextProps);
-
   return (
     <PopoverContext value={contextProps}>
-      {cloneElement(trigger, {
-        style: { ...trigger.props.style, anchorName },
-      })}
-      <div
-        ref={ref}
-        popover="auto"
-        style={{ positionAnchor: anchorName, positionArea: "bottom" }}
-        className={twJoin(
-          "border-border bg-surface text-text m-0 rounded-xl border p-3 shadow-lg",
-          "mt-1",
-          "scale-95 opacity-0 open:scale-100 open:opacity-100",
-          "starting:open:scale-95 starting:open:opacity-0",
-          "transition-[opacity,scale,display,overlay] transition-discrete duration-150 ease-out",
-        )}
-      >
-        {children}
-      </div>
+      <BasePopover.Root open={open} onOpenChange={setOpen}>
+        <BasePopover.Trigger render={renderTrigger(contextProps)} />
+        <BasePopover.Portal>
+          <BasePopover.Positioner sideOffset={4}>
+            <BasePopover.Popup
+              className={twJoin(
+                "border-border bg-surface text-text m-0 rounded-xl border p-3 shadow-lg",
+                "transition-[opacity,transform] duration-150 ease-out",
+                "data-[starting-style]:scale-95 data-[starting-style]:opacity-0",
+                "data-[ending-style]:scale-95 data-[ending-style]:opacity-0",
+              )}
+            >
+              {children}
+            </BasePopover.Popup>
+          </BasePopover.Positioner>
+        </BasePopover.Portal>
+      </BasePopover.Root>
     </PopoverContext>
   );
 }

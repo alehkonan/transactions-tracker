@@ -11,6 +11,7 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Checkbox } from "./Checkbox";
+import { Select } from "./Select";
 
 type Props<TData extends RowData> = {
   columns: ColumnDef<TData, any>[];
@@ -33,11 +34,14 @@ const selectionColumn: ColumnDef<any, any> = {
     <Checkbox
       checked={table.getIsAllPageRowsSelected()}
       indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
-      onChange={table.getToggleAllPageRowsSelectedHandler()}
+      onCheckedChange={(checked) => table.toggleAllPageRowsSelected(checked)}
     />
   ),
   cell: ({ row }) => (
-    <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+    <Checkbox
+      checked={row.getIsSelected()}
+      onCheckedChange={(checked) => row.toggleSelected(checked)}
+    />
   ),
 };
 
@@ -127,37 +131,28 @@ export function DataTable<TData extends RowData>({
               <label htmlFor={pageSizeId} className="text-text-muted text-xs">
                 Page size
               </label>
-              <select
+              <Select
                 id={pageSizeId}
-                name="page_size"
-                value={pagination.pageSize}
-                onChange={(e) => table.setPageSize(+e.target.value)}
-                className="bg-surface border-border rounded-lg border p-1 transition-shadow hover:shadow"
-              >
-                {pageSizeOptions.map((pageSize) => (
-                  <option key={pageSize} value={pageSize}>
-                    {pageSize}
-                  </option>
-                ))}
-              </select>
+                value={String(pagination.pageSize)}
+                onValueChange={(v) => v && table.setPageSize(+v)}
+                options={pageSizeOptions.map((pageSize) => String(pageSize))}
+                className="h-auto p-1"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor={pageNumberId} className="text-text-muted text-xs">
                 Page number
               </label>
-              <select
+              <Select
                 id={pageNumberId}
-                name="page_number"
-                value={pagination.pageIndex}
-                onChange={(e) => table.setPageIndex(+e.target.value)}
-                className="bg-surface border-border rounded-lg border p-1 transition-shadow hover:shadow"
-              >
-                {table.getPageOptions().map((pageOption) => (
-                  <option key={pageOption} value={pageOption}>
-                    {pageOption + 1}
-                  </option>
-                ))}
-              </select>
+                value={String(pagination.pageIndex)}
+                onValueChange={(v) => v && table.setPageIndex(+v)}
+                options={table.getPageOptions().map((pageOption) => ({
+                  value: String(pageOption),
+                  label: String(pageOption + 1),
+                }))}
+                className="h-auto p-1"
+              />
             </div>
           </div>
           <div className="flex gap-1.5">

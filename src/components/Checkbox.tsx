@@ -1,10 +1,14 @@
+import { Checkbox as BaseCheckbox } from "@base-ui/react/checkbox";
 import { CheckIcon, MinusIcon } from "lucide-react";
-import { useEffect, useRef, type ComponentProps } from "react";
 import { twMerge } from "tailwind-merge";
 
 type CheckboxProps = {
+  checked?: boolean;
   indeterminate?: boolean;
-} & ComponentProps<"input">;
+  disabled?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  className?: string;
+};
 
 /** Checkbox styled to match the `Button` secondary variant. */
 export function Checkbox({
@@ -12,45 +16,28 @@ export function Checkbox({
   indeterminate = false,
   checked,
   disabled,
-  ...props
+  onCheckedChange,
 }: CheckboxProps) {
-  const ref = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = indeterminate;
-  }, [indeterminate]);
-
   return (
-    <label
+    <BaseCheckbox.Root
+      checked={checked}
+      indeterminate={indeterminate}
+      disabled={disabled}
+      onCheckedChange={onCheckedChange}
       className={twMerge(
-        "flex w-fit",
+        "border-border bg-surface grid size-5 shrink-0 place-items-center rounded-md border transition-shadow",
+        "focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2",
         disabled ? "cursor-not-allowed" : "cursor-pointer",
+        !disabled && "hover:shadow",
+        "data-[checked]:bg-accent data-[checked]:border-accent",
+        "data-[indeterminate]:bg-accent data-[indeterminate]:border-accent",
+        disabled && "bg-surface-muted",
         className,
       )}
     >
-      <input
-        ref={ref}
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        className="peer sr-only"
-        {...props}
-      />
-      <span
-        className={twMerge(
-          "border-border bg-surface grid size-5 shrink-0 place-items-center rounded-md border transition-shadow",
-          "peer-focus-visible:ring-accent peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2",
-          !disabled && "hover:shadow",
-          (checked || indeterminate) && "bg-accent border-accent",
-          disabled && "bg-surface-muted",
-        )}
-      >
-        {indeterminate ? (
-          <MinusIcon size={14} className="text-surface" />
-        ) : checked ? (
-          <CheckIcon size={14} className="text-surface" />
-        ) : null}
-      </span>
-    </label>
+      <BaseCheckbox.Indicator className="text-surface flex">
+        {indeterminate ? <MinusIcon size={14} /> : <CheckIcon size={14} />}
+      </BaseCheckbox.Indicator>
+    </BaseCheckbox.Root>
   );
 }

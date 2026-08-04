@@ -61,14 +61,16 @@ export function CheckHeadersSection({
   return (
     <section className="flex flex-col gap-2">
       <Title variant="section">{title}</Title>
-      <div className="grid h-48 gap-4 sm:grid-cols-[auto_1fr]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <Select
           multiple
           value={selectedOptions}
-          onChange={(e) => setSelectedOptions(Array.from(e.target.selectedOptions, (o) => o.value))}
+          onValueChange={setSelectedOptions}
           options={options}
+          placeholder="Choose columns"
+          className="sm:w-56"
         />
-        <div className="border-border bg-surface-muted flex flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
+        <div className="border-border bg-surface-muted flex h-48 flex-1 flex-wrap content-start items-start gap-2 overflow-auto rounded-xl border p-3">
           {Object.keys(bindings).map((value) => (
             <Chip
               key={value}

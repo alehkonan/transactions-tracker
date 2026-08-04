@@ -127,11 +127,7 @@ export function SpendingTrendCard({ months, month, trend }: Props) {
             >
               <ChevronLeftIcon />
             </Button>
-            <Select
-              options={months}
-              value={month}
-              onChange={(event) => goToMonth(event.target.value)}
-            />
+            <Select options={months} value={month} onValueChange={(v) => v && goToMonth(v)} />
             <Button
               variant="secondary"
               aria-label="Next month"
