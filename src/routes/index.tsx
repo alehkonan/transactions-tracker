@@ -3,6 +3,7 @@ import { getAccounts } from "~/api/account.functions";
 import { Card } from "~/components/Card";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
+import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -19,7 +20,10 @@ export const Route = createFileRoute("/")({
       <PageContainer>
         <div className="grid gap-2 md:grid-cols-2">
           <Card>
-            <Title variant="card">Active accounts</Title>
+            <div className="flex items-center justify-between">
+              <Title variant="card">Active accounts</Title>
+              <ReconcileBalancesButton />
+            </div>
             {accounts.length === 0 ? (
               <p>No accounts yet.</p>
             ) : (
