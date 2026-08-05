@@ -5,7 +5,9 @@ import { Card } from "~/components/Card";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { DeleteAccountButton } from "~/modules/accounts/DeleteAccountButton";
+import { DeleteAllAccountsButton } from "~/modules/accounts/DeleteAllAccountsButton";
 import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
+import { DeleteAllCategoriesButton } from "~/modules/categories/DeleteAllCategoriesButton";
 import { DeleteCategoryButton } from "~/modules/categories/DeleteCategoryButton";
 
 export const Route = createFileRoute("/")({
@@ -26,8 +28,12 @@ export const Route = createFileRoute("/")({
           <Card>
             <div className="flex items-center justify-between">
               <Title variant="card">Active accounts</Title>
-              <ReconcileBalancesButton />
+              <div className="flex items-center gap-2">
+                <ReconcileBalancesButton />
+                <DeleteAllAccountsButton disabled={accounts.length === 0} />
+              </div>
             </div>
+            <hr className="border-border my-3" />
             {accounts.length === 0 ? (
               <p>No accounts yet.</p>
             ) : (
@@ -44,7 +50,11 @@ export const Route = createFileRoute("/")({
             )}
           </Card>
           <Card>
-            <Title variant="card">Categories</Title>
+            <div className="flex items-center justify-between">
+              <Title variant="card">Categories</Title>
+              <DeleteAllCategoriesButton disabled={categories.length === 0} />
+            </div>
+            <hr className="border-border my-3" />
             {categories.length === 0 ? (
               <p>No categories yet.</p>
             ) : (

@@ -25,3 +25,10 @@ export const deleteCategory = createServerFn({ method: "POST" })
   .handler(async ({ data: id }) => {
     await getDb().delete(categoriesTable).where(eq(categoriesTable.id, id));
   });
+
+/** Deletes every category; transactions referencing them have their category cleared (set null). */
+export const deleteAllCategories = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(async () => {
+    await getDb().delete(categoriesTable);
+  });

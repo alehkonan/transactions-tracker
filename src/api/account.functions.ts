@@ -20,6 +20,13 @@ export const deleteAccount = createServerFn({ method: "POST" })
     await getDb().delete(accountsTable).where(eq(accountsTable.id, id));
   });
 
+/** Deletes every account; all transactions cascade-delete with them. */
+export const deleteAllAccounts = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(async () => {
+    await getDb().delete(accountsTable);
+  });
+
 /**
  * Recomputes every account's balance from the sum of its transactions. `balance` is normally
  * kept in sync incrementally by the transaction mutations, so this is only needed to fix drift
