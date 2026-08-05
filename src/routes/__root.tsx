@@ -1,3 +1,4 @@
+import { Toast } from "@base-ui/react/toast";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
   HeadContent,
@@ -9,6 +10,7 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { getSelectedProfileId } from "~/api/profile.functions";
 import { Navbar } from "~/components/Navbar";
+import { Toaster } from "~/components/Toaster";
 import appCss from "~/styles.css?url";
 
 export const Route = createRootRoute({
@@ -35,12 +37,15 @@ export const Route = createRootRoute({
           <HeadContent />
         </head>
         <body className="bg-background min-h-dvh">
-          {pathname !== "/profile" && (
-            <header className="pointer-events-none sticky top-0 flex items-center justify-center p-4">
-              <Navbar />
-            </header>
-          )}
-          {children}
+          <Toast.Provider>
+            {pathname !== "/profile" && (
+              <header className="pointer-events-none sticky top-0 flex items-center justify-center p-4">
+                <Navbar />
+              </header>
+            )}
+            {children}
+            <Toaster />
+          </Toast.Provider>
           <TanStackDevtools
             plugins={[
               {
