@@ -34,6 +34,16 @@ export const Route = createFileRoute("/transactions")({
       () => buildTransactionsTableColumns({ accounts, categories }),
       [accounts, categories],
     );
+    const transactionsByDay = useMemo(() => {
+      const byDay = new Map<string, TransactionRow[]>();
+      for (const row of transactions) {
+        const day = getDayKey(row.createdAt);
+        const dayRows = byDay.get(day);
+        if (dayRows) dayRows.push(row);
+        else byDay.set(day, [row]);
+      }
+      return byDay;
+    }, [transactions]);
 
     return (
       <PageContainer>
@@ -70,7 +80,9 @@ export const Route = createFileRoute("/transactions")({
           enableRowSelection
           onSelectionChange={setSelectedRows}
           groupBy={(row) => getDayKey(row.createdAt)}
-          renderGroupSummary={(rows) => <DaySummary rows={rows} />}
+          renderGroupSummary={(day) => (
+            <DaySummary rows={transactionsByDay.get(day as string) ?? []} />
+          )}
         />
       </PageContainer>
     );

@@ -21,8 +21,8 @@ type Props<TData extends RowData> = {
   onSelectionChange?: (selectedRows: TData[]) => void;
   /** Groups consecutive rows sharing a key; a bold divider is drawn where the key changes. */
   groupBy?: (data: TData) => string | number | undefined;
-  /** Renders a full-width summary row after each `groupBy` group, given that group's rows. */
-  renderGroupSummary?: (rows: TData[]) => ReactNode;
+  /** Renders a full-width summary row after each `groupBy` group, given that group's key. */
+  renderGroupSummary?: (groupKey: string | number) => ReactNode;
 };
 
 const defaultPagination = {
@@ -95,23 +95,20 @@ export function DataTable<TData extends RowData>({
   const bodyRows = table.getRowModel().rows;
   const visibleColumnCount = table.getVisibleLeafColumns().length;
   const tableRows: ReactNode[] = [];
-  let groupStart = 0;
 
   bodyRows.forEach((row, index) => {
-    const isGroupBoundary =
-      groupBy !== undefined &&
-      index > 0 &&
-      groupBy(row.original) !== groupBy(bodyRows[index - 1].original);
+    const previousGroupKey = index > 0 ? groupBy?.(bodyRows[index - 1].original) : undefined;
+    const groupKey = groupBy?.(row.original);
+    const isGroupBoundary = groupBy !== undefined && index > 0 && groupKey !== previousGroupKey;
 
-    if (isGroupBoundary && renderGroupSummary) {
+    if (isGroupBoundary && renderGroupSummary && previousGroupKey !== undefined) {
       tableRows.push(
-        <tr key={`summary-${bodyRows[groupStart].id}`}>
+        <tr key={`summary-${bodyRows[index - 1].id}`}>
           <td colSpan={visibleColumnCount} className="bg-surface-muted px-3 py-1">
-            {renderGroupSummary(bodyRows.slice(groupStart, index).map((r) => r.original))}
+            {renderGroupSummary(previousGroupKey)}
           </td>
         </tr>,
       );
-      groupStart = index;
     }
 
     tableRows.push(
@@ -130,16 +127,6 @@ export function DataTable<TData extends RowData>({
       </tr>,
     );
   });
-
-  if (renderGroupSummary && groupBy && bodyRows.length > 0) {
-    tableRows.push(
-      <tr key={`summary-${bodyRows[groupStart].id}-end`}>
-        <td colSpan={visibleColumnCount} className="bg-surface-muted px-3 py-1">
-          {renderGroupSummary(bodyRows.slice(groupStart).map((r) => r.original))}
-        </td>
-      </tr>,
-    );
-  }
 
   return (
     <div className="border-border bg-surface overflow-x-auto rounded-xl border">
