@@ -1,3 +1,4 @@
+import { ApproxUsdTag } from "~/modules/transactions/ApproxUsdTag";
 import { CategoryTag } from "~/modules/transactions/CategoryTag";
 import { DeleteTransactionButton } from "~/modules/transactions/DeleteTransactionButton";
 import { EditTransactionButton } from "~/modules/transactions/EditTransactionButton";
@@ -67,8 +68,15 @@ export function buildTransactionsTableColumns({
     {
       id: "amount",
       header: "Amount",
-      size: 100,
-      cell: ({ row }) => formatMoney(row.original.amount, row.original.currencyCode),
+      size: 160,
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1.5">
+          {row.original.currencyCode !== "USD" && row.original.approxAmountUsd != null && (
+            <ApproxUsdTag amountUsd={row.original.approxAmountUsd} />
+          )}
+          <span>{formatMoney(row.original.amount, row.original.currencyCode)}</span>
+        </div>
+      ),
     },
     {
       id: "actions",

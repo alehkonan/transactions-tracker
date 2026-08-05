@@ -5,31 +5,44 @@ import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
 import { accountsTable, categoriesTable, colorsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
+import { getUsdRates } from "./currencyRates.server";
 import { loggerMiddleware } from "./logger.middleware";
 
 export const getTransactions = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
   .handler(async () => {
-    return getDb()
-      .select({
-        id: transactionsTable.id,
-        createdAt: transactionsTable.createdAt,
-        categoryId: transactionsTable.categoryId,
-        category: categoriesTable.name,
-        categoryColorHex: colorsTable.hex,
-        necessityLevel: transactionsTable.necessityLevel,
-        type: transactionsTable.type,
-        accountId: transactionsTable.accountId,
-        account: accountsTable.name,
-        amount: transactionsTable.amount,
-        currencyCode: accountsTable.currencyCode,
-        comment: transactionsTable.comment,
-      })
-      .from(transactionsTable)
-      .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
-      .leftJoin(colorsTable, eq(categoriesTable.colorId, colorsTable.id))
-      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
-      .orderBy(desc(transactionsTable.createdAt));
+    const [rows, rates] = await Promise.all([
+      getDb()
+        .select({
+          id: transactionsTable.id,
+          createdAt: transactionsTable.createdAt,
+          categoryId: transactionsTable.categoryId,
+          category: categoriesTable.name,
+          categoryColorHex: colorsTable.hex,
+          necessityLevel: transactionsTable.necessityLevel,
+          type: transactionsTable.type,
+          accountId: transactionsTable.accountId,
+          account: accountsTable.name,
+          amount: transactionsTable.amount,
+          currencyCode: accountsTable.currencyCode,
+          comment: transactionsTable.comment,
+        })
+        .from(transactionsTable)
+        .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
+        .leftJoin(colorsTable, eq(categoriesTable.colorId, colorsTable.id))
+        .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
+        .orderBy(desc(transactionsTable.createdAt)),
+      getUsdRates(),
+    ]);
+
+    return rows.map((row) =>
+      Object.assign(row, {
+        approxAmountUsd:
+          row.currencyCode != null
+            ? (Number(row.amount) / (rates[row.currencyCode] ?? 1)).toFixed(2)
+            : null,
+      }),
+    );
   });
 
 export type TransactionRow = Awaited<ReturnType<typeof getTransactions>>[number];
