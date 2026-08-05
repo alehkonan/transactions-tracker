@@ -25,7 +25,7 @@ const importRowSchema = z.object({
   incomeAccountName: z.string(),
   income: z.string(),
   incomeCurrencyShortTitle: z.string(),
-  changedDate: z.string(),
+  createdDate: z.string(),
 });
 
 export type ImportFailure = { row: number; reason: string };
@@ -201,9 +201,9 @@ export const importTransactions = createServerFn({ method: "POST" })
       rows.forEach((row, index) => {
         const rowNumber = index + 1;
 
-        const createdAt = new Date(row.changedDate);
-        if (!row.changedDate.trim() || Number.isNaN(createdAt.getTime())) {
-          failures.push({ row: rowNumber, reason: `Invalid date: "${row.changedDate}"` });
+        const createdAt = new Date(row.createdDate);
+        if (!row.createdDate.trim() || Number.isNaN(createdAt.getTime())) {
+          failures.push({ row: rowNumber, reason: `Invalid date: "${row.createdDate}"` });
           return;
         }
 

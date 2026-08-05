@@ -1,7 +1,7 @@
 import { create, type StateCreator } from "zustand";
 import { devtools } from "zustand/middleware";
 import { deleteTransactions } from "~/api/transaction.functions";
-import { importTransactions, type ImportReport } from "~/api/transactionsImport.functions";
+import { importTransactions, type ImportReport } from "~/api/transactions-import.functions";
 import { parseCsv } from "~/utils/parseCsv";
 import { csvToImportRows, getMissingHeaders, type ImportRow } from "./utils";
 

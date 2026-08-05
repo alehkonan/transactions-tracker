@@ -9,7 +9,7 @@ export const IMPORT_HEADERS = [
   "incomeAccountName",
   "income",
   "incomeCurrencyShortTitle",
-  "changedDate",
+  "createdDate",
 ] as const;
 
 export type ImportRow = Record<(typeof IMPORT_HEADERS)[number], string>;
