@@ -4,7 +4,7 @@ import { getCategories } from "~/api/category.functions";
 import { Card } from "~/components/Card";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
-import { DeleteAccountButton } from "~/modules/accounts/DeleteAccountButton";
+import { AccountCard } from "~/modules/accounts/AccountCard";
 import { DeleteAllAccountsButton } from "~/modules/accounts/DeleteAllAccountsButton";
 import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
 import { DeleteAllCategoriesButton } from "~/modules/categories/DeleteAllCategoriesButton";
@@ -37,16 +37,11 @@ export const Route = createFileRoute("/")({
             {accounts.length === 0 ? (
               <p>No accounts yet.</p>
             ) : (
-              <ul className="flex flex-col gap-1">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-2">
                 {accounts.map((account) => (
-                  <li key={account.id} className="flex items-center justify-between gap-2 py-1">
-                    <span>
-                      {account.name} — {account.balance} {account.currencyCode} ({account.status})
-                    </span>
-                    <DeleteAccountButton id={account.id} name={account.name} />
-                  </li>
+                  <AccountCard key={account.id} account={account} />
                 ))}
-              </ul>
+              </div>
             )}
           </Card>
           <Card>
