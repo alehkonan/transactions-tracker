@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import { getDb } from "~/database/getDb.server";
 import { accountsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
@@ -9,6 +10,14 @@ export const getAccounts = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
   .handler(() => {
     return getDb().query.accountsTable.findMany();
+  });
+
+/** Deletes an account; its transactions cascade-delete with it (see `transactionsTable.accountId`). */
+export const deleteAccount = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(z.number())
+  .handler(async ({ data: id }) => {
+    await getDb().delete(accountsTable).where(eq(accountsTable.id, id));
   });
 
 /**
