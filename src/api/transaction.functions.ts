@@ -42,21 +42,21 @@ const transactionInputSchema = z.object({
 });
 
 // Postgres allows at most 65535 bind parameters per query; each row here uses up to 6.
-const INSERT_CHUNK_SIZE = 1000;
+export const INSERT_CHUNK_SIZE = 1000;
 
 /** Sums decimal money strings via integer cents, to avoid floating-point drift from repeated addition. */
-function sumMoney(amounts: string[]): string {
+export function sumMoney(amounts: string[]): string {
   const totalCents = amounts.reduce((sum, amount) => sum + Math.round(Number(amount) * 100), 0);
   return (totalCents / 100).toFixed(2);
 }
 
-function negateMoney(amount: string): string {
+export function negateMoney(amount: string): string {
   const trimmed = amount.trim();
   return trimmed.startsWith("-") ? trimmed.slice(1) : `-${trimmed}`;
 }
 
 /** Groups signed amounts by the account they affect, dropping rows with no account. */
-function groupAmountsByAccount(
+export function groupAmountsByAccount(
   rows: { accountId?: number | null; amount: string }[],
 ): Map<number, string[]> {
   const byAccount = new Map<number, string[]>();
