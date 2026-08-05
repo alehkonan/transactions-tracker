@@ -9,7 +9,8 @@ import {
   type RowSelectionState,
 } from "@tanstack/react-table";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { twJoin } from "tailwind-merge";
 import { Checkbox } from "./Checkbox";
 import { Select } from "./Select";
 
@@ -18,6 +19,10 @@ type Props<TData extends RowData> = {
   data: TData[];
   enableRowSelection?: boolean;
   onSelectionChange?: (selectedRows: TData[]) => void;
+  /** Groups consecutive rows sharing a key; a bold divider is drawn where the key changes. */
+  groupBy?: (data: TData) => string | number | undefined;
+  /** Renders a full-width summary row after each `groupBy` group, given that group's rows. */
+  renderGroupSummary?: (rows: TData[]) => ReactNode;
 };
 
 const defaultPagination = {
@@ -50,6 +55,8 @@ export function DataTable<TData extends RowData>({
   data,
   enableRowSelection,
   onSelectionChange,
+  groupBy,
+  renderGroupSummary,
 }: Props<TData>) {
   const [pagination, setPagination] = useState<PaginationState>(defaultPagination);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -85,6 +92,55 @@ export function DataTable<TData extends RowData>({
     onSelectionChange?.(table.getSelectedRowModel().rows.map((row) => row.original));
   }, [rowSelection, table, onSelectionChange]);
 
+  const bodyRows = table.getRowModel().rows;
+  const visibleColumnCount = table.getVisibleLeafColumns().length;
+  const tableRows: ReactNode[] = [];
+  let groupStart = 0;
+
+  bodyRows.forEach((row, index) => {
+    const isGroupBoundary =
+      groupBy !== undefined &&
+      index > 0 &&
+      groupBy(row.original) !== groupBy(bodyRows[index - 1].original);
+
+    if (isGroupBoundary && renderGroupSummary) {
+      tableRows.push(
+        <tr key={`summary-${bodyRows[groupStart].id}`}>
+          <td colSpan={visibleColumnCount} className="bg-surface-muted px-3 py-1">
+            {renderGroupSummary(bodyRows.slice(groupStart, index).map((r) => r.original))}
+          </td>
+        </tr>,
+      );
+      groupStart = index;
+    }
+
+    tableRows.push(
+      <tr key={row.id}>
+        {row.getVisibleCells().map((cell) => (
+          <td
+            key={cell.id}
+            className={twJoin(
+              "border-border truncate border-b px-3 py-1",
+              isGroupBoundary && "border-t-text-muted/40 border-t-2",
+            )}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        ))}
+      </tr>,
+    );
+  });
+
+  if (renderGroupSummary && groupBy && bodyRows.length > 0) {
+    tableRows.push(
+      <tr key={`summary-${bodyRows[groupStart].id}-end`}>
+        <td colSpan={visibleColumnCount} className="bg-surface-muted px-3 py-1">
+          {renderGroupSummary(bodyRows.slice(groupStart).map((r) => r.original))}
+        </td>
+      </tr>,
+    );
+  }
+
   return (
     <div className="border-border bg-surface overflow-x-auto rounded-xl border">
       <table className="w-full table-fixed border-collapse tabular-nums">
@@ -112,17 +168,7 @@ export function DataTable<TData extends RowData>({
             </tr>
           ))}
         </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id} className="border-border truncate border-b px-3 py-1">
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
+        <tbody>{tableRows}</tbody>
       </table>
       {data.length ? (
         <div className="flex items-end justify-between gap-1 p-2">
