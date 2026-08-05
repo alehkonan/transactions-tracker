@@ -4,6 +4,7 @@ import { z } from "zod";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
 import { accountsTable, categoriesTable, colorsTable, transactionsTable } from "~/database/tables";
+import { toCsv } from "~/utils/toCsv";
 import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
@@ -50,6 +51,30 @@ export const getTransactions = createServerFn()
   });
 
 export type TransactionRow = Awaited<ReturnType<typeof getTransactions>>[number];
+
+/** Exports the selected profile's transactions as CSV, with account/category ids replaced by names. */
+export const exportTransactionsToCsv = createServerFn()
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(async () => {
+    const transactions = await getTransactions();
+
+    const rows = transactions.map((row) => [
+      row.createdAt.toISOString(),
+      row.type,
+      row.account,
+      row.category,
+      row.necessityLevel,
+      row.amount,
+      row.currencyCode,
+      row.comment,
+    ]);
+
+    const csv = toCsv(
+      ["Date", "Type", "Account", "Category", "Necessity level", "Amount", "Currency", "Comment"],
+      rows,
+    );
+    return { csv, count: transactions.length };
+  });
 
 const transactionInputSchema = z.object({
   createdAt: z.string().optional(),

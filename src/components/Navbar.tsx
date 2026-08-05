@@ -1,4 +1,9 @@
-import { ChartNoAxesCombinedIcon, LayoutDashboardIcon, ReceiptTextIcon } from "lucide-react";
+import {
+  ChartNoAxesCombinedIcon,
+  LayoutDashboardIcon,
+  ReceiptTextIcon,
+  SettingsIcon,
+} from "lucide-react";
 import { type JSX } from "react";
 import { twJoin } from "tailwind-merge";
 import { NavLink } from "./NavLink";
@@ -25,6 +30,11 @@ const navItems: NavItem[] = [
     to: "/statistics",
     label: "Statistics",
     icon: <ChartNoAxesCombinedIcon />,
+  },
+  {
+    to: "/settings",
+    label: "Settings",
+    icon: <SettingsIcon />,
   },
 ];
 

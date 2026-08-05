@@ -1,5 +1,5 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
-import { PlusIcon, UploadIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getAccounts } from "~/api/account.functions";
 import { getCategories } from "~/api/category.functions";
@@ -7,7 +7,6 @@ import { getTransactions, type TransactionRow } from "~/api/transaction.function
 import { Button } from "~/components/Button";
 import { DataTable } from "~/components/DataTable";
 import { Dialog } from "~/components/Dialog";
-import { NavLink } from "~/components/NavLink";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
@@ -53,13 +52,6 @@ export const Route = createFileRoute("/transactions")({
             {selectedRows.length > 0 && (
               <DeleteSelectedTransactionsButton ids={selectedRows.map((row) => row.id)} />
             )}
-            <NavLink
-              className="border-border bg-surface border"
-              to="/transactions-import"
-              icon={<UploadIcon />}
-            >
-              Import
-            </NavLink>
             <Dialog
               title="Add transaction"
               renderTrigger={({ onOpen }) => (
