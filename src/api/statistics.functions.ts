@@ -4,20 +4,24 @@ import { z } from "zod";
 import { getDb } from "~/database/getDb.server";
 import { accountsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
-import { getUsdRates } from "./currencyRates.server";
+import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
+import { profileMiddleware } from "./profile.middleware";
 
 // TRANSFER rows move money between own accounts and don't count as spending or income.
 const isSpending = eq(transactionsTable.type, "EXPENSE");
 
 export const getAvailableSpendingMonths = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(async () => {
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
+  .handler(async ({ context }) => {
+    if (context.profileId == null) return [];
+
     const monthExpr = sql<string>`date_trunc('month', ${transactionsTable.createdAt})`;
     const rows = await getDb()
       .selectDistinct({ month: monthExpr })
       .from(transactionsTable)
-      .where(isSpending)
+      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
+      .where(and(isSpending, eq(accountsTable.profileId, context.profileId)))
       .orderBy(sql`${monthExpr} desc`);
 
     return rows.map(({ month }) => {
@@ -36,29 +40,33 @@ export const getAvailableSpendingMonths = createServerFn()
 const monthInputSchema = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) });
 
 export const getMonthlySpendingTrend = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(monthInputSchema)
-  .handler(async ({ data: { month } }) => {
+  .handler(async ({ data: { month }, context }) => {
     const [year, monthNum] = month.split("-").map(Number);
     const monthStart = new Date(Date.UTC(year, monthNum - 1, 1));
     const monthEnd = new Date(Date.UTC(year, monthNum, 1));
     const daysInMonth = (monthEnd.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24);
 
-    const rows = await getDb()
-      .select({
-        day: sql<number>`extract(day from ${transactionsTable.createdAt})`,
-        amount: transactionsTable.amount,
-        currency: accountsTable.currencyCode,
-      })
-      .from(transactionsTable)
-      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
-      .where(
-        and(
-          isSpending,
-          gte(transactionsTable.createdAt, monthStart),
-          lt(transactionsTable.createdAt, monthEnd),
-        ),
-      );
+    const rows =
+      context.profileId == null
+        ? []
+        : await getDb()
+            .select({
+              day: sql<number>`extract(day from ${transactionsTable.createdAt})`,
+              amount: transactionsTable.amount,
+              currency: accountsTable.currencyCode,
+            })
+            .from(transactionsTable)
+            .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
+            .where(
+              and(
+                isSpending,
+                eq(accountsTable.profileId, context.profileId),
+                gte(transactionsTable.createdAt, monthStart),
+                lt(transactionsTable.createdAt, monthEnd),
+              ),
+            );
 
     const rates = await getUsdRates();
     const dailyUsd = Array.from({ length: daysInMonth }, () => 0);

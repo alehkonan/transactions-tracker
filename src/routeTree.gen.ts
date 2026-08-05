@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as TransactionsImportRouteImport } from './routes/transactions-import'
@@ -17,6 +19,16 @@ import { Route as TransactionsImportRouteImport } from './routes/transactions-im
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatisticsRoute = StatisticsRouteImport.update({
@@ -37,12 +49,16 @@ const TransactionsImportRoute = TransactionsImportRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
   '/transactions': typeof TransactionsRoute
   '/transactions-import': typeof TransactionsImportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
   '/transactions': typeof TransactionsRoute
   '/transactions-import': typeof TransactionsImportRoute
@@ -50,21 +66,43 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
   '/transactions': typeof TransactionsRoute
   '/transactions-import': typeof TransactionsImportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/statistics' | '/transactions' | '/transactions-import'
+  fullPaths:
+    | '/'
+    | '/profile'
+    | '/settings'
+    | '/statistics'
+    | '/transactions'
+    | '/transactions-import'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/statistics' | '/transactions' | '/transactions-import'
+  to:
+    | '/'
+    | '/profile'
+    | '/settings'
+    | '/statistics'
+    | '/transactions'
+    | '/transactions-import'
   id:
-    '__root__' | '/' | '/statistics' | '/transactions' | '/transactions-import'
+    | '__root__'
+    | '/'
+    | '/profile'
+    | '/settings'
+    | '/statistics'
+    | '/transactions'
+    | '/transactions-import'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ProfileRoute: typeof ProfileRoute
+  SettingsRoute: typeof SettingsRoute
   StatisticsRoute: typeof StatisticsRoute
   TransactionsRoute: typeof TransactionsRoute
   TransactionsImportRoute: typeof TransactionsImportRoute
@@ -77,6 +115,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/statistics': {
@@ -105,6 +157,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ProfileRoute: ProfileRoute,
+  SettingsRoute: SettingsRoute,
   StatisticsRoute: StatisticsRoute,
   TransactionsRoute: TransactionsRoute,
   TransactionsImportRoute: TransactionsImportRoute,

@@ -5,12 +5,15 @@ import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
 import { accountsTable, categoriesTable, colorsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
-import { getUsdRates } from "./currencyRates.server";
+import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
+import { profileMiddleware } from "./profile.middleware";
 
 export const getTransactions = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(async () => {
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
+  .handler(async ({ context }) => {
+    if (context.profileId == null) return [];
+
     const [rows, rates] = await Promise.all([
       getDb()
         .select({
@@ -31,6 +34,7 @@ export const getTransactions = createServerFn()
         .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
         .leftJoin(colorsTable, eq(categoriesTable.colorId, colorsTable.id))
         .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
+        .where(eq(accountsTable.profileId, context.profileId))
         .orderBy(desc(transactionsTable.createdAt)),
       getUsdRates(),
     ]);

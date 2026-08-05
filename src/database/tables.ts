@@ -2,6 +2,7 @@ import { integer, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/
 import { money } from "./custom-types";
 import {
   accountStatusEnum,
+  accountTypeEnum,
   currencyCodeEnum,
   necessityLevelEnum,
   transactionTypeEnum,
@@ -36,6 +37,7 @@ export const accountsTable = pgTable("accounts", {
   balance: money("balance").notNull().default("0"),
   currencyCode: currencyCodeEnum("currency_code").notNull().default("USD"),
   status: accountStatusEnum("status").notNull().default("ACTIVE"),
+  type: accountTypeEnum("type").notNull().default("CURRENT"),
   profileId: integer("profile_id").references(() => profilesTable.id, {
     onUpdate: "cascade",
     onDelete: "cascade",

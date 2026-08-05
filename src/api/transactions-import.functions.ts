@@ -1,11 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { currencyCodeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
 import { accountsTable, categoriesTable, colorsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
+import { profileMiddleware } from "./profile.middleware";
 import {
   groupAmountsByAccount,
   INSERT_CHUNK_SIZE,
@@ -111,12 +112,17 @@ type PreparedRow = {
  * accounts whose currency has drifted), then inserts one `transactionsTable` row per side of
  * each CSV row — both sides for a row that has both an income and an outcome are tagged
  * TRANSFER since they move money between the user's own accounts rather than in/out of them.
+ * Category/account lookups and creations are scoped to the profile selected when the import was
+ * started, so importing under one profile can't reuse or leak into another's accounts/categories.
  */
 export const importTransactions = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(z.array(importRowSchema))
-  .handler(async ({ data: rows }): Promise<ImportReport> => {
+  .handler(async ({ data: rows, context }): Promise<ImportReport> => {
     const startedAt = Date.now();
+
+    const { profileId } = context;
+    if (profileId == null) throw new Error("No profile selected.");
 
     const categoryNames = new Set<string>();
     const accountCurrencies = new Map<string, string>();
@@ -135,7 +141,10 @@ export const importTransactions = createServerFn({ method: "POST" })
       const categoryMap = new Map<string, number>();
       if (categoryNames.size > 0) {
         const existingCategories = await tx.query.categoriesTable.findMany({
-          where: inArray(categoriesTable.name, [...categoryNames]),
+          where: and(
+            inArray(categoriesTable.name, [...categoryNames]),
+            eq(categoriesTable.profileId, profileId),
+          ),
           columns: { id: true, name: true },
         });
         for (const category of existingCategories) categoryMap.set(category.name, category.id);
@@ -154,7 +163,11 @@ export const importTransactions = createServerFn({ method: "POST" })
           const insertedCategories = await tx
             .insert(categoriesTable)
             .values(
-              missingCategoryNames.map((name, i) => ({ name, colorId: insertedColors[i].id })),
+              missingCategoryNames.map((name, i) => ({
+                name,
+                colorId: insertedColors[i].id,
+                profileId,
+              })),
             )
             .returning({ id: categoriesTable.id, name: categoriesTable.name });
           for (const category of insertedCategories) categoryMap.set(category.name, category.id);
@@ -164,7 +177,10 @@ export const importTransactions = createServerFn({ method: "POST" })
       const accountMap = new Map<string, number>();
       if (accountCurrencies.size > 0) {
         const existingAccounts = await tx.query.accountsTable.findMany({
-          where: inArray(accountsTable.name, [...accountCurrencies.keys()]),
+          where: and(
+            inArray(accountsTable.name, [...accountCurrencies.keys()]),
+            eq(accountsTable.profileId, profileId),
+          ),
           columns: { id: true, name: true, currencyCode: true },
         });
         for (const account of existingAccounts) {
@@ -188,6 +204,7 @@ export const importTransactions = createServerFn({ method: "POST" })
               missingAccountNames.map((name) => ({
                 name,
                 currencyCode: normalizeCurrencyCode(accountCurrencies.get(name) ?? "") ?? "USD",
+                profileId,
               })),
             )
             .returning({ id: accountsTable.id, name: accountsTable.name });

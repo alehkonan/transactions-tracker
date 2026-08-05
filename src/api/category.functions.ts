@@ -5,10 +5,13 @@ import { getDb } from "~/database/getDb.server";
 import { categoriesTable, colorsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
+import { profileMiddleware } from "./profile.middleware";
 
 export const getCategories = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(() => {
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
+  .handler(({ context }) => {
+    if (context.profileId == null) return [];
+
     return getDb()
       .select({
         id: categoriesTable.id,
@@ -16,7 +19,8 @@ export const getCategories = createServerFn()
         colorHex: colorsTable.hex,
       })
       .from(categoriesTable)
-      .leftJoin(colorsTable, eq(categoriesTable.colorId, colorsTable.id));
+      .leftJoin(colorsTable, eq(categoriesTable.colorId, colorsTable.id))
+      .where(eq(categoriesTable.profileId, context.profileId));
   });
 
 export const deleteCategory = createServerFn({ method: "POST" })
@@ -26,9 +30,11 @@ export const deleteCategory = createServerFn({ method: "POST" })
     await getDb().delete(categoriesTable).where(eq(categoriesTable.id, id));
   });
 
-/** Deletes every category; transactions referencing them have their category cleared (set null). */
+/** Deletes every category for the selected profile; transactions referencing them have their category cleared (set null). */
 export const deleteAllCategories = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(async () => {
-    await getDb().delete(categoriesTable);
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
+  .handler(async ({ context }) => {
+    if (context.profileId == null) return;
+
+    await getDb().delete(categoriesTable).where(eq(categoriesTable.profileId, context.profileId));
   });

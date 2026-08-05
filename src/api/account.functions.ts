@@ -5,11 +5,16 @@ import { getDb } from "~/database/getDb.server";
 import { accountsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
+import { profileMiddleware } from "./profile.middleware";
 
 export const getAccounts = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(() => {
-    return getDb().query.accountsTable.findMany();
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
+  .handler(({ context }) => {
+    if (context.profileId == null) return [];
+
+    return getDb().query.accountsTable.findMany({
+      where: eq(accountsTable.profileId, context.profileId),
+    });
   });
 
 /** Deletes an account; its transactions cascade-delete with it (see `transactionsTable.accountId`). */
@@ -20,11 +25,13 @@ export const deleteAccount = createServerFn({ method: "POST" })
     await getDb().delete(accountsTable).where(eq(accountsTable.id, id));
   });
 
-/** Deletes every account; all transactions cascade-delete with them. */
+/** Deletes every account for the selected profile; its transactions cascade-delete with them. */
 export const deleteAllAccounts = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(async () => {
-    await getDb().delete(accountsTable);
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
+  .handler(async ({ context }) => {
+    if (context.profileId == null) return;
+
+    await getDb().delete(accountsTable).where(eq(accountsTable.profileId, context.profileId));
   });
 
 /**
@@ -33,8 +40,10 @@ export const deleteAllAccounts = createServerFn({ method: "POST" })
  * (e.g. rows written before that logic existed, or a manual DB edit).
  */
 export const reconcileAccountBalances = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
-  .handler(async () => {
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
+  .handler(async ({ context }) => {
+    if (context.profileId == null) return;
+
     await getDb()
       .update(accountsTable)
       .set({
@@ -43,5 +52,6 @@ export const reconcileAccountBalances = createServerFn({ method: "POST" })
           from ${transactionsTable}
           where ${transactionsTable.accountId} = ${accountsTable.id}
         ), 0)`,
-      });
+      })
+      .where(eq(accountsTable.profileId, context.profileId));
   });
