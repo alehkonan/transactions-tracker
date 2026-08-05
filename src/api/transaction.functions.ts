@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
@@ -26,7 +26,8 @@ export const getTransactions = createServerFn()
       })
       .from(transactionsTable)
       .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
-      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id));
+      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
+      .orderBy(desc(transactionsTable.createdAt));
   });
 
 export type TransactionRow = Awaited<ReturnType<typeof getTransactions>>[number];
