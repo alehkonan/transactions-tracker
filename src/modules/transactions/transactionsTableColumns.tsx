@@ -1,3 +1,4 @@
+import { CategoryTag } from "~/modules/transactions/CategoryTag";
 import { DeleteTransactionButton } from "~/modules/transactions/DeleteTransactionButton";
 import { EditTransactionButton } from "~/modules/transactions/EditTransactionButton";
 import { NecessityLevelTag } from "~/modules/transactions/NecessityLevelTag";
@@ -29,6 +30,11 @@ export function buildTransactionsTableColumns({
       accessorKey: "category",
       header: "Category",
       size: 140,
+      cell: ({ row }) => (
+        <div className="flex justify-center">
+          <CategoryTag name={row.original.category} colorHex={row.original.categoryColorHex} />
+        </div>
+      ),
     },
     {
       accessorKey: "necessityLevel",

@@ -3,7 +3,7 @@ import { desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
-import { accountsTable, categoriesTable, transactionsTable } from "~/database/tables";
+import { accountsTable, categoriesTable, colorsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
 
@@ -16,6 +16,7 @@ export const getTransactions = createServerFn()
         createdAt: transactionsTable.createdAt,
         categoryId: transactionsTable.categoryId,
         category: categoriesTable.name,
+        categoryColorHex: colorsTable.hex,
         necessityLevel: transactionsTable.necessityLevel,
         type: transactionsTable.type,
         accountId: transactionsTable.accountId,
@@ -26,6 +27,7 @@ export const getTransactions = createServerFn()
       })
       .from(transactionsTable)
       .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
+      .leftJoin(colorsTable, eq(categoriesTable.colorId, colorsTable.id))
       .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
       .orderBy(desc(transactionsTable.createdAt));
   });
