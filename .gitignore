@@ -23,3 +23,6 @@ todos.json
 /playwright/.cache/
 /playwright/.auth/
 /.playwright-cli/
+
+# Ad-hoc verification screenshots
+/.temp/

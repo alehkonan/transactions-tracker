@@ -1,7 +1,7 @@
 pre-commit:
   jobs:
     - name: format
-      run: pnpm format {staged_files}
+      run: pnpm format --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
 
     - name: lint
