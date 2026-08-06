@@ -15,6 +15,13 @@
       "when": 1785764272953,
       "tag": "0001_even_franklin_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786001390574,
+      "tag": "0002_curly_toad_men",
+      "breakpoints": true
     }
   ]
 }
