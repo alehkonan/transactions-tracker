@@ -8,6 +8,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { twJoin } from "tailwind-merge";
 import { getSelectedProfileId } from "~/api/profile.functions";
 import { Navbar } from "~/components/Navbar";
 import { Toaster } from "~/components/Toaster";
@@ -39,11 +40,18 @@ export const Route = createRootRoute({
         <body className="bg-background min-h-dvh">
           <Toast.Provider>
             {pathname !== "/profile" && (
-              <header className="pointer-events-none sticky top-0 flex items-center justify-center p-4">
+              <header
+                className={twJoin(
+                  "pointer-events-none",
+                  "flex items-center justify-center p-3",
+                  "z-navbar fixed inset-x-0 bottom-0",
+                  "md:sticky md:top-0 md:bottom-auto",
+                )}
+              >
                 <Navbar />
               </header>
             )}
-            {children}
+            <div className={pathname !== "/profile" ? "pb-24 sm:pb-0" : undefined}>{children}</div>
             <Toaster />
           </Toast.Provider>
           <TanStackDevtools

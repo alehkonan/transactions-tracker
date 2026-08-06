@@ -3,6 +3,7 @@ import {
   LayoutDashboardIcon,
   ReceiptTextIcon,
   SettingsIcon,
+  WalletIcon,
 } from "lucide-react";
 import { type JSX } from "react";
 import { twJoin } from "tailwind-merge";
@@ -19,22 +20,27 @@ const navItems: NavItem[] = [
   {
     to: "/",
     label: "Dashboard",
-    icon: <LayoutDashboardIcon />,
+    icon: <LayoutDashboardIcon className="size-6" />,
+  },
+  {
+    to: "/accounts",
+    label: "Accounts",
+    icon: <WalletIcon className="size-6" />,
   },
   {
     to: "/transactions",
     label: "Transactions",
-    icon: <ReceiptTextIcon />,
+    icon: <ReceiptTextIcon className="size-6" />,
   },
   {
     to: "/statistics",
     label: "Statistics",
-    icon: <ChartNoAxesCombinedIcon />,
+    icon: <ChartNoAxesCombinedIcon className="size-6" />,
   },
   {
     to: "/settings",
     label: "Settings",
-    icon: <SettingsIcon />,
+    icon: <SettingsIcon className="size-6" />,
   },
 ];
 
