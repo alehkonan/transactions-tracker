@@ -1,0 +1,58 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+pnpm dev              # vite dev on http://localhost:5454 (host exposed on LAN)
+pnpm build            # production build (client + SSR) into dist/
+pnpm preview          # preview the production build (port 5454)
+pnpm test:unit        # vitest run (no test files exist yet)
+pnpm test:e2e         # playwright test — e2e/ (starts the dev server if not already running)
+pnpm typecheck        # tsc --noEmit
+pnpm lint             # oxlint  (lint:fix to autofix)
+pnpm format           # oxfmt
+pnpm generate-routes  # tsr generate — regenerate src/routeTree.gen.ts
+pnpm db:push-dev      # drizzle-kit push — sync schema to the dev DB
+```
+
+Run a single test once tests exist: `pnpm vitest run path/to/file.test.ts` (or `-t "name"` to filter by test name).
+
+Linting/formatting use **oxlint** and **oxfmt** (not ESLint/Prettier). Lefthook runs `format` + `lint:fix` on staged files pre-commit and `typecheck` pre-push.
+
+## Stack
+
+TanStack Start (React 19, full-stack SSR) · TanStack Router (file-based) · TanStack Table (`DataTable`) · Drizzle ORM + postgres-js (PostgreSQL) · Zustand (client state, e.g. the CSV import flow) · Zod v4 · Tailwind CSS v4 · Vite 8 · TypeScript 6. Package manager is **pnpm**.
+
+Path alias: `~/*` → `./src/*` (defined in `tsconfig.json`). Use it for all intra-`src` imports.
+
+## Architecture
+
+**Data flow is: route `loader` → server function → Drizzle → PostgreSQL**, all rendered via SSR. There is no client-side data-fetching layer (no TanStack Query).
+
+- **Server functions** live in `src/api/*.functions.ts`, created with `createServerFn`. GET handlers read; POST handlers mutate. Every server function is composed with `.middleware([loggerMiddleware, authMiddleware])` from `src/api/*.middleware.ts` — both are currently no-op `TODO` stubs. Routes call the functions directly from their `loader`.
+- **`src/database/getDb.server.ts`** exposes `getDb()`, a lazily-initialized Drizzle singleton. It has **no top-level side effects** so the TanStack Start compiler can tree-shake the postgres driver out of the client bundle — never create the DB connection at module scope; always inside a server-fn handler via `getDb()`. Files with `.server.ts` are server-only.
+- **`src/database/schema.ts`** is the single source of truth for tables/enums. Migrations are generated into `src/database/migrations/` by drizzle-kit; `drizzle.config.ts` reads `DATABASE_URL` from `.env.local`.
+- There is currently **no input-validation layer** on server functions — the previous `src/utils/*.schema.ts` Zod schemas (and the mutations that used them, e.g. `createAccount`/`deleteAccount`) were removed pending rework. `zod` is still a dependency; when a mutation needs `.validator(zodSchema)` input validation again, add the schema next to the server function in `src/api/`.
+
+### Directory layout
+
+- `src/routes/` — file-based routes; `__root.tsx` is the SSR shell. `routeTree.gen.ts` is **generated — never edit by hand**.
+- `src/api/` — server functions (`*.functions.ts`) and middleware (`*.middleware.ts`), created with `createServerFn`/`createMiddleware`.
+- `src/database/` — Drizzle schema (`schema.ts`), generated migrations (`migrations/`), and the `getDb()` singleton (`getDb.server.ts`).
+- `src/modules/<domain>/` — self-contained domain UI/logic, grouped by feature rather than file type (e.g. `transactions/transactionsTableColumns.tsx`, `transactions/import/useTransactionsImport.ts`). A sub-feature that outgrows its parent domain folder gets promoted to its own sibling module (e.g. `transaction-form/` split out of `transactions/`).
+- `src/components/` — shared presentational primitives (`Button`, `Card`, `Dialog`, `Table`, `DataTable`, `Title`, …) and app chrome (`Navbar`, `NavLink`, `NotFoundPage`, `Loader`).
+- `src/utils/` — generic, framework-agnostic helpers with no server/DB dependency (e.g. `parseCsv.ts`).
+
+## Conventions
+
+- **Single-component files are named `<ComponentName>.tsx` in PascalCase.**
+- **Styling uses semantic design tokens, not raw Tailwind colors.** Tokens are defined in `src/styles.css` under `@theme` (`--color-accent`, `--color-surface`, `--color-text`, `--color-border`, `-muted`/`-hover`/`-active` variants) and consumed as classes like `bg-accent`, `text-surface`, `border-border`. Compose class strings with `twMerge` (when merging incoming `className`) or `twJoin` (static) from `tailwind-merge`.
+- Dark mode uses `dark:` variants directly in markup (no separate theme file yet).
+- Navbar links are typed against `FileRouteTypes["fullPaths"]` from the generated route tree — after adding a route, run `pnpm generate-routes` so paths type-check.
+
+## Notes
+
+- `AGENTS.md` is stale — it describes the original blank scaffold (claims no DB and a `#/*` alias). Trust this file and the code instead.
+- Before a substantial library-specific/architectural change, the TanStack Start best-practices skill is available locally; load it for SSR/server-fn/routing guidance.

@@ -22,7 +22,7 @@ pnpm build
 This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
 
 ```bash
-pnpm test
+pnpm test:unit
 ```
 
 ## Styling
@@ -183,6 +183,21 @@ Loaders simplify your data fetching logic dramatically. Check out more informati
 # Demo files
 
 Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
+
+# Project Structure
+
+```
+src/
+├── api/          # server functions (*.functions.ts) and middleware (*.middleware.ts)
+├── components/   # shared presentational primitives and app chrome (Navbar, NavLink, ...)
+├── database/     # Drizzle schema, migrations, and the getDb() singleton
+├── modules/      # self-contained domain logic/UI, grouped by feature (e.g. transactions/)
+├── routes/       # file-based routes; __root.tsx is the SSR shell
+├── utils/        # generic helpers with no server/DB dependency
+└── styles.css    # Tailwind theme tokens
+```
+
+See `CLAUDE.md` for the full architecture write-up (data flow, conventions, commands).
 
 # Learn More
 

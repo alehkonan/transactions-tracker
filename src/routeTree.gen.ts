@@ -10,43 +10,102 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AboutRouteImport } from './routes/about'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as StatisticsRouteImport } from './routes/statistics'
+import { Route as TransactionsRouteImport } from './routes/transactions'
+import { Route as TransactionsImportRouteImport } from './routes/transactions-import'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatisticsRoute = StatisticsRouteImport.update({
+  id: '/statistics',
+  path: '/statistics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransactionsRoute = TransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransactionsImportRoute = TransactionsImportRouteImport.update({
+  id: '/transactions-import',
+  path: '/transactions-import',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
+  '/statistics': typeof StatisticsRoute
+  '/transactions': typeof TransactionsRoute
+  '/transactions-import': typeof TransactionsImportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
+  '/statistics': typeof StatisticsRoute
+  '/transactions': typeof TransactionsRoute
+  '/transactions-import': typeof TransactionsImportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
+  '/statistics': typeof StatisticsRoute
+  '/transactions': typeof TransactionsRoute
+  '/transactions-import': typeof TransactionsImportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about'
+  fullPaths:
+    | '/'
+    | '/profile'
+    | '/settings'
+    | '/statistics'
+    | '/transactions'
+    | '/transactions-import'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about'
-  id: '__root__' | '/' | '/about'
+  to:
+    | '/'
+    | '/profile'
+    | '/settings'
+    | '/statistics'
+    | '/transactions'
+    | '/transactions-import'
+  id:
+    | '__root__'
+    | '/'
+    | '/profile'
+    | '/settings'
+    | '/statistics'
+    | '/transactions'
+    | '/transactions-import'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
+  ProfileRoute: typeof ProfileRoute
+  SettingsRoute: typeof SettingsRoute
+  StatisticsRoute: typeof StatisticsRoute
+  TransactionsRoute: typeof TransactionsRoute
+  TransactionsImportRoute: typeof TransactionsImportRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,11 +117,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/statistics': {
+      id: '/statistics'
+      path: '/statistics'
+      fullPath: '/statistics'
+      preLoaderRoute: typeof StatisticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transactions': {
+      id: '/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof TransactionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transactions-import': {
+      id: '/transactions-import'
+      path: '/transactions-import'
+      fullPath: '/transactions-import'
+      preLoaderRoute: typeof TransactionsImportRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -70,7 +157,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
+  ProfileRoute: ProfileRoute,
+  SettingsRoute: SettingsRoute,
+  StatisticsRoute: StatisticsRoute,
+  TransactionsRoute: TransactionsRoute,
+  TransactionsImportRoute: TransactionsImportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

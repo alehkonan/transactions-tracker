@@ -1,3 +1,15 @@
 [build]
 command = "vite build"
 publish = "dist/client"
+
+# Production deploys (pushes to main) run pending SQL migrations against the
+# prod DB before building, so the new schema is live before the new code is.
+[context.production]
+command = "pnpm db:migrate && vite build"
+
+# Deploy previews (PRs) need pending migrations applied too, so the preview
+# build runs against the current schema. drizzle-kit migrate tracks applied
+# migrations and no-ops when there's nothing pending, so this is safe to run
+# on every preview build.
+[context.deploy-preview]
+command = "pnpm db:migrate && vite build"

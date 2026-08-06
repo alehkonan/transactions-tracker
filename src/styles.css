@@ -1,15 +1,38 @@
 @import "tailwindcss";
 
-* {
-  box-sizing: border-box;
+@theme {
+  --color-background: oklch(0.98 0.002 0);
+
+  /* links, focus, primary actions */
+  --color-accent: oklch(0.55 0.18 250);
+  --color-accent-hover: oklch(0.5 0.19 250);
+  --color-accent-active: oklch(0.45 0.2 250);
+  --color-accent-muted: oklch(0.85 0.06 250);
+
+  /* neutral elements (buttons, list items) */
+  --color-surface: oklch(1 0 0);
+  --color-surface-hover: oklch(0.94 0.003 0);
+  --color-surface-active: oklch(0.9 0.003 0);
+  --color-surface-muted: oklch(0.97 0.002 0);
+
+  /* destructive actions */
+  --color-danger: oklch(0.58 0.22 25);
+  --color-danger-hover: oklch(0.52 0.23 25);
+  --color-danger-active: oklch(0.46 0.24 25);
+  --color-danger-muted: oklch(0.85 0.08 25);
+
+  --color-text: oklch(0.15 0.005 0);
+  --color-text-muted: oklch(0.45 0.005 0);
+
+  --color-border: oklch(0.9 0.003 0);
+
+  /* transaction type tags (TransactionTypeTag) */
+  --color-income: oklch(0.6 0.15 145);
+  --color-expense: var(--color-danger);
+  --color-transfer: oklch(0.5 0.01 0);
 }
 
-html,
-body,
-#app {
-  min-height: 100%;
-}
-
-body {
-  margin: 0;
+.popover {
+  position-area: bottom;
+  position-try-fallbacks: flip-inline, flip-block;
 }
