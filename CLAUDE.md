@@ -49,6 +49,7 @@ Path alias: `~/*` → `./src/*` (defined in `tsconfig.json`). Use it for all int
 
 - **Single-component files are named `<ComponentName>.tsx` in PascalCase.**
 - **Styling uses semantic design tokens, not raw Tailwind colors.** Tokens are defined in `src/styles.css` under `@theme` (`--color-accent`, `--color-surface`, `--color-text`, `--color-border`, `-muted`/`-hover`/`-active` variants) and consumed as classes like `bg-accent`, `text-surface`, `border-border`. Compose class strings with `twMerge` (when merging incoming `className`) or `twJoin` (static) from `tailwind-merge`.
+- **z-index is a global scale, not ad-hoc numbers.** Tiers (`z-stack`, `z-navbar`, `z-dropdown`, `z-dialog-backdrop`, `z-dialog`, `z-toast`) are defined in `src/styles.css` under `@theme` (`--z-index-*`). Never use a raw `z-10`/`z-50` or an inline `zIndex` outside an `isolate`d local stacking context — see the `z-index-system` skill before adding one.
 - Dark mode uses `dark:` variants directly in markup (no separate theme file yet).
 - Navbar links are typed against `FileRouteTypes["fullPaths"]` from the generated route tree — after adding a route, run `pnpm generate-routes` so paths type-check.
 

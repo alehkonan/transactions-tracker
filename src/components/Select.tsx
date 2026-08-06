@@ -121,7 +121,7 @@ export function Select({
         </BaseSelect.Icon>
       </BaseSelect.Trigger>
       <BaseSelect.Portal>
-        <BaseSelect.Positioner sideOffset={4} className="z-10">
+        <BaseSelect.Positioner sideOffset={4} className="z-dropdown">
           <BaseSelect.Popup className="border-border bg-surface text-text max-h-64 overflow-auto rounded-xl border p-1 shadow-lg">
             {items.map((item) => (
               <BaseSelect.Item
