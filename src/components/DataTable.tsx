@@ -99,7 +99,10 @@ export function DataTable<TData extends RowData>({
 
     if (isGroupBoundary && renderGroupSummary && previousGroupKey !== undefined) {
       tableRows.push(
-        <tr key={`summary-${bodyRows[index - 1].id}`}>
+        <tr
+          key={`summary-${bodyRows[index - 1].id}`}
+          className={twJoin(tableRows.length > 0 && "border-border border-t")}
+        >
           <td colSpan={visibleColumnCount} className="bg-surface-muted px-3 py-1">
             {renderGroupSummary(previousGroupKey)}
           </td>
@@ -108,12 +111,12 @@ export function DataTable<TData extends RowData>({
     }
 
     tableRows.push(
-      <tr key={row.id}>
+      <tr key={row.id} className={twJoin(tableRows.length > 0 && "border-border border-t")}>
         {row.getVisibleCells().map((cell) => (
           <td
             key={cell.id}
             className={twJoin(
-              "border-border truncate px-3 py-1 not-last-of-type:border-b",
+              "truncate px-3 py-1",
               isGroupBoundary && "border-t-text-muted/40 border-t-2",
             )}
           >
