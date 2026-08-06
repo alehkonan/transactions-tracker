@@ -1,3 +1,8 @@
 [build]
 command = "vite build"
 publish = "dist/client"
+
+# Production deploys (pushes to main) run pending SQL migrations against the
+# prod DB before building, so the new schema is live before the new code is.
+[context.production]
+command = "pnpm db:migrate && vite build"
