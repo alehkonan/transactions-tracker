@@ -31,3 +31,8 @@
   --color-expense: var(--color-danger);
   --color-transfer: oklch(0.5 0.01 0);
 }
+
+.popover {
+  position-area: bottom;
+  position-try-fallbacks: flip-inline, flip-block;
+}

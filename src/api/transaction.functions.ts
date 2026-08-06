@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
@@ -10,10 +10,38 @@ import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
 import { profileMiddleware } from "./profile.middleware";
 
+/** Parses a `yyyy-MM-dd` filter bound as a local-midnight Date. */
+function parseDateOnly(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+const transactionsFilterSchema = z
+  .object({
+    from: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+  })
+  .optional();
+
 export const getTransactions = createServerFn()
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .handler(async ({ context }) => {
+  .validator(transactionsFilterSchema)
+  .handler(async ({ data, context }) => {
     if (context.profileId == null) return [];
+
+    const conditions = [eq(accountsTable.profileId, context.profileId)];
+    if (data?.from) conditions.push(gte(transactionsTable.createdAt, parseDateOnly(data.from)));
+    if (data?.to) {
+      const exclusiveEnd = parseDateOnly(data.to);
+      exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
+      conditions.push(lt(transactionsTable.createdAt, exclusiveEnd));
+    }
 
     const [rows, rates] = await Promise.all([
       getDb()
@@ -35,7 +63,7 @@ export const getTransactions = createServerFn()
         .leftJoin(categoriesTable, eq(transactionsTable.categoryId, categoriesTable.id))
         .leftJoin(colorsTable, eq(categoriesTable.colorId, colorsTable.id))
         .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
-        .where(eq(accountsTable.profileId, context.profileId))
+        .where(and(...conditions))
         .orderBy(desc(transactionsTable.createdAt)),
       getUsdRates(),
     ]);

@@ -4,15 +4,15 @@ import {
   getPaginationRowModel,
   useReactTable,
   type ColumnDef,
+  type OnChangeFn,
   type PaginationState,
   type RowData,
   type RowSelectionState,
 } from "@tanstack/react-table";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { twJoin } from "tailwind-merge";
 import { Checkbox } from "./Checkbox";
-import { Select } from "./Select";
 
 type Props<TData extends RowData> = {
   columns: ColumnDef<TData, any>[];
@@ -23,14 +23,11 @@ type Props<TData extends RowData> = {
   groupBy?: (data: TData) => string | number | undefined;
   /** Renders a full-width summary row after each `groupBy` group, given that group's key. */
   renderGroupSummary?: (groupKey: string | number) => ReactNode;
+  pagination: PaginationState;
+  onPaginationChange: OnChangeFn<PaginationState>;
 };
 
-const defaultPagination = {
-  pageIndex: 0,
-  pageSize: 10,
-} as const;
-
-const pageSizeOptions = [10, 20, 50, 100] as const;
+export const pageSizeOptions = [10, 20, 50, 100] as const;
 
 const selectionColumn: ColumnDef<any, any> = {
   id: "select",
@@ -57,11 +54,10 @@ export function DataTable<TData extends RowData>({
   onSelectionChange,
   groupBy,
   renderGroupSummary,
+  pagination,
+  onPaginationChange,
 }: Props<TData>) {
-  const [pagination, setPagination] = useState<PaginationState>(defaultPagination);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const pageSizeId = useId();
-  const pageNumberId = useId();
 
   const tableColumns = useMemo(
     () => (enableRowSelection ? [selectionColumn as ColumnDef<TData, any>, ...columns] : columns),
@@ -74,7 +70,7 @@ export function DataTable<TData extends RowData>({
     enableRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    onPaginationChange: setPagination,
+    onPaginationChange,
     onRowSelectionChange: setRowSelection,
     state: {
       pagination,
@@ -117,7 +113,7 @@ export function DataTable<TData extends RowData>({
           <td
             key={cell.id}
             className={twJoin(
-              "border-border truncate border-b px-3 py-1",
+              "border-border truncate px-3 py-1 not-last-of-type:border-b",
               isGroupBoundary && "border-t-text-muted/40 border-t-2",
             )}
           >
@@ -129,87 +125,57 @@ export function DataTable<TData extends RowData>({
   });
 
   return (
-    <div className="border-border bg-surface overflow-x-auto rounded-xl border">
-      <table className="w-full table-fixed border-collapse tabular-nums">
-        <colgroup>
-          {table.getVisibleLeafColumns().map((column) => (
-            <col key={column.id} style={{ width: column.getSize() }} />
-          ))}
-        </colgroup>
-        <thead>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id} className="border-border last-of-type:border-b">
-              {headerGroup.headers.map((header) => {
-                return (
-                  <th
-                    key={header.id}
-                    colSpan={header.colSpan}
-                    className="border-border truncate px-3 py-1 not-last-of-type:border-r"
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                );
-              })}
-            </tr>
-          ))}
-        </thead>
-        <tbody>{tableRows}</tbody>
-      </table>
-      {data.length ? (
-        <div className="flex items-end justify-between gap-1 p-2">
-          <div className="flex items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <label htmlFor={pageSizeId} className="text-text-muted text-xs">
-                Page size
-              </label>
-              <Select
-                id={pageSizeId}
-                value={String(pagination.pageSize)}
-                onValueChange={(v) => v && table.setPageSize(+v)}
-                options={pageSizeOptions.map((pageSize) => String(pageSize))}
-                className="h-auto p-1"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={pageNumberId} className="text-text-muted text-xs">
-                Page number
-              </label>
-              <Select
-                id={pageNumberId}
-                value={String(pagination.pageIndex)}
-                onValueChange={(v) => v && table.setPageIndex(+v)}
-                options={table.getPageOptions().map((pageOption) => ({
-                  value: String(pageOption),
-                  label: String(pageOption + 1),
-                }))}
-                className="h-auto p-1"
-              />
-            </div>
+    <div className="border-border bg-surface flex items-stretch overflow-hidden rounded-xl border">
+      <button
+        className="border-border not-disabled:hover:bg-surface-muted grid w-10 shrink-0 place-items-center border-r disabled:opacity-40"
+        disabled={!table.getCanPreviousPage()}
+        onClick={() => table.previousPage()}
+        aria-label="Previous page"
+      >
+        <ChevronLeftIcon />
+      </button>
+      <div className="min-w-0 flex-1 overflow-x-auto">
+        <table className="w-full table-fixed border-collapse tabular-nums">
+          <colgroup>
+            {table.getVisibleLeafColumns().map((column) => (
+              <col key={column.id} style={{ width: column.getSize() }} />
+            ))}
+          </colgroup>
+          <thead>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id} className="border-border last-of-type:border-b">
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <th
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      className="border-border truncate px-3 py-1"
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  );
+                })}
+              </tr>
+            ))}
+          </thead>
+          <tbody>{tableRows}</tbody>
+        </table>
+        {!data.length && (
+          <div className="grid place-items-center p-6">
+            <p>No data</p>
           </div>
-          <div className="flex gap-1.5">
-            <button
-              className="border-border size-8 place-items-center rounded-lg border not-disabled:hover:shadow disabled:bg-transparent"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-            >
-              <ChevronLeftIcon />
-            </button>
-            <button
-              className="border-border size-8 place-items-center rounded-lg border not-disabled:hover:shadow disabled:bg-transparent"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-            >
-              <ChevronRightIcon />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid place-items-center p-6">
-          <p>No data</p>
-        </div>
-      )}
+        )}
+      </div>
+      <button
+        className="border-border not-disabled:hover:bg-surface-muted grid w-10 shrink-0 place-items-center border-l disabled:opacity-40"
+        disabled={!table.getCanNextPage()}
+        onClick={() => table.nextPage()}
+        aria-label="Next page"
+      >
+        <ChevronRightIcon />
+      </button>
     </div>
   );
 }
