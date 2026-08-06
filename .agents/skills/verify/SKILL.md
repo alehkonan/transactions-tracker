@@ -41,8 +41,11 @@ Use `--persistent` (or `--profile=<dir>`) on `open` instead if you want the prof
 
 ## Representative interaction
 
+Screenshots go under `.temp/` (gitignored), never the repo root:
+
 ```bash
-playwright-cli screenshot --filename=check.png
+mkdir -p .temp
+playwright-cli screenshot --filename=.temp/check.png
 ```
 
 Then read the saved PNG with the Read tool — don't just trust the command exited 0.
@@ -68,5 +71,5 @@ formatter needs a pinned locale (e.g. `toLocaleDateString("en-US", …)` instead
 
 ```bash
 playwright-cli close
-rm -rf .playwright-cli *.png   # don't leave verification screenshots/snapshots in the repo root
+rm -rf .playwright-cli .temp   # don't leave verification screenshots/snapshots in the repo root
 ```
