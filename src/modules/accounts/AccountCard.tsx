@@ -5,7 +5,6 @@ import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/formatMoney";
 import { AccountForm } from "./AccountForm";
 import { AccountStatusChip } from "./AccountStatusChip";
-import { accountTypeCardGradients } from "./AccountTypeTag";
 import type { getAccounts } from "~/api/account.functions";
 
 type Account = Awaited<ReturnType<typeof getAccounts>>[number];
@@ -27,7 +26,11 @@ export function AccountCard({ account, onClick }: Props) {
         onClick={onClick ?? (() => setEditOpen(true))}
         className={twMerge(
           "from-surface flex aspect-8/5 w-full flex-col justify-between rounded-2xl bg-linear-to-br p-4 text-left shadow-sm",
-          accountTypeCardGradients[account.type],
+          account.status === "ARCHIVED"
+            ? "to-archived-muted/20 dark:to-archived-muted/30"
+            : account.type === "CURRENT"
+              ? "to-accent-muted"
+              : "to-saving-muted dark:to-saving-muted-dark/50",
         )}
       >
         <div className="flex flex-col">

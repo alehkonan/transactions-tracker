@@ -31,6 +31,13 @@
   --color-expense: var(--color-danger);
   --color-transfer: oklch(0.5 0.01 0);
 
+  /* AccountCard gradient end color for saving accounts (current accounts reuse --color-accent-muted) */
+  --color-saving-muted: oklch(0.837 0.128 66.29);
+  --color-saving-muted-dark: oklch(0.408 0.123 38.172);
+
+  /* AccountCard gradient end color for archived accounts, overriding the type tint above */
+  --color-archived-muted: var(--color-text-muted);
+
   /*
    * Global z-index scale — the only place stacking-order numbers are decided.
    * See the z-index-system skill before adding a new layer or a raw z-index anywhere in src/.

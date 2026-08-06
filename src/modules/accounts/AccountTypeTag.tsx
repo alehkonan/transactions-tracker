@@ -20,12 +20,6 @@ export const accountTypeIcons: Record<AccountType, LucideIcon> = {
   SAVING: PiggyBankIcon,
 };
 
-/** `AccountCard`'s gradient end color, tinted per type with the same hues as `accountTypeStyles`. */
-export const accountTypeCardGradients: Record<AccountType, string> = {
-  CURRENT: "to-accent-muted",
-  SAVING: "to-orange-300 dark:to-orange-900/50",
-};
-
 export function AccountTypeTag({ type }: Props) {
   const Icon = accountTypeIcons[type];
   return (
