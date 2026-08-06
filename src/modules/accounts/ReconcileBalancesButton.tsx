@@ -26,9 +26,12 @@ export function ReconcileBalancesButton() {
           aria-label="Reconcile account balances"
           disabled={isReconciling}
           onClick={onOpen}
-          className="size-8 rounded-lg p-0"
         >
-          {isReconciling ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
+          {isReconciling ? (
+            <Loader2Icon className="size-6 animate-spin" />
+          ) : (
+            <RefreshCwIcon className="size-6" />
+          )}
         </Button>
       )}
     >
