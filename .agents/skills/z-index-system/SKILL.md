@@ -35,15 +35,21 @@ from a stacked card rendered _behind_ other cards, and the `fixed` mobile navbar
 `z-index: auto`) lost to any descendant anywhere on the page with a positive z-index, including that same runaway
 stack. Two unrelated-looking bugs, one root cause: no shared scale, and no isolation around local stacking.
 
+A later bug followed the same shape: `Select`'s popup (`z-dropdown`, 30) rendered _behind_ an open `Dialog`
+(`z-dialog`, 41), because a `Select` inside `AccountForm` inside the edit-account `Dialog` is portaled to `body` and
+had a lower tier than the dialog it was triggered from. Floating popups anchored to a trigger must always outrank
+any container their trigger might live in — including a `Dialog` — so `dropdown` now sits above `dialog` in the
+scale, below only `toast`.
+
 ## The scale (ascending — higher wins)
 
 | Token                       | Class               | Value | Used by                                                                                                                                                                  |
 | --------------------------- | ------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `--z-index-stack`           | `z-stack`           | 10    | Base for local, `isolate`d stacking (card decks, etc). Rarely referenced directly — components inside an `isolate` container usually just need small numbers below this. |
 | `--z-index-navbar`          | `z-navbar`          | 20    | The fixed/sticky `Navbar` header in `__root.tsx`.                                                                                                                        |
-| `--z-index-dropdown`        | `z-dropdown`        | 30    | Floating popups anchored to a trigger: `Select`, `Menu`, `Popover` positioners.                                                                                          |
-| `--z-index-dialog-backdrop` | `z-dialog-backdrop` | 40    | `Dialog`'s backdrop.                                                                                                                                                     |
-| `--z-index-dialog`          | `z-dialog`          | 41    | `Dialog`'s viewport/popup — above its own backdrop, below toasts.                                                                                                        |
+| `--z-index-dialog-backdrop` | `z-dialog-backdrop` | 30    | `Dialog`'s backdrop.                                                                                                                                                     |
+| `--z-index-dialog`          | `z-dialog`          | 31    | `Dialog`'s viewport/popup — above its own backdrop.                                                                                                                      |
+| `--z-index-dropdown`        | `z-dropdown`        | 40    | Floating popups anchored to a trigger: `Select`, `Menu`, `Popover` positioners — above `dialog` since a trigger can live inside an open `Dialog`.                        |
 | `--z-index-toast`           | `z-toast`           | 50    | `Toaster` — must outrank everything, including an open dialog.                                                                                                           |
 
 Unlisted elements have no z-index (`auto`) and stack by normal DOM order — that's correct for the vast majority of

@@ -47,9 +47,9 @@
    */
   --z-index-stack: 10; /* local layered UI inside an `isolate`d container, e.g. a card stack */
   --z-index-navbar: 20; /* app chrome: the fixed/sticky Navbar */
-  --z-index-dropdown: 30; /* floating popups anchored to a trigger: Select, Menu, Popover */
-  --z-index-dialog-backdrop: 40;
-  --z-index-dialog: 41; /* modal Dialog popup, above its own backdrop */
+  --z-index-dialog-backdrop: 30;
+  --z-index-dialog: 31; /* modal Dialog popup, above its own backdrop */
+  --z-index-dropdown: 40; /* floating popups anchored to a trigger: Select, Menu, Popover — above `dialog` since triggers can live inside a Dialog */
   --z-index-toast: 50; /* Toaster — must outrank everything, including open dialogs */
 }
 
