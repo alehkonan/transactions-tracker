@@ -14,7 +14,7 @@ function getAccountGroups(accounts: Account[], totals: BalanceTotals) {
   return [
     {
       id: "current",
-      title: "Current accounts",
+      title: "Current",
       accounts: accounts.filter(
         (account) => account.status === "ACTIVE" && account.type === "CURRENT",
       ),
@@ -24,7 +24,7 @@ function getAccountGroups(accounts: Account[], totals: BalanceTotals) {
     },
     {
       id: "savings",
-      title: "Savings accounts",
+      title: "Savings",
       accounts: accounts.filter(
         (account) => account.status === "ACTIVE" && account.type === "SAVING",
       ),
@@ -34,7 +34,7 @@ function getAccountGroups(accounts: Account[], totals: BalanceTotals) {
     },
     {
       id: "archived",
-      title: "Archived accounts",
+      title: "Archive",
       accounts: accounts.filter((account) => account.status === "ARCHIVED"),
       totalUsd: totals.archivedBalanceUsd,
       totalChipClassName: accountStatusStyles.ARCHIVED,
@@ -63,10 +63,10 @@ export const Route = createFileRoute("/accounts")({
           <p>No accounts yet.</p>
         ) : (
           <div className="flex flex-col gap-6">
-            {groups.map(
-              (group) =>
-                group.accounts.length > 0 && <AccountGroupSection key={group.title} {...group} />,
-            )}
+            {groups.map((group) => {
+              if (!group.accounts.length) return null;
+              return <AccountGroupSection key={group.title} {...group} />;
+            })}
           </div>
         )}
       </PageContainer>
