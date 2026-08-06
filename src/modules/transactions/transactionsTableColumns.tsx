@@ -1,10 +1,10 @@
+import { format } from "date-fns";
 import { ApproxUsdTag } from "~/modules/transactions/ApproxUsdTag";
 import { CategoryTag } from "~/modules/transactions/CategoryTag";
 import { DeleteTransactionButton } from "~/modules/transactions/DeleteTransactionButton";
 import { EditTransactionButton } from "~/modules/transactions/EditTransactionButton";
 import { NecessityLevelTag } from "~/modules/transactions/NecessityLevelTag";
 import { TransactionTypeTag } from "~/modules/transactions/TransactionTypeTag";
-import { formatDateTime } from "~/utils/formatDate";
 import { formatMoney } from "~/utils/formatMoney";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { getAccounts } from "~/api/account.functions";
@@ -25,7 +25,7 @@ export function buildTransactionsTableColumns({
       accessorKey: "createdAt",
       header: "Datetime",
       size: 175,
-      cell: ({ getValue }) => formatDateTime(getValue<Date>()),
+      cell: ({ getValue }) => format(getValue<Date>(), "yyyy-MM-dd HH:mm"),
     },
     {
       accessorKey: "category",
