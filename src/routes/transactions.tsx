@@ -1,22 +1,20 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { PlusIcon } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { z } from "zod";
 import { getAccounts } from "~/api/account.functions";
 import { getCategories } from "~/api/category.functions";
 import { getTransactions, type TransactionRow } from "~/api/transaction.functions";
 import { Button } from "~/components/Button";
-import { DataTable, pageSizeOptions } from "~/components/DataTable";
+import { DataTable } from "~/components/DataTable";
 import { Dialog } from "~/components/Dialog";
 import { PageContainer } from "~/components/PageContainer";
-import { Select } from "~/components/Select";
 import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
 import { DaySummary } from "~/modules/transactions/DaySummary";
 import { DeleteSelectedTransactionsButton } from "~/modules/transactions/DeleteSelectedTransactionsButton";
 import { TransactionsDateRangeFilter } from "~/modules/transactions/TransactionsDateRangeFilter";
 import { buildTransactionsTableColumns } from "~/modules/transactions/transactionsTableColumns";
-import type { PaginationState } from "@tanstack/react-table";
 
 const dateKeySchema = z
   .string()
@@ -40,15 +38,8 @@ export const Route = createFileRoute("/transactions")({
     });
     const { from, to } = Route.useSearch();
     const [selectedRows, setSelectedRows] = useState<TransactionRow[]>([]);
-    const [pagination, setPagination] = useState<PaginationState>({
-      pageIndex: 0,
-      pageSize: 10,
-    });
-    const pageSizeId = useId();
-    const columns = useMemo(
-      () => buildTransactionsTableColumns({ accounts, categories }),
-      [accounts, categories],
-    );
+    const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null);
+    const columns = useMemo(() => buildTransactionsTableColumns(), []);
     const transactionsByDay = useMemo(() => {
       const byDay = new Map<string, TransactionRow[]>();
       for (const row of transactions) {
@@ -64,20 +55,6 @@ export const Route = createFileRoute("/transactions")({
       <PageContainer>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <label htmlFor={pageSizeId} className="text-text-muted text-xs">
-                Page size
-              </label>
-              <Select
-                id={pageSizeId}
-                value={String(pagination.pageSize)}
-                onValueChange={(v) =>
-                  v && setPagination((prev) => ({ ...prev, pageIndex: 0, pageSize: +v }))
-                }
-                options={pageSizeOptions.map((pageSize) => String(pageSize))}
-                className="h-auto p-1"
-              />
-            </div>
             <TransactionsDateRangeFilter from={from} to={to} />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -103,13 +80,25 @@ export const Route = createFileRoute("/transactions")({
           data={transactions}
           enableRowSelection
           onSelectionChange={setSelectedRows}
-          pagination={pagination}
-          onPaginationChange={setPagination}
+          onRowClick={setEditingTransaction}
           groupBy={(row) => format(row.createdAt, "yyyy-MM-dd")}
           renderGroupSummary={(day) => (
             <DaySummary rows={transactionsByDay.get(day as string) ?? []} />
           )}
         />
+        <Dialog
+          title="Update transaction"
+          open={editingTransaction !== null}
+          onOpenChange={(open) => !open && setEditingTransaction(null)}
+        >
+          {editingTransaction && (
+            <TransactionForm
+              accounts={accounts}
+              categories={categories}
+              transaction={editingTransaction}
+            />
+          )}
+        </Dialog>
       </PageContainer>
     );
   },

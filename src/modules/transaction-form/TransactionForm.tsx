@@ -1,12 +1,13 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ArrowDownIcon } from "lucide-react";
-import { twMerge } from "tailwind-merge";
+import { twJoin, twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
 import { InputControl } from "~/components/InputControl";
 import { SelectControl } from "~/components/SelectControl";
 import { TextareaControl } from "~/components/TextareaControl";
 import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
+import { DeleteTransactionButton } from "~/modules/transaction-form/DeleteTransactionButton";
 import { useTransactionForm } from "~/modules/transaction-form/useTransactionForm";
 import { necessityLevelStyles } from "~/modules/transactions/NecessityLevelTag";
 import {
@@ -242,13 +243,18 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
       {rootError && <p className="text-danger text-sm">{rootError}</p>}
 
-      <footer className="mt-2 flex justify-center gap-2">
-        <Button className="min-w-20" variant="secondary" type="button" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button className="min-w-20" type="submit" variant="primary" disabled={isPending}>
-          {isEditing ? (isPending ? "Updating…" : "Update") : isPending ? "Saving…" : "Save"}
-        </Button>
+      <footer
+        className={twJoin("mt-2 flex gap-2", isEditing ? "justify-between" : "justify-center")}
+      >
+        {isEditing && transaction && <DeleteTransactionButton id={transaction.id} />}
+        <div className="flex gap-2">
+          <Button className="min-w-20" variant="secondary" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button className="min-w-20" type="submit" variant="primary" disabled={isPending}>
+            {isEditing ? (isPending ? "Updating…" : "Update") : isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </footer>
     </form>
   );

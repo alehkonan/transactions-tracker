@@ -30,6 +30,7 @@
     "@tanstack/react-router-ssr-query": "latest",
     "@tanstack/react-start": "latest",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.9",
     "@tanstack/router-plugin": "^1.168.22",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
