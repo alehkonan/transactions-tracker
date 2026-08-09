@@ -6,8 +6,14 @@ import {
   type DayButtonProps,
   type DayPickerProps,
 } from "@daypicker/react";
-import { CalendarIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { useEffect, useId, useRef } from "react";
+import {
+  CalendarIcon,
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  XIcon,
+} from "lucide-react";
+import { useEffect, useId, useImperativeHandle, useRef, type RefObject } from "react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Button } from "./Button";
 
@@ -39,20 +45,61 @@ const classNames: Partial<ClassNames> = {
   ),
 };
 
-type Props = DayPickerProps & {
-  label?: string;
+export type DatePickerActions = {
+  close: () => void;
 };
 
-export function DatePicker({ label, ...props }: Props) {
+type Props = DayPickerProps & {
+  label?: string;
+  /**
+   * Renders a small reset chip inside the trigger. Omit it (e.g. when nothing is selected) to
+   * hide the chip entirely.
+   */
+  onReset?: () => void;
+  /**
+   * Imperative handle for the calendar panel, e.g. `actionsRef.current?.close()` to dismiss it
+   * once `onSelect` reports a complete selection.
+   */
+  actionsRef?: RefObject<DatePickerActions | null>;
+};
+
+export function DatePicker({ label, onReset, actionsRef, ...props }: Props) {
   const panelId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useImperativeHandle(actionsRef, () => ({
+    // `hidePopover()` throws on an already-hidden popover, so only call it while it's open.
+    close: () => {
+      if (panelRef.current?.matches(":popover-open")) panelRef.current.hidePopover();
+    },
+  }));
 
   return (
     <>
-      <Button variant="secondary" popoverTarget={panelId}>
-        <CalendarIcon className="size-4" />
-        <span className="truncate">{label ?? "Select date"}</span>
-      </Button>
+      {/* The chip sits on top of the trigger rather than inside it: nesting a button in a
+          button is invalid HTML, and its click would also open the popover. */}
+      <span className="relative inline-flex">
+        <Button variant="secondary" popoverTarget={panelId} className={twJoin(onReset && "pr-9")}>
+          <CalendarIcon className="size-4" />
+          <span className="truncate">{label ?? "Select date"}</span>
+        </Button>
+        {onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            aria-label="Reset selection"
+            className={twJoin(
+              "absolute top-1/2 right-2 -translate-y-1/2",
+              "bg-surface-muted hover:bg-surface-active text-text-muted hover:text-text",
+              "grid size-5 place-items-center rounded-full transition-colors",
+            )}
+          >
+            <XIcon className="size-3" />
+          </button>
+        )}
+      </span>
       <div
+        ref={panelRef}
         id={panelId}
         popover="hint"
         className={twJoin(
