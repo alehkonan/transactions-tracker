@@ -13,6 +13,7 @@ import { PageContainer } from "~/components/PageContainer";
 import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
 import { DaySummary } from "~/modules/transactions/DaySummary";
 import { DeleteSelectedTransactionsButton } from "~/modules/transactions/DeleteSelectedTransactionsButton";
+import { TransactionsAccountFilter } from "~/modules/transactions/TransactionsAccountFilter";
 import { TransactionsDateRangeFilter } from "~/modules/transactions/TransactionsDateRangeFilter";
 import { buildTransactionsTableColumns } from "~/modules/transactions/transactionsTableColumns";
 
@@ -22,8 +23,12 @@ const dateKeySchema = z
   .optional();
 
 export const Route = createFileRoute("/transactions")({
-  validateSearch: z.object({ from: dateKeySchema, to: dateKeySchema }),
-  loaderDeps: ({ search }) => ({ from: search.from, to: search.to }),
+  validateSearch: z.object({
+    from: dateKeySchema,
+    to: dateKeySchema,
+    account: z.string().optional(),
+  }),
+  loaderDeps: ({ search }) => ({ from: search.from, to: search.to, account: search.account }),
   loader: async ({ deps }) => {
     const [transactions, accounts, categories] = await Promise.all([
       getTransactions({ data: deps }),
@@ -36,7 +41,7 @@ export const Route = createFileRoute("/transactions")({
     const { transactions, accounts, categories } = useLoaderData({
       from: "/transactions",
     });
-    const { from, to } = Route.useSearch();
+    const { from, to, account: accountFilter } = Route.useSearch();
     const [selectedRows, setSelectedRows] = useState<TransactionRow[]>([]);
     const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null);
     const columns = useMemo(() => buildTransactionsTableColumns(), []);
@@ -56,6 +61,7 @@ export const Route = createFileRoute("/transactions")({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap items-end gap-2">
             <TransactionsDateRangeFilter from={from} to={to} />
+            <TransactionsAccountFilter accounts={accounts} selected={accountFilter} />
           </div>
           <div className="flex flex-wrap gap-2">
             {selectedRows.length > 0 && (

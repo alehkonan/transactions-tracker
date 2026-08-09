@@ -1,7 +1,7 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import { useState } from "react";
-import { twMerge } from "tailwind-merge";
+import { twJoin, twMerge } from "tailwind-merge";
 
 export type SelectOption = {
   value: string;
@@ -32,6 +32,11 @@ type Props = (SingleProps | MultipleProps) & {
   required?: boolean;
   /** Uncontrolled initial value (single-select only); ignored if `onValueChange` is passed. */
   defaultValue?: string;
+  /**
+   * Renders a small reset chip inside the trigger. Omit it (e.g. when nothing is selected) to
+   * hide the chip entirely.
+   */
+  onReset?: () => void;
 };
 
 // Sentinel item id representing "no value selected" so the placeholder can be
@@ -49,6 +54,7 @@ export function Select({
   onValueChange,
   name,
   required,
+  onReset,
 }: Props) {
   const normalized: SelectOption[] = options.map((option) =>
     typeof option === "string" ? { value: option, label: option } : option,
@@ -90,36 +96,57 @@ export function Select({
       value={(multiple ? value : withPlaceholder(reportedValue)) as never}
       onValueChange={handleValueChange}
     >
-      <BaseSelect.Trigger
-        id={id}
-        className={twMerge(
-          "border-border bg-surface text-text flex h-9 items-center justify-between gap-2 rounded-lg border px-2",
-          "transition-shadow hover:shadow",
-          "data-disabled:cursor-not-allowed data-disabled:opacity-50",
-          className,
+      {/* The chip sits on top of the trigger rather than inside it: nesting a button in a
+          button is invalid HTML, and its click would also open the popup. */}
+      <span className="relative inline-flex">
+        <BaseSelect.Trigger
+          id={id}
+          // Matches Button's `secondary` variant so filters/triggers sit flush next to buttons.
+          className={twMerge(
+            "inline-flex h-9 items-center justify-between gap-1 rounded-2xl px-3",
+            "transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow",
+            "bg-surface text-text border-border disabled:bg-surface-muted border",
+            "data-disabled:cursor-not-allowed",
+            onReset && "pr-9",
+            className,
+          )}
+        >
+          <BaseSelect.Value className="truncate">
+            {(selected: string | string[] | null) => {
+              if (selected == null || (Array.isArray(selected) && selected.length === 0)) {
+                return <span className="text-text-muted">{placeholder}</span>;
+              }
+              if (Array.isArray(selected)) {
+                return selected.length === 1
+                  ? labelFor(selected[0])
+                  : `${labelFor(selected[0])} (+${selected.length - 1} more)`;
+              }
+              return selected === PLACEHOLDER_VALUE ? (
+                <span className="text-text-muted">{placeholder}</span>
+              ) : (
+                labelFor(selected)
+              );
+            }}
+          </BaseSelect.Value>
+          <BaseSelect.Icon>
+            <ChevronDownIcon className="size-4 shrink-0" />
+          </BaseSelect.Icon>
+        </BaseSelect.Trigger>
+        {onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            aria-label="Reset selection"
+            className={twJoin(
+              "absolute top-1/2 right-2 -translate-y-1/2",
+              "bg-surface-muted hover:bg-surface-active text-text-muted hover:text-text",
+              "grid size-5 place-items-center rounded-full transition-colors",
+            )}
+          >
+            <XIcon className="size-3" />
+          </button>
         )}
-      >
-        <BaseSelect.Value className="truncate">
-          {(selected: string | string[] | null) => {
-            if (selected == null || (Array.isArray(selected) && selected.length === 0)) {
-              return <span className="text-text-muted">{placeholder}</span>;
-            }
-            if (Array.isArray(selected)) {
-              return selected.length === 1
-                ? labelFor(selected[0])
-                : `${labelFor(selected[0])} (+${selected.length - 1} more)`;
-            }
-            return selected === PLACEHOLDER_VALUE ? (
-              <span className="text-text-muted">{placeholder}</span>
-            ) : (
-              labelFor(selected)
-            );
-          }}
-        </BaseSelect.Value>
-        <BaseSelect.Icon>
-          <ChevronDownIcon className="size-4 shrink-0" />
-        </BaseSelect.Icon>
-      </BaseSelect.Trigger>
+      </span>
       <BaseSelect.Portal>
         <BaseSelect.Positioner sideOffset={4} className="z-dropdown">
           <BaseSelect.Popup className="border-border bg-surface text-text max-h-64 overflow-auto rounded-xl border p-1 shadow-lg">

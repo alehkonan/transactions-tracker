@@ -26,6 +26,7 @@ const transactionsFilterSchema = z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
+    account: z.string().optional(),
   })
   .optional();
 
@@ -42,6 +43,7 @@ export const getTransactions = createServerFn()
       exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
       conditions.push(lt(transactionsTable.createdAt, exclusiveEnd));
     }
+    if (data?.account) conditions.push(eq(accountsTable.name, data.account));
 
     const [rows, rates] = await Promise.all([
       getDb()
