@@ -34,6 +34,9 @@ export const categoriesTable = pgTable("categories", {
 export const accountsTable = pgTable("accounts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  /** Opening amount the account started with, before any transaction. */
+  initialBalance: money("initial_balance").notNull().default("0"),
+  /** `initialBalance` plus the sum of the account's transactions. */
   balance: money("balance").notNull().default("0"),
   currencyCode: currencyCodeEnum("currency_code").notNull().default("USD"),
   status: accountStatusEnum("status").notNull().default("ACTIVE"),

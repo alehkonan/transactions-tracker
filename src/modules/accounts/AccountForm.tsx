@@ -1,8 +1,9 @@
+import { Field } from "@base-ui/react/field";
 import { Toggle } from "@base-ui/react/toggle";
 import { useRouter } from "@tanstack/react-router";
 import { TrashIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
 import { createAccount, deleteAccount, updateAccount } from "~/api/account.functions";
 import { Button } from "~/components/Button";
@@ -13,6 +14,7 @@ import { SelectControl } from "~/components/SelectControl";
 import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/AccountTypeTag";
+import { formatMoney } from "~/utils/formatMoney";
 import type { getAccounts } from "~/api/account.functions";
 
 type Account = Awaited<ReturnType<typeof getAccounts>>[number];
@@ -22,7 +24,7 @@ type AccountFormValues = {
   currencyCode: string;
   type: string;
   status: string;
-  balance: string;
+  initialBalance: string;
 };
 
 type Props = {
@@ -48,8 +50,21 @@ function getDefaultValues(account?: Account): AccountFormValues {
     currencyCode: account?.currencyCode ?? "USD",
     type: account?.type ?? "CURRENT",
     status: account?.status ?? "ACTIVE",
-    balance: account?.balance ?? "0",
+    initialBalance: account?.initialBalance ?? "0",
   };
+}
+
+/**
+ * What the balance becomes for the typed opening amount: the account's transactions total
+ * (its current balance minus its stored opening amount) still applies on top of the new one.
+ */
+function getProjectedBalance(account: Account, initialBalance: string): string {
+  const typed = Number(initialBalance);
+  if (initialBalance.trim() === "" || Number.isNaN(typed)) return account.balance;
+
+  const transactionsCents =
+    Math.round(Number(account.balance) * 100) - Math.round(Number(account.initialBalance) * 100);
+  return ((Math.round(typed * 100) + transactionsCents) / 100).toFixed(2);
 }
 
 export function AccountForm({ account }: Props) {
@@ -61,6 +76,7 @@ export function AccountForm({ account }: Props) {
   });
   const [isDeleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
+  const initialBalance = useWatch({ control, name: "initialBalance" });
 
   const handleDelete = () => {
     if (!account) return;
@@ -77,7 +93,7 @@ export function AccountForm({ account }: Props) {
       currencyCode: values.currencyCode as (typeof currencyCodeEnum.enumValues)[number],
       type: values.type as (typeof accountTypeEnum.enumValues)[number],
       status: values.status as (typeof accountStatusEnum.enumValues)[number],
-      balance: values.balance,
+      initialBalance: values.initialBalance,
     };
 
     if (account) {
@@ -132,10 +148,26 @@ export function AccountForm({ account }: Props) {
         <SelectControl control={control} name="status" label="Status" options={statusOptions} />
         <InputControl
           control={control}
-          name="balance"
-          label={isEditing ? "Balance" : "Initial balance"}
+          name="initialBalance"
+          label="Initial balance"
           inputMode="decimal"
         />
+        {account && (
+          <Field.Root className="flex flex-col gap-1">
+            <Field.Label className="text-text text-sm font-bold">Balance</Field.Label>
+            <Field.Control
+              readOnly
+              value={formatMoney(
+                getProjectedBalance(account, initialBalance),
+                account.currencyCode,
+              )}
+              className="border-border bg-surface-muted text-text-muted h-9 rounded-lg border px-2"
+            />
+            <Field.Description className="text-text-muted text-sm">
+              Initial balance plus all transactions
+            </Field.Description>
+          </Field.Root>
+        )}
       </div>
       <div className="flex items-center justify-between gap-2">
         {account && (

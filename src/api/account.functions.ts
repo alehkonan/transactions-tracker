@@ -52,12 +52,19 @@ export const getBalanceTotals = createServerFn()
     };
   });
 
+/** Sum of an account's transactions, as a correlated subquery usable in an `accounts` update. */
+const transactionsSum = sql`coalesce((
+  select sum(${transactionsTable.amount})
+  from ${transactionsTable}
+  where ${transactionsTable.accountId} = ${accountsTable.id}
+), 0)`;
+
 const createAccountSchema = z.object({
   name: z.string().trim().min(1),
   currencyCode: z.enum(currencyCodeEnum.enumValues),
   type: z.enum(accountTypeEnum.enumValues),
   status: z.enum(accountStatusEnum.enumValues),
-  balance: z.string().trim().optional(),
+  initialBalance: z.string().trim().optional(),
 });
 
 export const createAccount = createServerFn({ method: "POST" })
@@ -66,9 +73,10 @@ export const createAccount = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (context.profileId == null) return;
 
+    // A brand-new account has no transactions yet, so its balance starts at the opening amount.
     await getDb()
       .insert(accountsTable)
-      .values({ ...data, profileId: context.profileId });
+      .values({ ...data, balance: data.initialBalance, profileId: context.profileId });
   });
 
 const updateAccountSchema = z.object({
@@ -77,7 +85,7 @@ const updateAccountSchema = z.object({
   currencyCode: z.enum(currencyCodeEnum.enumValues),
   type: z.enum(accountTypeEnum.enumValues),
   status: z.enum(accountStatusEnum.enumValues),
-  balance: z.string().trim().optional(),
+  initialBalance: z.string().trim().optional(),
 });
 
 export const updateAccount = createServerFn({ method: "POST" })
@@ -85,7 +93,17 @@ export const updateAccount = createServerFn({ method: "POST" })
   .validator(updateAccountSchema)
   .handler(async ({ data }) => {
     const { id, ...values } = data;
-    await getDb().update(accountsTable).set(values).where(eq(accountsTable.id, id));
+    await getDb()
+      .update(accountsTable)
+      // Editing the opening amount shifts the balance by the same amount, keeping the
+      // account's transaction history intact.
+      .set({
+        ...values,
+        ...(values.initialBalance != null && {
+          balance: sql`${values.initialBalance}::numeric + ${transactionsSum}`,
+        }),
+      })
+      .where(eq(accountsTable.id, id));
   });
 
 /** Deletes an account; its transactions cascade-delete with it (see `transactionsTable.accountId`). */
@@ -97,9 +115,9 @@ export const deleteAccount = createServerFn({ method: "POST" })
   });
 
 /**
- * Recomputes every account's balance from the sum of its transactions. `balance` is normally
- * kept in sync incrementally by the transaction mutations, so this is only needed to fix drift
- * (e.g. rows written before that logic existed, or a manual DB edit).
+ * Recomputes every account's balance from its initial balance plus the sum of its transactions.
+ * `balance` is normally kept in sync incrementally by the transaction mutations, so this is only
+ * needed to fix drift (e.g. rows written before that logic existed, or a manual DB edit).
  */
 export const reconcileAccountBalances = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
@@ -108,12 +126,6 @@ export const reconcileAccountBalances = createServerFn({ method: "POST" })
 
     await getDb()
       .update(accountsTable)
-      .set({
-        balance: sql`coalesce((
-          select sum(${transactionsTable.amount})
-          from ${transactionsTable}
-          where ${transactionsTable.accountId} = ${accountsTable.id}
-        ), 0)`,
-      })
+      .set({ balance: sql`${accountsTable.initialBalance} + ${transactionsSum}` })
       .where(eq(accountsTable.profileId, context.profileId));
   });
