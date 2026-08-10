@@ -69,11 +69,13 @@ export const getMonthlySpendingTrend = createServerFn()
             );
 
     const rates = await getUsdRates();
+    // EXPENSE rows are stored negative; the chart plots spending as a rising
+    // magnitude, and its Y axis starts at 0, so take the absolute value.
     const dailyUsd = Array.from({ length: daysInMonth }, () => 0);
     for (const row of rows) {
       if (row.amount == null || row.currency == null) continue;
       const rate = rates[row.currency] ?? 1;
-      dailyUsd[row.day - 1] += Number(row.amount) / rate;
+      dailyUsd[row.day - 1] += Math.abs(Number(row.amount)) / rate;
     }
 
     let cumulative = 0;
