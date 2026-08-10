@@ -70,8 +70,7 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.15.1",
-      "onFail": "download"
+      "version": "11"
     }
   }
 }
