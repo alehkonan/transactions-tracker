@@ -14,7 +14,9 @@ pnpm typecheck        # tsc --noEmit
 pnpm lint             # oxlint  (lint:fix to autofix)
 pnpm format           # oxfmt
 pnpm generate-routes  # tsr generate — regenerate src/routeTree.gen.ts
-pnpm db:push-dev      # drizzle-kit push — sync schema to the dev DB
+pnpm db:push          # drizzle-kit push — sync schema straight to the dev DB
+pnpm db:generate      # drizzle-kit generate — write a migration for the schema diff
+pnpm db:migrate       # drizzle-kit migrate — apply pending migrations
 ```
 
 Run a single test once tests exist: `pnpm vitest run path/to/file.test.ts` (or `-t "name"` to filter by test name).
@@ -35,7 +37,8 @@ Path alias: `~/*` → `./src/*` (defined in `tsconfig.json`). Use it for all int
 - **`src/database/getDb.server.ts`** exposes `getDb()`, a lazily-initialized Drizzle singleton. It has **no top-level side effects** so the TanStack Start compiler can tree-shake the postgres driver out of the client bundle — never create the DB connection at module scope; always inside a server-fn handler via `getDb()`. Files with `.server.ts` are server-only.
 - **Auth is passkeys (WebAuthn) only**, via `@simplewebauthn`. `src/api/auth.functions.ts` runs both ceremonies; `session.server.ts` mints the opaque access (1h) / refresh (24h) tokens, stored SHA-256-hashed in `sessions` and set as `httpOnly`, `SameSite=Lax` cookies; `webauthn.server.ts` holds the RP config and the single-use challenge store. `sessionMiddleware` injects `context.user` (nullable), `authMiddleware` requires it and 401s otherwise. The root route's `beforeLoad` redirects signed-out visitors to `/login`. Deployments must set `AUTH_RP_ID` and `AUTH_ORIGIN`; locally these fall back to the request URL, and WebAuthn's secure-context rule means dev only works over `localhost`, not the LAN host Vite also serves on.
 - **Record ids from the client are never trusted on their own.** `profileMiddleware` proves the caller owns the _profile_; a handler that also accepts an `id` must scope the statement to that profile too (`and(eq(table.id, id), eq(table.profileId, context.profileId))`). Transactions have no profile of their own — they inherit one through their account, so they scope via the `transactionsInProfile()` subquery in `transaction.functions.ts`. For ids that arrive in a request _body_ (e.g. the `accountId` a transaction is filed against), use `assertAccountsInProfile` / `assertCategoriesInProfile` from `src/api/ownership.server.ts`, which throw 403.
-- **`src/database/schema.ts`** is the single source of truth for tables/enums. Migrations are generated into `src/database/migrations/` by drizzle-kit; `drizzle.config.ts` reads `DATABASE_URL` from `.env.local`.
+- **`src/database/schema.ts`** is the single source of truth for tables/enums. Migrations are generated into `src/database/migrations/` by drizzle-kit; `drizzle.config.ts` and `getDb.server.ts` both read the discrete `POSTGRES_USER`/`PASSWORD`/`HOST`/`PORT`/`DB` variables (not a `DATABASE_URL`), loaded from `.env` locally and from the real environment in deployments.
+- **Pick either `db:push` or `db:generate` + `db:migrate` for a given database, and stick to it.** `push` applies the schema diff without recording anything in `drizzle.__drizzle_migrations`, so a database that was pushed to looks unmigrated to `db:migrate`, which then replays old migrations and fails on the first already-applied statement — with the error swallowed by drizzle-kit, leaving only a bare exit code 1.
 - There is currently **no input-validation layer** on server functions — the previous `src/utils/*.schema.ts` Zod schemas (and the mutations that used them, e.g. `createAccount`/`deleteAccount`) were removed pending rework. `zod` is still a dependency; when a mutation needs `.validator(zodSchema)` input validation again, add the schema next to the server function in `src/api/`.
 
 ### Directory layout
