@@ -1,6 +1,6 @@
 import { format } from "date-fns";
+import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { ApproxUsdTag } from "~/modules/transactions/ApproxUsdTag";
-import { CategoryTag } from "~/modules/transactions/CategoryTag";
 import { NecessityLevelTag } from "~/modules/transactions/NecessityLevelTag";
 import { TransactionTypeTag } from "~/modules/transactions/TransactionTypeTag";
 import { formatMoney } from "~/utils/formatMoney";
