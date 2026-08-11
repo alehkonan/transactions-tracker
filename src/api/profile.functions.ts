@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "~/database/getDb.server";
 import { accountsTable, profilesTable, transactionsTable } from "~/database/tables";
@@ -32,7 +32,7 @@ export const getCurrentProfile = createServerFn()
 
 export const getProfiles = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const [profiles, activeAccounts, rates] = await Promise.all([
       getDb()
         .select({
@@ -44,6 +44,7 @@ export const getProfiles = createServerFn()
         .from(profilesTable)
         .leftJoin(accountsTable, eq(accountsTable.profileId, profilesTable.id))
         .leftJoin(transactionsTable, eq(transactionsTable.accountId, accountsTable.id))
+        .where(eq(profilesTable.userId, context.user.id))
         .groupBy(profilesTable.id),
       getDb()
         .select({
@@ -53,7 +54,8 @@ export const getProfiles = createServerFn()
           type: accountsTable.type,
         })
         .from(accountsTable)
-        .where(eq(accountsTable.status, "ACTIVE")),
+        .innerJoin(profilesTable, eq(profilesTable.id, accountsTable.profileId))
+        .where(and(eq(accountsTable.status, "ACTIVE"), eq(profilesTable.userId, context.user.id))),
       getUsdRates(),
     ]);
 
@@ -90,7 +92,10 @@ export const getProfiles = createServerFn()
 export const createProfile = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
   .validator(z.object({ name: z.string().trim().min(1) }))
-  .handler(async ({ data }) => {
-    const [profile] = await getDb().insert(profilesTable).values({ name: data.name }).returning();
+  .handler(async ({ data, context }) => {
+    const [profile] = await getDb()
+      .insert(profilesTable)
+      .values({ name: data.name, userId: context.user.id })
+      .returning();
     return profile;
   });
