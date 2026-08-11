@@ -5,8 +5,8 @@ import { getDb } from "~/database/getDb.server";
 import { sessionsTable, usersTable } from "~/database/tables";
 import type { SQL } from "drizzle-orm";
 
-export const ACCESS_TOKEN_COOKIE = "access_token";
-export const REFRESH_TOKEN_COOKIE = "refresh_token";
+const ACCESS_TOKEN_COOKIE = "access_token";
+const REFRESH_TOKEN_COOKIE = "refresh_token";
 
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60; // 1 hour
 const REFRESH_TOKEN_TTL_SECONDS = 24 * 60 * 60; // 24 hours

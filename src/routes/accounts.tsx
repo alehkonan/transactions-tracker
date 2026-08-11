@@ -3,7 +3,7 @@ import { getAccounts, getBalanceTotals } from "~/api/account.functions";
 import { PageContainer } from "~/components/PageContainer";
 import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
 import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
-import { accountTypeStyles } from "~/modules/accounts/AccountTypeTag";
+import { accountTypeStyles } from "~/modules/accounts/accountTypeTag";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
 import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
 

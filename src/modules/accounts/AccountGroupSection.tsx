@@ -20,7 +20,7 @@ type Props = {
   title: string;
   accounts: Account[];
   totalUsd?: string;
-  /** Tint classes for the total chip, matching this group's `AccountCard` color (see `accountTypeStyles`/`accountStatusStyles` in `AccountTypeTag`/`AccountStatusChip`). */
+  /** Tint classes for the total chip, matching this group's `AccountCard` color (see `accountTypeStyles`/`accountStatusStyles` in `accountTypeTag`/`AccountStatusChip`). */
   totalChipClassName?: string;
   /** Collapsed state to render before the stored preference (if any) is read on mount. */
   defaultCollapsed?: boolean;

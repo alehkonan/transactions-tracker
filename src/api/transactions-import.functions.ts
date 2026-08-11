@@ -29,7 +29,7 @@ const importRowSchema = z.object({
   createdDate: z.string(),
 });
 
-export type ImportFailure = { row: number; reason: string };
+type ImportFailure = { row: number; reason: string };
 
 export type ImportReport = {
   createdCount: number;

@@ -13,7 +13,7 @@ import { InputControl } from "~/components/InputControl";
 import { SelectControl } from "~/components/SelectControl";
 import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
-import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/AccountTypeTag";
+import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/accountTypeTag";
 import { formatMoney } from "~/utils/formatMoney";
 import type { getAccounts } from "~/api/account.functions";
 
