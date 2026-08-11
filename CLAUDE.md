@@ -12,6 +12,7 @@ pnpm test:unit        # vitest run (no test files exist yet)
 pnpm test:e2e         # playwright test — e2e/ (starts the dev server if not already running)
 pnpm typecheck        # tsc --noEmit
 pnpm lint             # oxlint  (lint:fix to autofix)
+pnpm knip             # knip — unused files, exports and dependencies (runs pre-push)
 pnpm format           # oxfmt
 pnpm generate-routes  # tsr generate — regenerate src/routeTree.gen.ts
 pnpm db:push          # drizzle-kit push — sync schema straight to the dev DB
@@ -21,7 +22,7 @@ pnpm db:migrate       # drizzle-kit migrate — apply pending migrations
 
 Run a single test once tests exist: `pnpm vitest run path/to/file.test.ts` (or `-t "name"` to filter by test name).
 
-Linting/formatting use **oxlint** and **oxfmt** (not ESLint/Prettier). Lefthook runs `format` + `lint:fix` on staged files pre-commit and `typecheck` pre-push.
+Linting/formatting use **oxlint** and **oxfmt** (not ESLint/Prettier). Lefthook runs `format` + `lint:fix` on staged files pre-commit, and `typecheck` + `test:unit` + `knip` pre-push.
 
 ## Stack
 

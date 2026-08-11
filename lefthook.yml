@@ -17,3 +17,6 @@ pre-push:
 
     - name: test
       run: pnpm test:unit
+
+    - name: knip
+      run: pnpm knip
