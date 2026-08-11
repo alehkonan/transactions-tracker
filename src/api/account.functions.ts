@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { getDb } from "~/database/getDb.server";
@@ -89,9 +89,11 @@ const updateAccountSchema = z.object({
 });
 
 export const updateAccount = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(updateAccountSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    if (context.profileId == null) return;
+
     const { id, ...values } = data;
     await getDb()
       .update(accountsTable)
@@ -103,15 +105,20 @@ export const updateAccount = createServerFn({ method: "POST" })
           balance: sql`${values.initialBalance}::numeric + ${transactionsSum}`,
         }),
       })
-      .where(eq(accountsTable.id, id));
+      // Scoped by profile as well as id: the id alone comes from the client.
+      .where(and(eq(accountsTable.id, id), eq(accountsTable.profileId, context.profileId)));
   });
 
 /** Deletes an account; its transactions cascade-delete with it (see `transactionsTable.accountId`). */
 export const deleteAccount = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(z.number())
-  .handler(async ({ data: id }) => {
-    await getDb().delete(accountsTable).where(eq(accountsTable.id, id));
+  .handler(async ({ data: id, context }) => {
+    if (context.profileId == null) return;
+
+    await getDb()
+      .delete(accountsTable)
+      .where(and(eq(accountsTable.id, id), eq(accountsTable.profileId, context.profileId)));
   });
 
 /**

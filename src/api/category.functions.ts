@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "~/database/getDb.server";
 import { categoriesTable, colorsTable } from "~/database/tables";
@@ -24,10 +24,15 @@ export const getCategories = createServerFn()
   });
 
 export const deleteCategory = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(z.number())
-  .handler(async ({ data: id }) => {
-    await getDb().delete(categoriesTable).where(eq(categoriesTable.id, id));
+  .handler(async ({ data: id, context }) => {
+    if (context.profileId == null) return;
+
+    // Scoped by profile as well as id: the id alone comes from the client.
+    await getDb()
+      .delete(categoriesTable)
+      .where(and(eq(categoriesTable.id, id), eq(categoriesTable.profileId, context.profileId)));
   });
 
 /** Deletes every category for the selected profile; transactions referencing them have their category cleared (set null). */
