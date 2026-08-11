@@ -1,23 +1,41 @@
-type Props = {
-  name?: string | null;
-  colorHex?: string | null;
-};
+import { twMerge } from "tailwind-merge";
+import { Dialog } from "~/components/Dialog";
+import { CategoryForm } from "~/modules/categories/CategoryForm";
+import type { getCategories } from "~/api/category.functions";
+import type { getColors } from "~/api/color.functions";
 
-/** Category pill tinted with that category's own color, generated at creation time. */
-export function CategoryTag({ name, colorHex }: Props) {
-  if (!name) {
-    return (
-      <span className="border-border text-text-muted inline-block max-w-full truncate rounded-full border px-2 py-0.5 text-center text-xs font-medium whitespace-nowrap">
-        No category
-      </span>
-    );
-  }
+type Category = Awaited<ReturnType<typeof getCategories>>[number];
+type Color = Awaited<ReturnType<typeof getColors>>[number];
 
-  return (
+type Props =
+  | {
+      /** Editable: clicking the tag opens the dialog that renames, recolors or deletes the category. */
+      category: Category;
+      colors: Color[];
+      name?: undefined;
+      colorHex?: undefined;
+    }
+  | {
+      /** Read-only: just the two things the tag draws (e.g. a joined transactions row). */
+      name?: string | null;
+      colorHex?: string | null;
+      category?: undefined;
+      colors?: undefined;
+    };
+
+/** Category pill tinted with that category's own color, picked from the shared palette. */
+export function CategoryTag(props: Props) {
+  const name = props.category?.name ?? props.name;
+  const colorHex = props.category?.colorHex ?? props.colorHex;
+
+  const tag = (
     <span
-      className="inline-block max-w-full truncate rounded-full border px-2 py-0.5 text-center text-xs font-medium whitespace-nowrap"
+      className={twMerge(
+        "inline-block max-w-full truncate rounded-full border px-2 py-0.5 text-center text-xs font-medium whitespace-nowrap",
+        !name && "border-border text-text-muted",
+      )}
       style={
-        colorHex
+        name && colorHex
           ? {
               backgroundColor: `color-mix(in srgb, ${colorHex} 15%, transparent)`,
               borderColor: `color-mix(in srgb, ${colorHex} 40%, transparent)`,
@@ -26,7 +44,27 @@ export function CategoryTag({ name, colorHex }: Props) {
           : undefined
       }
     >
-      {name}
+      {name ?? "No category"}
     </span>
+  );
+
+  if (!props.category) return tag;
+
+  return (
+    <Dialog
+      title="Edit category"
+      renderTrigger={({ onOpen }) => (
+        <button
+          type="button"
+          aria-label={`Edit category ${props.category.name}`}
+          onClick={onOpen}
+          className="max-w-full rounded-full transition-[box-shadow] hover:shadow"
+        >
+          {tag}
+        </button>
+      )}
+    >
+      <CategoryForm category={props.category} colors={props.colors} />
+    </Dialog>
   );
 }
