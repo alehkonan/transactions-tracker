@@ -15,16 +15,13 @@ import {
   transactionTypeStyles,
 } from "~/modules/transactions/TransactionTypeTag";
 import { formatMoney } from "~/utils/format-money";
-import type { getAccounts } from "~/api/account.functions";
-import type { getCategories } from "~/api/category.functions";
-import type { TransactionRow } from "~/api/transaction.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
-type Category = Awaited<ReturnType<typeof getCategories>>[number];
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
+import type { CategoryRow } from "~/modules/categories/to-category-rows";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Props = {
-  accounts: Account[];
-  categories: Category[];
+  accounts: AccountWithBalance[];
+  categories: CategoryRow[];
   /** When set, the form edits this existing row instead of creating a new one. */
   transaction?: TransactionRow;
 };
@@ -40,7 +37,7 @@ const necessityOptions = necessityLevelEnum.enumValues.map((value) => ({
 }));
 
 type BalancePreviewProps = {
-  account: Account | undefined;
+  account: AccountWithBalance | undefined;
   projectedBalance: number | undefined;
 };
 

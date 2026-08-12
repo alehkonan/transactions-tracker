@@ -1,16 +1,17 @@
-import { createFileRoute, useLoaderData } from "@tanstack/react-router";
-import { getAccounts, getBalanceTotals } from "~/api/account.functions";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { PageContainer } from "~/components/PageContainer";
 import { accountTypeStyles } from "~/modules/accounts/account-type-tag";
 import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
 import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
+import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
 import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
+import { useAccounts } from "~/modules/accounts/useAccounts";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
+import type { AccountWithBalance, BalanceTotals } from "~/modules/accounts/compute-balances";
 
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
-type BalanceTotals = Awaited<ReturnType<typeof getBalanceTotals>>;
-
-function getAccountGroups(accounts: Account[], totals: BalanceTotals) {
+function getAccountGroups(accounts: AccountWithBalance[], totals: BalanceTotals) {
   return [
     {
       id: "current",
@@ -44,13 +45,13 @@ function getAccountGroups(accounts: Account[], totals: BalanceTotals) {
 }
 
 export const Route = createFileRoute("/accounts")({
-  loader: async () => {
-    const [accounts, totals] = await Promise.all([getAccounts(), getBalanceTotals()]);
-    return { accounts, totals };
-  },
   component: () => {
-    const { accounts, totals } = useLoaderData({ from: "/accounts" });
-    const groups = getAccountGroups(accounts, totals);
+    const accounts = useAccounts();
+    const usdRates = useSyncStore((state) => state.usdRates);
+    const groups = useMemo(
+      () => getAccountGroups(accounts, computeBalanceTotals(accounts, usdRates)),
+      [accounts, usdRates],
+    );
 
     return (
       <PageContainer>

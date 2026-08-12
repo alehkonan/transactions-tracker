@@ -1,11 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Select } from "~/components/Select";
-import type { getAccounts } from "~/api/account.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
 type Props = {
-  accounts: Account[];
+  accounts: AccountWithBalance[];
   selected?: string;
 };
 

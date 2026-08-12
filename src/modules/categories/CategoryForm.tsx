@@ -1,5 +1,4 @@
 import { Field } from "@base-ui/react/field";
-import { useRouter } from "@tanstack/react-router";
 import { TrashIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
 import { useController, useForm } from "react-hook-form";
@@ -9,11 +8,9 @@ import { Button } from "~/components/Button";
 import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
-import type { getCategories } from "~/api/category.functions";
-import type { getColors } from "~/api/color.functions";
-
-type Category = Awaited<ReturnType<typeof getCategories>>[number];
-type Color = Awaited<ReturnType<typeof getColors>>[number];
+import { syncNow } from "~/modules/sync/useSyncStore";
+import type { CategoryRow } from "~/modules/categories/to-category-rows";
+import type { Color } from "~/modules/sync/sync-types";
 
 type CategoryFormValues = {
   name: string;
@@ -24,10 +21,10 @@ type Props = {
   /** The palette to pick from — the `colors` table rows, the only colors a category can take. */
   colors: Color[];
   /** When set, the form edits this existing category instead of creating a new one. */
-  category?: Category;
+  category?: CategoryRow;
 };
 
-function getDefaultValues(category?: Category): CategoryFormValues {
+function getDefaultValues(category?: CategoryRow): CategoryFormValues {
   return {
     name: category?.name ?? "",
     colorId: category?.colorId ?? null,
@@ -37,7 +34,6 @@ function getDefaultValues(category?: Category): CategoryFormValues {
 /** Creates a category, or renames/recolors/deletes an existing one — the single editor behind a category tag. */
 export function CategoryForm({ colors, category }: Props) {
   const { onClose } = useContext(DialogContext);
-  const router = useRouter();
   const isEditing = Boolean(category);
   const { control, handleSubmit, reset, formState } = useForm<CategoryFormValues>({
     defaultValues: getDefaultValues(category),
@@ -55,7 +51,7 @@ export function CategoryForm({ colors, category }: Props) {
     startDeleteTransition(async () => {
       await deleteCategory({ data: category.id });
       onClose();
-      await router.invalidate();
+      await syncNow();
     });
   };
 
@@ -71,8 +67,8 @@ export function CategoryForm({ colors, category }: Props) {
     }
 
     onClose();
-    // Not awaited: the route data can refetch in the background after the dialog closes.
-    void router.invalidate();
+    // Not awaited: the change can come back through a pull after the dialog closes.
+    void syncNow();
   });
 
   return (

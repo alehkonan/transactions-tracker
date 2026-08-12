@@ -5,12 +5,10 @@ import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
 import { AccountForm } from "./AccountForm";
 import { AccountStatusChip } from "./AccountStatusChip";
-import type { getAccounts } from "~/api/account.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
 type Props = {
-  account: Account;
+  account: AccountWithBalance;
   /** Overrides the default "click opens the edit dialog" behavior — the collapsed peek stack uses this to expand the group on click instead. */
   onClick?: () => void;
 };

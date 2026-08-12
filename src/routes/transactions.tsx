@@ -1,21 +1,23 @@
-import { createFileRoute, useLoaderData } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { PlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
-import { getAccounts } from "~/api/account.functions";
-import { getCategories } from "~/api/category.functions";
-import { getTransactions, type TransactionRow } from "~/api/transaction.functions";
 import { Button } from "~/components/Button";
 import { DataTable } from "~/components/DataTable";
 import { Dialog } from "~/components/Dialog";
 import { PageContainer } from "~/components/PageContainer";
+import { useAccounts } from "~/modules/accounts/useAccounts";
+import { useCategories } from "~/modules/categories/useCategories";
 import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
 import { DaySummary } from "~/modules/transactions/DaySummary";
 import { DeleteSelectedTransactionsButton } from "~/modules/transactions/DeleteSelectedTransactionsButton";
+import { filterTransactions } from "~/modules/transactions/filter-transactions";
 import { buildTransactionsTableColumns } from "~/modules/transactions/transactions-table-columns";
 import { TransactionsAccountFilter } from "~/modules/transactions/TransactionsAccountFilter";
 import { TransactionsDateRangeFilter } from "~/modules/transactions/TransactionsDateRangeFilter";
+import { useTransactionRows } from "~/modules/transactions/useTransactionRows";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 const dateKeySchema = z
   .string()
@@ -28,20 +30,18 @@ export const Route = createFileRoute("/transactions")({
     to: dateKeySchema,
     account: z.string().optional(),
   }),
-  loaderDeps: ({ search }) => ({ from: search.from, to: search.to, account: search.account }),
-  loader: async ({ deps }) => {
-    const [transactions, accounts, categories] = await Promise.all([
-      getTransactions({ data: deps }),
-      getAccounts(),
-      getCategories(),
-    ]);
-    return { transactions, accounts, categories };
-  },
   component: () => {
-    const { transactions, accounts, categories } = useLoaderData({
-      from: "/transactions",
-    });
     const { from, to, account: accountFilter } = Route.useSearch();
+    const accounts = useAccounts();
+    const categories = useCategories();
+    const allTransactions = useTransactionRows();
+    // The filters are the same ones the server used to run, over rows already in memory — so
+    // picking a date range costs a re-render rather than a query.
+    const transactions = useMemo(
+      () => filterTransactions(allTransactions, { from, to, account: accountFilter }),
+      [allTransactions, from, to, accountFilter],
+    );
+
     const [selectedRows, setSelectedRows] = useState<TransactionRow[]>([]);
     const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null);
     const columns = useMemo(() => buildTransactionsTableColumns(), []);

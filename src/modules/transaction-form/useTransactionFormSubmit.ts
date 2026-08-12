@@ -1,11 +1,7 @@
-import { useRouter } from "@tanstack/react-router";
 import { use } from "react";
-import {
-  createTransactions,
-  updateTransaction,
-  type TransactionRow,
-} from "~/api/transaction.functions";
+import { createTransactions, updateTransaction } from "~/api/transaction.functions";
 import { DialogContext } from "~/components/Dialog";
+import { syncNow } from "~/modules/sync/useSyncStore";
 import {
   isOutgoing,
   negateIfPositive,
@@ -13,6 +9,7 @@ import {
   type TransactionFormValues,
   type TransactionType,
 } from "~/modules/transaction-form/transaction-form-values";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type CreateTransactionInput = {
   categoryId?: string;
@@ -31,7 +28,6 @@ type Options = {
 /** Persists the submitted form values (create or update) and closes the dialog. Throws on failure. */
 export function useTransactionFormSubmit({ transaction }: Options) {
   const { onClose } = use(DialogContext);
-  const router = useRouter();
 
   const submit = async (values: TransactionFormValues) => {
     const shared = {
@@ -85,7 +81,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
       await createTransactions({ data: inputs });
     }
 
-    await router.invalidate();
+    await syncNow();
     onClose();
   };
 

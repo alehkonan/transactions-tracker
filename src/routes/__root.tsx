@@ -13,6 +13,8 @@ import { Navbar } from "~/components/Navbar";
 import { Toaster } from "~/components/Toaster";
 import { hasLiveSessionHint } from "~/modules/auth/session-hint";
 import { hasSelectedProfileHint } from "~/modules/profile/profile-cookie";
+import { SyncGate } from "~/modules/sync/SyncGate";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import appCss from "~/styles.css?url";
 
 export const Route = createRootRoute({
@@ -42,6 +44,15 @@ export const Route = createRootRoute({
     const pathname = useRouterState({ select: (state) => state.location.pathname });
     // Full-screen routes that stand on their own, without the app's navigation chrome.
     const isStandalone = pathname === "/profile" || pathname === "/login";
+    // Every route reads from the replicated working set, so every route waits for it — except
+    // `/login`, which has to render for someone who has no data (and no session) yet.
+    const isLogin = pathname === "/login";
+    // Navigation that leads nowhere is worse than no navigation: until the working set is in, every
+    // destination is the same loading screen, so the navbar arrives with the app it navigates.
+    // `isHydrated` is false during SSR too, so the server paints the same chrome-less screen the
+    // client starts from and there is nothing to reconcile on hydration.
+    const isHydrated = useSyncStore((state) => state.isHydrated);
+    const showNavbar = !isStandalone && isHydrated;
 
     return (
       <html lang="en" suppressHydrationWarning>
@@ -50,7 +61,7 @@ export const Route = createRootRoute({
         </head>
         <body className="bg-background min-h-dvh">
           <Toast.Provider>
-            {!isStandalone && (
+            {showNavbar && (
               <header
                 className={twJoin(
                   "pointer-events-none",
@@ -62,7 +73,9 @@ export const Route = createRootRoute({
                 <Navbar />
               </header>
             )}
-            <div className={isStandalone ? undefined : "pb-24 sm:pb-0"}>{children}</div>
+            <div className={showNavbar ? "pb-24 sm:pb-0" : undefined}>
+              {isLogin ? children : <SyncGate>{children}</SyncGate>}
+            </div>
             <Toaster />
           </Toast.Provider>
           <TanStackDevtools

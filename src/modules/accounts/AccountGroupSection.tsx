@@ -8,17 +8,15 @@ import { Chip } from "~/components/Chip";
 import { Title } from "~/components/Title";
 import { AccountCard } from "~/modules/accounts/AccountCard";
 import { formatMoney } from "~/utils/format-money";
-import type { getAccounts } from "~/api/account.functions";
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
 gsap.registerPlugin(useGSAP, Flip);
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
 
 type Props = {
   /** Stable key used to persist this group's collapsed state in localStorage. */
   id: string;
   title: string;
-  accounts: Account[];
+  accounts: AccountWithBalance[];
   totalUsd?: string;
   /** Tint classes for the total chip, matching this group's `AccountCard` color (see `accountTypeStyles`/`accountStatusStyles` in `accountTypeTag`/`AccountStatusChip`). */
   totalChipClassName?: string;

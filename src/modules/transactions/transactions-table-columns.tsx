@@ -5,7 +5,7 @@ import { NecessityLevelTag } from "~/modules/transactions/NecessityLevelTag";
 import { TransactionTypeTag } from "~/modules/transactions/TransactionTypeTag";
 import { formatMoney } from "~/utils/format-money";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { TransactionRow } from "~/api/transaction.functions";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 export function buildTransactionsTableColumns(): ColumnDef<TransactionRow>[] {
   return [

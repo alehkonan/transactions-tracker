@@ -8,7 +8,7 @@ import { Select, type SelectOption } from "~/components/Select";
 import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
 import type { TooltipContentProps } from "recharts";
-import type { getMonthlySpendingTrend } from "~/api/statistics.functions";
+import type { SpendingTrendPoint } from "~/modules/statistics/compute-monthly-spending-trend";
 
 const formatUsd = (value: number) => formatMoney(String(value), "USD");
 
@@ -93,7 +93,7 @@ const renderChartTooltip = ({ active, payload, label }: TooltipContentProps) => 
 type Props = {
   months: SelectOption[];
   month: string;
-  trend: Awaited<ReturnType<typeof getMonthlySpendingTrend>>;
+  trend: SpendingTrendPoint[];
 };
 
 export function SpendingTrendCard({ months, month, trend }: Props) {

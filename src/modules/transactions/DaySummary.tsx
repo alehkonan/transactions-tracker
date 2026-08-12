@@ -1,5 +1,5 @@
 import { formatMoney } from "~/utils/format-money";
-import type { TransactionRow } from "~/api/transaction.functions";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Props = {
   rows: TransactionRow[];

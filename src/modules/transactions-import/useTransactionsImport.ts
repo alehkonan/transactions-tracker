@@ -2,6 +2,7 @@ import { create, type StateCreator } from "zustand";
 import { devtools } from "zustand/middleware";
 import { deleteTransactions } from "~/api/transaction.functions";
 import { importTransactions, type ImportReport } from "~/api/transactions-import.functions";
+import { syncNow } from "~/modules/sync/useSyncStore";
 import { parseCsv } from "~/utils/parse-csv";
 import { csvToImportRows, getMissingHeaders, type ImportRow } from "./utils";
 
@@ -63,6 +64,9 @@ export const actions = {
     try {
       const report = await importTransactions({ data: rows, signal: abortController.signal });
       useTransactionsImport.setState({ report });
+      // The import writes straight to the database, so the store only learns about the new
+      // accounts, categories and transactions by pulling them back.
+      await syncNow();
     } catch (error) {
       if (abortController.signal.aborted) {
         useTransactionsImport.setState({ step: "upload" });
@@ -84,6 +88,7 @@ export const actions = {
     useTransactionsImport.setState({ isCancelling: true });
     if (report.createdTransactionIds.length > 0) {
       await deleteTransactions({ data: report.createdTransactionIds });
+      await syncNow();
     }
     actions.reset();
   },

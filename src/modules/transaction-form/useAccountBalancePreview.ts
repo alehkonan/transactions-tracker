@@ -3,20 +3,18 @@ import {
   isOutgoing,
   type TransactionFormValues,
 } from "~/modules/transaction-form/transaction-form-values";
-import type { getAccounts } from "~/api/account.functions";
-import type { TransactionRow } from "~/api/transaction.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Options = {
-  accounts: Account[];
+  accounts: AccountWithBalance[];
   control: Control<TransactionFormValues>;
   /** When set, the row being edited — its existing sign is kept regardless of the selected type. */
   transaction?: TransactionRow;
 };
 
 function projectBalance(
-  account: Account | undefined,
+  account: AccountWithBalance | undefined,
   amount: string,
   negative: boolean,
 ): number | undefined {

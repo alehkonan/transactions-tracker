@@ -1,33 +1,31 @@
-import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
-import { getSession } from "~/api/auth.functions";
-import { getCategories } from "~/api/category.functions";
-import { getColors } from "~/api/color.functions";
-import { getCurrentProfile } from "~/api/profile.functions";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
+import { readSessionHint } from "~/modules/auth/session-hint";
 import { SignOutButton } from "~/modules/auth/SignOutButton";
 import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { CreateCategoryButton } from "~/modules/categories/CreateCategoryButton";
+import { useCategories } from "~/modules/categories/useCategories";
+import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { ExportTransactionsButton } from "~/modules/transactions/ExportTransactionsButton";
 
 export const Route = createFileRoute("/settings")({
-  loader: async () => {
-    const [profile, user, categories, colors] = await Promise.all([
-      getCurrentProfile(),
-      getSession(),
-      getCategories(),
-      getColors(),
-    ]);
-    return { profile, user, categories, colors };
-  },
   component: () => {
-    const { profile, user, categories, colors } = useLoaderData({ from: "/settings" });
+    const categories = useCategories();
+    const colors = useSyncStore((state) => state.colors);
+    const profiles = useSyncStore((state) => state.profiles);
+    const profileId = readSelectedProfileId();
+    const profile = profiles.find((candidate) => candidate.id === profileId);
+    // From the hint cookie rather than a `getSession()` call: the name is only being displayed, and
+    // this page has no business being the one thing in the app that needs the network.
+    const username = readSessionHint()?.username;
 
     return (
       <PageContainer>
         <Title variant="section">User</Title>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-text">{user?.username ?? "Not signed in"}</span>
+          <span className="text-text">{username ?? "Signed in"}</span>
           <SignOutButton />
         </div>
         <hr className="border-border my-3" />

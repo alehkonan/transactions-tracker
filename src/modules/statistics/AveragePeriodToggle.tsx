@@ -1,7 +1,7 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
 import { twMerge } from "tailwind-merge";
-import type { AveragePeriod } from "~/api/statistics.functions";
+import type { AveragePeriod } from "~/modules/statistics/compute-daily-averages";
 
 const options: { value: AveragePeriod; label: string }[] = [
   { value: "3m", label: "3M" },

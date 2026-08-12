@@ -1,10 +1,10 @@
-import { useRouter } from "@tanstack/react-router";
 import { TrashIcon } from "lucide-react";
 import { useTransition } from "react";
 import { deleteTransactions } from "~/api/transaction.functions";
 import { Button } from "~/components/Button";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
+import { syncNow } from "~/modules/sync/useSyncStore";
 
 type DeleteSelectedTransactionsButtonProps = {
   ids: string[];
@@ -12,13 +12,12 @@ type DeleteSelectedTransactionsButtonProps = {
 
 /** Batch-deletes the given transaction ids, after confirmation, and refreshes the table. */
 export function DeleteSelectedTransactionsButton({ ids }: DeleteSelectedTransactionsButtonProps) {
-  const router = useRouter();
   const [isDeleting, startTransition] = useTransition();
 
   const handleConfirm = () => {
     startTransition(async () => {
       await deleteTransactions({ data: ids });
-      await router.invalidate();
+      await syncNow();
     });
   };
 

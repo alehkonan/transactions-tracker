@@ -1,14 +1,13 @@
-import { useRouter } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
 import { createProfile } from "~/api/profile.functions";
 import { Button } from "~/components/Button";
 import { Dialog, DialogContext } from "~/components/Dialog";
+import { syncNow } from "~/modules/sync/useSyncStore";
 import type { FormEvent } from "react";
 
 function CreateProfileForm() {
   const { onClose } = useContext(DialogContext);
-  const router = useRouter();
   const [name, setName] = useState("");
   const [isCreating, startTransition] = useTransition();
 
@@ -18,7 +17,7 @@ function CreateProfileForm() {
 
     startTransition(async () => {
       await createProfile({ data: { name: name.trim() } });
-      await router.invalidate();
+      await syncNow();
       onClose();
     });
   };

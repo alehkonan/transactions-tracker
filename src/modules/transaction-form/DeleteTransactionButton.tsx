@@ -1,4 +1,3 @@
-import { useRouter } from "@tanstack/react-router";
 import { Loader2Icon, TrashIcon } from "lucide-react";
 import { use, useTransition } from "react";
 import { deleteTransactions } from "~/api/transaction.functions";
@@ -6,6 +5,7 @@ import { Button } from "~/components/Button";
 import { DialogContext } from "~/components/Dialog";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
+import { syncNow } from "~/modules/sync/useSyncStore";
 
 type Props = {
   id: string;
@@ -13,14 +13,13 @@ type Props = {
 
 /** Deletes the transaction being edited, after confirmation, then closes the form. */
 export function DeleteTransactionButton({ id }: Props) {
-  const router = useRouter();
   const { onClose } = use(DialogContext);
   const [isDeleting, startTransition] = useTransition();
 
   const handleConfirm = () => {
     startTransition(async () => {
       await deleteTransactions({ data: [id] });
-      await router.invalidate();
+      await syncNow();
       onClose();
     });
   };

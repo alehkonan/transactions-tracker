@@ -1,18 +1,13 @@
-import { Link, createFileRoute, useLoaderData } from "@tanstack/react-router";
-import { getAccounts } from "~/api/account.functions";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { Card } from "~/components/Card";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
+import { useAccounts } from "~/modules/accounts/useAccounts";
 import { formatMoney } from "~/utils/format-money";
 
 export const Route = createFileRoute("/")({
-  loader: async () => {
-    const accounts = await getAccounts();
-
-    return { accounts };
-  },
   component: () => {
-    const { accounts } = useLoaderData({ from: "/" });
+    const accounts = useAccounts();
     const activeCurrentAccounts = accounts.filter(
       (account) => account.status === "ACTIVE" && account.type === "CURRENT",
     );

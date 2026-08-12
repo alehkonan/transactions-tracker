@@ -1,6 +1,5 @@
 import { Field } from "@base-ui/react/field";
 import { Toggle } from "@base-ui/react/toggle";
-import { useRouter } from "@tanstack/react-router";
 import { TrashIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -14,10 +13,9 @@ import { SelectControl } from "~/components/SelectControl";
 import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/account-type-tag";
+import { syncNow } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
-import type { getAccounts } from "~/api/account.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
 type AccountFormValues = {
   name: string;
@@ -29,7 +27,7 @@ type AccountFormValues = {
 
 type Props = {
   /** When set, the form edits this existing account instead of creating a new one. */
-  account?: Account;
+  account?: AccountWithBalance;
 };
 
 const currencyOptions = currencyCodeEnum.enumValues.map((value) => ({ value, label: value }));
@@ -44,7 +42,7 @@ const statusOptions = accountStatusEnum.enumValues.map((value) => ({
   label: value.charAt(0) + value.slice(1).toLowerCase(),
 }));
 
-function getDefaultValues(account?: Account): AccountFormValues {
+function getDefaultValues(account?: AccountWithBalance): AccountFormValues {
   return {
     name: account?.name ?? "",
     currencyCode: account?.currencyCode ?? "USD",
@@ -58,7 +56,7 @@ function getDefaultValues(account?: Account): AccountFormValues {
  * What the balance becomes for the typed opening amount: the account's transactions total
  * (its current balance minus its stored opening amount) still applies on top of the new one.
  */
-function getProjectedBalance(account: Account, initialBalance: string): string {
+function getProjectedBalance(account: AccountWithBalance, initialBalance: string): string {
   const typed = Number(initialBalance);
   if (initialBalance.trim() === "" || Number.isNaN(typed)) return account.balance;
 
@@ -69,7 +67,6 @@ function getProjectedBalance(account: Account, initialBalance: string): string {
 
 export function AccountForm({ account }: Props) {
   const { onClose } = useContext(DialogContext);
-  const router = useRouter();
   const isEditing = Boolean(account);
   const { control, handleSubmit, reset, formState } = useForm<AccountFormValues>({
     defaultValues: getDefaultValues(account),
@@ -83,7 +80,8 @@ export function AccountForm({ account }: Props) {
     startDeleteTransition(async () => {
       await deleteAccount({ data: account.id });
       onClose();
-      await router.invalidate();
+      // The write went to the server; a pull is what brings it back into the store the page reads.
+      await syncNow();
     });
   };
 
@@ -104,8 +102,8 @@ export function AccountForm({ account }: Props) {
 
     if (!isEditing) reset(getDefaultValues());
     onClose();
-    // Not awaited: the route data can refetch in the background after the dialog closes.
-    void router.invalidate();
+    // Not awaited: the change can come back through a pull after the dialog closes.
+    void syncNow();
   });
 
   return (

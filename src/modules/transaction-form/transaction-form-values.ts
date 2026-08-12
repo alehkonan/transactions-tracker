@@ -1,5 +1,5 @@
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
-import type { TransactionRow } from "~/api/transaction.functions";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 export type NecessityLevel = (typeof necessityLevelEnum.enumValues)[number];
 export type TransactionType = (typeof transactionTypeEnum.enumValues)[number];

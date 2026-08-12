@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getDb } from "~/database/get-db.server";
 import { accountsTable, categoriesTable } from "~/database/tables";
 
@@ -9,6 +9,9 @@ import { accountsTable, categoriesTable } from "~/database/tables";
  * `accountId` or `categoryId` from the request body is still reachable across profiles — and, now
  * that profiles have owners, across users. These assertions close that gap for the mutations that
  * address records by id.
+ *
+ * A soft-deleted record counts as absent: it is gone from every client, so nothing new may be filed
+ * against it.
  *
  * Only safe to call from inside a server function's `.handler(...)`.
  */
@@ -33,7 +36,13 @@ export async function assertAccountsInProfile(
   const owned = await getDb()
     .select({ id: accountsTable.id })
     .from(accountsTable)
-    .where(and(inArray(accountsTable.id, wanted), eq(accountsTable.profileId, profileId)));
+    .where(
+      and(
+        inArray(accountsTable.id, wanted),
+        eq(accountsTable.profileId, profileId),
+        isNull(accountsTable.deletedAt),
+      ),
+    );
 
   if (owned.length !== wanted.length) throw forbidden();
 }
@@ -49,7 +58,13 @@ export async function assertCategoriesInProfile(
   const owned = await getDb()
     .select({ id: categoriesTable.id })
     .from(categoriesTable)
-    .where(and(inArray(categoriesTable.id, wanted), eq(categoriesTable.profileId, profileId)));
+    .where(
+      and(
+        inArray(categoriesTable.id, wanted),
+        eq(categoriesTable.profileId, profileId),
+        isNull(categoriesTable.deletedAt),
+      ),
+    );
 
   if (owned.length !== wanted.length) throw forbidden();
 }

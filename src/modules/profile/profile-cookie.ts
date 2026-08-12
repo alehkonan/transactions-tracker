@@ -22,3 +22,14 @@ export const PROFILE_HINT_COOKIE = "profile_hint";
 export function hasSelectedProfileHint(): boolean {
   return Boolean(readCookie(PROFILE_HINT_COOKIE));
 }
+
+/**
+ * Which profile the client should be showing, or `null` when none is selected.
+ *
+ * Carries no authority — it decides which of the rows already in the store are on screen, nothing
+ * more. Every server function resolves the selection from the signed cookie for itself, so a
+ * tampered hint can only ever mean an empty page.
+ */
+export function readSelectedProfileId(): string | null {
+  return readCookie(PROFILE_HINT_COOKIE) ?? null;
+}

@@ -1,62 +1,22 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { getDb } from "~/database/get-db.server";
 import { accountsTable, transactionsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
-import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
 import { profileMiddleware } from "./profile.middleware";
 
-export const getAccounts = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .handler(({ context }) => {
-    if (context.profileId == null) return [];
-
-    return getDb().query.accountsTable.findMany({
-      where: eq(accountsTable.profileId, context.profileId),
-      orderBy: asc(accountsTable.name),
-    });
-  });
-
-/** Sums each account's balance by group (active current, active savings, archived), converted to USD. */
-export const getBalanceTotals = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .handler(async ({ context }) => {
-    if (context.profileId == null) {
-      return { currentBalanceUsd: "0", savingsBalanceUsd: "0", archivedBalanceUsd: "0" };
-    }
-
-    const [accounts, rates] = await Promise.all([
-      getDb().query.accountsTable.findMany({
-        where: eq(accountsTable.profileId, context.profileId),
-      }),
-      getUsdRates(),
-    ]);
-
-    let currentBalanceUsd = 0;
-    let savingsBalanceUsd = 0;
-    let archivedBalanceUsd = 0;
-    for (const account of accounts) {
-      const usdAmount = Number(account.balance) / (rates[account.currencyCode] ?? 1);
-      if (account.status === "ARCHIVED") archivedBalanceUsd += usdAmount;
-      else if (account.type === "SAVING") savingsBalanceUsd += usdAmount;
-      else currentBalanceUsd += usdAmount;
-    }
-
-    return {
-      currentBalanceUsd: currentBalanceUsd.toFixed(2),
-      savingsBalanceUsd: savingsBalanceUsd.toFixed(2),
-      archivedBalanceUsd: archivedBalanceUsd.toFixed(2),
-    };
-  });
-
-/** Sum of an account's transactions, as a correlated subquery usable in an `accounts` update. */
+/**
+ * Sum of an account's live transactions, as a correlated subquery usable in an `accounts` update.
+ * Tombstoned rows are excluded: a soft-deleted transaction has stopped affecting any balance.
+ */
 const transactionsSum = sql`coalesce((
   select sum(${transactionsTable.amount})
   from ${transactionsTable}
   where ${transactionsTable.accountId} = ${accountsTable.id}
+    and ${transactionsTable.deletedAt} is null
 ), 0)`;
 
 const createAccountSchema = z.object({
@@ -106,26 +66,67 @@ export const updateAccount = createServerFn({ method: "POST" })
           balance: sql`${values.initialBalance}::numeric + ${transactionsSum}`,
         }),
       })
-      // Scoped by profile as well as id: the id alone comes from the client.
-      .where(and(eq(accountsTable.id, id), eq(accountsTable.profileId, context.profileId)));
+      // Scoped by profile as well as id: the id alone comes from the client. A tombstoned row is
+      // gone as far as every client is concerned, so it is not editable either.
+      .where(
+        and(
+          eq(accountsTable.id, id),
+          eq(accountsTable.profileId, context.profileId),
+          isNull(accountsTable.deletedAt),
+        ),
+      );
   });
 
-/** Deletes an account; its transactions cascade-delete with it (see `transactionsTable.accountId`). */
+/**
+ * Soft-deletes an account and, with it, its transactions.
+ *
+ * A tombstone rather than a `DELETE` because a delta pull can only see rows that still exist: a row
+ * that vanishes outright stays on every client that already holds it, forever. `updatedAt` moves
+ * with `deletedAt` so the deletion is what the next pull finds.
+ *
+ * The transactions have to be tombstoned explicitly. Their `onDelete: "cascade"` only fires for a
+ * real delete, and without this the account would disappear from clients while the rows filed
+ * against it stayed behind, counting towards balances belonging to nothing.
+ */
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(z.uuid())
   .handler(async ({ data: id, context }) => {
-    if (context.profileId == null) return;
+    const { profileId } = context;
+    if (profileId == null) return;
 
-    await getDb()
-      .delete(accountsTable)
-      .where(and(eq(accountsTable.id, id), eq(accountsTable.profileId, context.profileId)));
+    const deletedAt = new Date();
+
+    await getDb().transaction(async (tx) => {
+      const [deleted] = await tx
+        .update(accountsTable)
+        .set({ deletedAt, updatedAt: deletedAt })
+        .where(
+          and(
+            eq(accountsTable.id, id),
+            eq(accountsTable.profileId, profileId),
+            isNull(accountsTable.deletedAt),
+          ),
+        )
+        .returning({ id: accountsTable.id });
+
+      // Nothing matched: not this profile's account, or already deleted. Either way its
+      // transactions are not this call's to touch.
+      if (!deleted) return;
+
+      await tx
+        .update(transactionsTable)
+        .set({ deletedAt, updatedAt: deletedAt })
+        .where(and(eq(transactionsTable.accountId, id), isNull(transactionsTable.deletedAt)));
+    });
   });
 
 /**
  * Recomputes every account's balance from its initial balance plus the sum of its transactions.
- * `balance` is normally kept in sync incrementally by the transaction mutations, so this is only
- * needed to fix drift (e.g. rows written before that logic existed, or a manual DB edit).
+ *
+ * Server-side housekeeping only, now that clients derive balances from the transactions they hold
+ * (see `compute-balances.ts`) — the column is kept for debugging and for whatever still reads the
+ * database directly, and this is what fixes drift in it.
  *
  * Leaves `updatedAt` alone on purpose: `balance` is derived and never replicated, so restating it
  * is not a change a syncing client has to hear about.
@@ -138,5 +139,5 @@ export const reconcileAccountBalances = createServerFn({ method: "POST" })
     await getDb()
       .update(accountsTable)
       .set({ balance: sql`${accountsTable.initialBalance} + ${transactionsSum}` })
-      .where(eq(accountsTable.profileId, context.profileId));
+      .where(and(eq(accountsTable.profileId, context.profileId), isNull(accountsTable.deletedAt)));
   });

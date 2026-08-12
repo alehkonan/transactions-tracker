@@ -8,13 +8,11 @@ import {
 import { useAccountBalancePreview } from "~/modules/transaction-form/useAccountBalancePreview";
 import { useTransactionFormSubmit } from "~/modules/transaction-form/useTransactionFormSubmit";
 import { useTransferAmountMirror } from "~/modules/transaction-form/useTransferAmountMirror";
-import type { getAccounts } from "~/api/account.functions";
-import type { TransactionRow } from "~/api/transaction.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Options = {
-  accounts: Account[];
+  accounts: AccountWithBalance[];
   /** When set, the form edits this existing row instead of creating a new one. */
   transaction?: TransactionRow;
 };

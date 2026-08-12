@@ -1,10 +1,10 @@
 import { Card } from "~/components/Card";
 import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
-import type { getDailyAverages } from "~/api/statistics.functions";
+import type { DailyAverages } from "~/modules/statistics/compute-daily-averages";
 
 type Props = {
-  runway: Awaited<ReturnType<typeof getDailyAverages>>["runway"];
+  runway: DailyAverages["runway"];
   perDayUsd: number;
 };
 

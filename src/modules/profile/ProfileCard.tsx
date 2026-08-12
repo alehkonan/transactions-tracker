@@ -1,11 +1,9 @@
 import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
-import type { getProfiles } from "~/api/profile.functions";
-
-type Profile = Awaited<ReturnType<typeof getProfiles>>[number];
+import type { ProfileSummary } from "~/modules/accounts/compute-balances";
 
 type Props = {
-  profile: Profile;
+  profile: ProfileSummary;
   onSelect: () => void;
 };
 

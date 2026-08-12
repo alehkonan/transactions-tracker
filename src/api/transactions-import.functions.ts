@@ -1,18 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { currencyCodeEnum } from "~/database/enums";
 import { getDb } from "~/database/get-db.server";
 import { accountsTable, categoriesTable, colorsTable, transactionsTable } from "~/database/tables";
+import { negateMoney, sumMoney } from "~/utils/money";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
 import { profileMiddleware } from "./profile.middleware";
-import {
-  groupAmountsByAccount,
-  INSERT_CHUNK_SIZE,
-  negateMoney,
-  sumMoney,
-} from "./transaction.functions";
+import { groupAmountsByAccount, INSERT_CHUNK_SIZE } from "./transaction.functions";
 
 type CurrencyCode = (typeof currencyCodeEnum.enumValues)[number];
 type TransactionType = "INCOME" | "EXPENSE" | "TRANSFER";
@@ -143,9 +139,12 @@ export const importTransactions = createServerFn({ method: "POST" })
       const categoryMap = new Map<string, string>();
       if (categoryNames.size > 0) {
         const existingCategories = await tx.query.categoriesTable.findMany({
+          // A soft-deleted category is gone as far as clients are concerned, so a matching name
+          // has to create a fresh one rather than resurrect it.
           where: and(
             inArray(categoriesTable.name, [...categoryNames]),
             eq(categoriesTable.profileId, profileId),
+            isNull(categoriesTable.deletedAt),
           ),
           columns: { id: true, name: true },
         });
@@ -182,6 +181,7 @@ export const importTransactions = createServerFn({ method: "POST" })
           where: and(
             inArray(accountsTable.name, [...accountCurrencies.keys()]),
             eq(accountsTable.profileId, profileId),
+            isNull(accountsTable.deletedAt),
           ),
           columns: { id: true, name: true, currencyCode: true },
         });

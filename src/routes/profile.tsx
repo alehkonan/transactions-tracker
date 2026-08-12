@@ -1,18 +1,27 @@
-import { createFileRoute, useLoaderData, useNavigate } from "@tanstack/react-router";
-import { getProfiles, selectProfile } from "~/api/profile.functions";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { selectProfile } from "~/api/profile.functions";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
+import { computeProfileSummaries } from "~/modules/accounts/compute-balances";
 import { CreateProfileButton } from "~/modules/profile/CreateProfileButton";
 import { ProfileCard } from "~/modules/profile/ProfileCard";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 
 export const Route = createFileRoute("/profile")({
-  loader: async () => {
-    const profiles = await getProfiles();
-    return { profiles };
-  },
   component: () => {
-    const { profiles } = useLoaderData({ from: "/profile" });
     const navigate = useNavigate();
+    // Not profile-scoped, unlike every other page: the pull covers all of the user's profiles, which
+    // is what lets this list each one's totals without a query per tile.
+    const profiles = useSyncStore((state) => state.profiles);
+    const accounts = useSyncStore((state) => state.accounts);
+    const transactions = useSyncStore((state) => state.transactions);
+    const usdRates = useSyncStore((state) => state.usdRates);
+
+    const summaries = useMemo(
+      () => computeProfileSummaries(profiles, accounts, transactions, usdRates),
+      [profiles, accounts, transactions, usdRates],
+    );
 
     const handleSelect = async (id: string) => {
       // The cookies the guard reads are set by the server, so the navigation waits for them —
@@ -28,11 +37,11 @@ export const Route = createFileRoute("/profile")({
           <CreateProfileButton />
         </div>
         <hr className="border-border my-3" />
-        {profiles.length === 0 ? (
+        {summaries.length === 0 ? (
           <p>No profiles yet — create one to get started.</p>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">
-            {profiles.map((profile) => (
+            {summaries.map((profile) => (
               <ProfileCard
                 key={profile.id}
                 profile={profile}
