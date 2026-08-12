@@ -1,10 +1,9 @@
 import { TrashIcon } from "lucide-react";
 import { useTransition } from "react";
-import { deleteTransactions } from "~/api/transaction.functions";
 import { Button } from "~/components/Button";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
-import { syncNow } from "~/modules/sync/useSyncStore";
+import { deleteTransactions } from "~/modules/transactions/transaction-mutations";
 
 type DeleteSelectedTransactionsButtonProps = {
   ids: string[];
@@ -16,8 +15,7 @@ export function DeleteSelectedTransactionsButton({ ids }: DeleteSelectedTransact
 
   const handleConfirm = () => {
     startTransition(async () => {
-      await deleteTransactions({ data: ids });
-      await syncNow();
+      await deleteTransactions(ids);
     });
   };
 

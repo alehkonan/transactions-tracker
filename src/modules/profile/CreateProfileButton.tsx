@@ -1,9 +1,8 @@
 import { PlusIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
-import { createProfile } from "~/api/profile.functions";
 import { Button } from "~/components/Button";
 import { Dialog, DialogContext } from "~/components/Dialog";
-import { syncNow } from "~/modules/sync/useSyncStore";
+import { createProfile } from "~/modules/profile/profile-mutations";
 import type { FormEvent } from "react";
 
 function CreateProfileForm() {
@@ -16,8 +15,9 @@ function CreateProfileForm() {
     if (!name.trim()) return;
 
     startTransition(async () => {
-      await createProfile({ data: { name: name.trim() } });
-      await syncNow();
+      // Awaited all the way to the server: the next thing the user does is pick this profile, and
+      // that mints a signed cookie the server will only issue for a profile it can see.
+      await createProfile(name.trim());
       onClose();
     });
   };

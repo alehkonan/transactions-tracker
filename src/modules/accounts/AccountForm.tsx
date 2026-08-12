@@ -4,7 +4,6 @@ import { TrashIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
-import { createAccount, deleteAccount, updateAccount } from "~/api/account.functions";
 import { Button } from "~/components/Button";
 import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { DialogContext } from "~/components/Dialog";
@@ -12,8 +11,9 @@ import { InputControl } from "~/components/InputControl";
 import { SelectControl } from "~/components/SelectControl";
 import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
+import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
 import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/account-type-tag";
-import { syncNow } from "~/modules/sync/useSyncStore";
+import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import { formatMoney } from "~/utils/format-money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
@@ -78,14 +78,15 @@ export function AccountForm({ account }: Props) {
   const handleDelete = () => {
     if (!account) return;
     startDeleteTransition(async () => {
-      await deleteAccount({ data: account.id });
+      await deleteAccount(account);
       onClose();
-      // The write went to the server; a pull is what brings it back into the store the page reads.
-      await syncNow();
     });
   };
 
   const onSubmit = handleSubmit(async (values) => {
+    const profileId = readSelectedProfileId();
+    if (profileId == null) return;
+
     const input = {
       name: values.name,
       currencyCode: values.currencyCode as (typeof currencyCodeEnum.enumValues)[number],
@@ -94,16 +95,16 @@ export function AccountForm({ account }: Props) {
       initialBalance: values.initialBalance,
     };
 
+    // Both land in the store before this resolves, so the dialog closes onto the change itself
+    // rather than onto the round trip that will carry it to the server.
     if (account) {
-      await updateAccount({ data: { id: account.id, ...input } });
+      await updateAccount(account, input);
     } else {
-      await createAccount({ data: input });
+      await createAccount(profileId, input);
     }
 
     if (!isEditing) reset(getDefaultValues());
     onClose();
-    // Not awaited: the change can come back through a pull after the dialog closes.
-    void syncNow();
   });
 
   return (

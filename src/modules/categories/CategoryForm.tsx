@@ -3,12 +3,16 @@ import { TrashIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
 import { useController, useForm } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
-import { createCategory, deleteCategory, updateCategory } from "~/api/category.functions";
 import { Button } from "~/components/Button";
 import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
-import { syncNow } from "~/modules/sync/useSyncStore";
+import {
+  createCategory,
+  deleteCategory,
+  updateCategory,
+} from "~/modules/categories/category-mutations";
+import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
 import type { Color } from "~/modules/sync/sync-types";
 
@@ -49,9 +53,8 @@ export function CategoryForm({ colors, category }: Props) {
   const handleDelete = () => {
     if (!category) return;
     startDeleteTransition(async () => {
-      await deleteCategory({ data: category.id });
+      await deleteCategory(category.id);
       onClose();
-      await syncNow();
     });
   };
 
@@ -59,16 +62,17 @@ export function CategoryForm({ colors, category }: Props) {
     // The validation rule above already rejected a missing color; this only narrows the type.
     if (colorId == null) return;
 
+    const profileId = readSelectedProfileId();
+    if (profileId == null) return;
+
     if (category) {
-      await updateCategory({ data: { id: category.id, name, colorId } });
+      await updateCategory(category.id, name, colorId);
     } else {
-      await createCategory({ data: { name, colorId } });
+      await createCategory(profileId, name, colorId);
       reset(getDefaultValues());
     }
 
     onClose();
-    // Not awaited: the change can come back through a pull after the dialog closes.
-    void syncNow();
   });
 
   return (

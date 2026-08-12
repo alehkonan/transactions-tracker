@@ -11,6 +11,10 @@ import { setSelectedProfileCookie } from "./selected-profile.server";
  * Records the caller's profile choice, having first proven they own it. That check is why this is
  * a mutation rather than something the client can set for itself: the resulting cookie is signed,
  * so every request afterwards trusts the id without asking the database again.
+ *
+ * Not a data endpoint, which is why it survives the move to `pushChanges`: creating a profile is a
+ * client mutation now (see `modules/profile/profile-mutations.ts`), but only the server can sign a
+ * cookie, so choosing one still has to come here.
  */
 export const selectProfile = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
@@ -24,15 +28,4 @@ export const selectProfile = createServerFn({ method: "POST" })
     if (!profile) throw new Response("No such profile.", { status: 404 });
 
     setSelectedProfileCookie({ profileId: profile.id, userId: context.user.id });
-  });
-
-export const createProfile = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
-  .validator(z.object({ name: z.string().trim().min(1) }))
-  .handler(async ({ data, context }) => {
-    const [profile] = await getDb()
-      .insert(profilesTable)
-      .values({ name: data.name, userId: context.user.id })
-      .returning();
-    return profile;
   });
