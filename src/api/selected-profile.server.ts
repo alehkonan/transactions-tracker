@@ -1,27 +1,57 @@
-import { getCookie } from "@tanstack/react-start/server";
-import { and, eq } from "drizzle-orm";
-import { getDb } from "~/database/get-db.server";
-import { profilesTable } from "~/database/tables";
-import { SELECTED_PROFILE_COOKIE, parseSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
+import {
+  PROFILE_HINT_COOKIE,
+  SELECTED_PROFILE_COOKIE,
+  SELECTED_PROFILE_TTL_SECONDS,
+  type SelectedProfilePayload,
+} from "~/modules/profile/profile-cookie";
+import { signCookieValue, verifyCookieValue } from "./signed-cookie.server";
 
 /**
- * Resolves the cookie-selected profile, but only if `userId` actually owns it.
+ * Resolves the cookie-selected profile, or `null` when nothing is selected.
  *
- * The cookie is client-controlled, so on its own it is a request to look at a profile, not proof
- * of access — anyone could point it at someone else's id. Confirming ownership here means every
- * handler downstream can treat `context.profileId` as already authorized.
+ * The cookie is signed, so the id in it is one this server put there after checking ownership (see
+ * `selectProfile`) rather than a client-controlled request to look at a profile — which is what
+ * lets this run without a query. It is still matched against `userId`: a cookie left behind by a
+ * previous user on the same browser is genuinely signed, just not theirs to use.
  *
  * Only safe to call from inside a server function's `.handler(...)` (or another `.server.ts`
  * module) — this file is stripped from the client bundle, same as `getDb.server.ts`.
  */
-export async function getSelectedProfileIdFromCookie(userId: number): Promise<number | null> {
-  const profileId = parseSelectedProfileId(getCookie(SELECTED_PROFILE_COOKIE));
-  if (profileId === null) return null;
+export function getSelectedProfileIdFromCookie(userId: number): number | null {
+  const raw = getCookie(SELECTED_PROFILE_COOKIE);
+  const selection = verifyCookieValue<SelectedProfilePayload>(raw);
+  if (selection && selection.userId === userId) return selection.profileId;
 
-  const [profile] = await getDb()
-    .select({ id: profilesTable.id })
-    .from(profilesTable)
-    .where(and(eq(profilesTable.id, profileId), eq(profilesTable.userId, userId)));
+  // The readable hint has to go with it. It outlives the cookie it stands for whenever the
+  // signature stops verifying — a rotated `AUTH_SECRET`, or somebody else signing in on this
+  // browser — and on its own it convinces the root guard a profile is selected, landing the user
+  // on a profile-scoped page that resolves to nothing with no route back to `/profile`.
+  if (raw != null || getCookie(PROFILE_HINT_COOKIE) != null) clearSelectedProfileCookies();
 
-  return profile?.id ?? null;
+  return null;
+}
+
+/** Forgets this browser's selection — both halves of it, which always travel together. */
+export function clearSelectedProfileCookies(): void {
+  deleteCookie(SELECTED_PROFILE_COOKIE, { path: "/" });
+  deleteCookie(PROFILE_HINT_COOKIE, { path: "/" });
+}
+
+/**
+ * Records `profileId` as this browser's selection. The caller is responsible for having proven
+ * that `userId` owns it — that check happens once, here, instead of on every request afterwards.
+ */
+export function setSelectedProfileCookie(payload: SelectedProfilePayload): void {
+  const shared = {
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SELECTED_PROFILE_TTL_SECONDS,
+  } as const;
+
+  setCookie(SELECTED_PROFILE_COOKIE, signCookieValue(payload), { ...shared, httpOnly: true });
+  // Readable counterpart, so the root route's guard can tell a profile has been chosen without
+  // asking the server. See `SESSION_HINT_COOKIE`.
+  setCookie(PROFILE_HINT_COOKIE, String(payload.profileId), { ...shared, httpOnly: false });
 }

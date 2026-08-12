@@ -207,7 +207,7 @@ export const signUp = createServerFn({ method: "POST" })
     });
 
     // Kept outside the transaction: the session row's foreign key needs the committed user.
-    await createSession(user.id);
+    await createSession(user);
 
     return user;
   });
@@ -289,9 +289,10 @@ export const signIn = createServerFn({ method: "POST" })
       .set({ counter: verification.authenticationInfo.newCounter, lastUsedAt: new Date() })
       .where(eq(credentialsTable.id, record.credential.id));
 
-    await createSession(record.user.id);
+    const user = { id: record.user.id, username: record.user.username };
+    await createSession(user);
 
-    return { id: record.user.id, username: record.user.username };
+    return user;
   });
 
 export const signOut = createServerFn({ method: "POST" })

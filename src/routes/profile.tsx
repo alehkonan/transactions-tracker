@@ -1,10 +1,9 @@
 import { createFileRoute, useLoaderData, useNavigate } from "@tanstack/react-router";
-import { getProfiles } from "~/api/profile.functions";
+import { getProfiles, selectProfile } from "~/api/profile.functions";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { CreateProfileButton } from "~/modules/profile/CreateProfileButton";
 import { ProfileCard } from "~/modules/profile/ProfileCard";
-import { useProfileStore } from "~/modules/profile/useProfileStore";
 
 export const Route = createFileRoute("/profile")({
   loader: async () => {
@@ -14,11 +13,12 @@ export const Route = createFileRoute("/profile")({
   component: () => {
     const { profiles } = useLoaderData({ from: "/profile" });
     const navigate = useNavigate();
-    const selectProfile = useProfileStore((state) => state.selectProfile);
 
-    const handleSelect = (id: number) => {
-      selectProfile(id);
-      navigate({ to: "/" });
+    const handleSelect = async (id: number) => {
+      // The cookies the guard reads are set by the server, so the navigation waits for them —
+      // leaving early would bounce straight back here with nothing selected.
+      await selectProfile({ data: { profileId: id } });
+      await navigate({ to: "/" });
     };
 
     return (

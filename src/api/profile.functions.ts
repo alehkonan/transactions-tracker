@@ -7,16 +7,26 @@ import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
 import { profileMiddleware } from "./profile.middleware";
+import { setSelectedProfileCookie } from "./selected-profile.server";
 
 /**
- * Server-fn wrapper around `profileMiddleware`'s `context.profileId`, for the root route's
- * `beforeLoad` guard: unlike calling the underlying cookie helper directly, this also works when
- * invoked from the client (SPA navigations), where `createServerFn` transparently turns the call
- * into an RPC against a real request context.
+ * Records the caller's profile choice, having first proven they own it. That check is why this is
+ * a mutation rather than something the client can set for itself: the resulting cookie is signed,
+ * so every request afterwards trusts the id without asking the database again.
  */
-export const getSelectedProfileId = createServerFn()
-  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .handler(({ context }) => context.profileId);
+export const selectProfile = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(z.object({ profileId: z.number() }))
+  .handler(async ({ data, context }) => {
+    const [profile] = await getDb()
+      .select({ id: profilesTable.id })
+      .from(profilesTable)
+      .where(and(eq(profilesTable.id, data.profileId), eq(profilesTable.userId, context.user.id)));
+
+    if (!profile) throw new Response("No such profile.", { status: 404 });
+
+    setSelectedProfileCookie({ profileId: profile.id, userId: context.user.id });
+  });
 
 export const getCurrentProfile = createServerFn()
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])

@@ -9,23 +9,26 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { twJoin } from "tailwind-merge";
-import { getSession } from "~/api/auth.functions";
-import { getSelectedProfileId } from "~/api/profile.functions";
 import { Navbar } from "~/components/Navbar";
 import { Toaster } from "~/components/Toaster";
+import { hasLiveSessionHint } from "~/modules/auth/session-hint";
+import { hasSelectedProfileHint } from "~/modules/profile/profile-cookie";
 import appCss from "~/styles.css?url";
 
 export const Route = createRootRoute({
-  beforeLoad: async ({ location }) => {
+  // Routing only, and deliberately synchronous: both checks read cookies the browser already has,
+  // so a navigation costs no request and the app still opens with no network at all. The hints are
+  // forgeable, which buys nothing — every server function proves the caller for itself, so a faked
+  // hint renders an empty shell and 401s on the first call.
+  beforeLoad: ({ location }) => {
     // The login page is the one route that has to render for signed-out visitors.
     if (location.pathname === "/login") return;
 
-    if (!(await getSession())) throw redirect({ to: "/login" });
+    if (!hasLiveSessionHint()) throw redirect({ to: "/login" });
 
     if (location.pathname === "/profile") return;
 
-    const profileId = await getSelectedProfileId();
-    if (profileId === null) throw redirect({ to: "/profile" });
+    if (!hasSelectedProfileHint()) throw redirect({ to: "/profile" });
   },
   head: () => ({
     meta: [

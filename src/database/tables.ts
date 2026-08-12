@@ -59,9 +59,12 @@ export const credentialsTable = pgTable(
 );
 
 /**
- * A logged-in session, addressed by two opaque random tokens rather than a signed payload — so
- * revoking a session is a single `DELETE` and no signing secret has to be kept in sync. Only the
- * SHA-256 hashes are stored: a database leak alone does not hand out usable cookies.
+ * A logged-in session, holding only the long-lived refresh token — the short-lived access token is
+ * a signed cookie that is never stored, so the common case resolves without reading this table at
+ * all (see `session.server.ts`). Revoking a session is still a single `DELETE`, it just takes
+ * effect when the access cookie next expires.
+ *
+ * Only the SHA-256 hash is stored: a database leak alone does not hand out usable cookies.
  */
 export const sessionsTable = pgTable(
   "sessions",
@@ -70,8 +73,6 @@ export const sessionsTable = pgTable(
     userId: integer("user_id")
       .notNull()
       .references(() => usersTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
-    accessTokenHash: text("access_token_hash").unique().notNull(),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }).notNull(),
     refreshTokenHash: text("refresh_token_hash").unique().notNull(),
     refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
