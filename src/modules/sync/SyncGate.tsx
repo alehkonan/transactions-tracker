@@ -3,7 +3,9 @@ import { LoaderCircleIcon } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "~/components/Button";
 import { Title } from "~/components/Title";
+import { SyncConflictToasts } from "./SyncConflictToasts";
 import { SyncProgress } from "./SyncProgress";
+import { UnsyncedChanges } from "./UnsyncedChanges";
 import { bootSync, syncNow, useSyncStore } from "./useSyncStore";
 import type { ReactNode } from "react";
 
@@ -42,6 +44,8 @@ export function SyncGate({ children }: Props) {
       <>
         {children}
         <SyncProgress />
+        <UnsyncedChanges />
+        <SyncConflictToasts />
       </>
     );
   }
