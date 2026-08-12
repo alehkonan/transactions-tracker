@@ -9,6 +9,13 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
+  // gsap's subpath files (gsap/Flip, …) are ESM source but the package has no
+  // `type: "module"`, so Node's ESM loader treats them as CommonJS and a named
+  // `import { Flip }` crashes the deployed function. Bundling gsap into the SSR
+  // output instead of externalizing it lets Vite resolve the interop at build time.
+  ssr: {
+    noExternal: ["gsap", "@gsap/react"],
+  },
   test: {
     exclude: [...configDefaults.exclude, "e2e/**"],
   },
