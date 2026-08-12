@@ -20,8 +20,16 @@ export function getDb() {
         host: process.env.POSTGRES_HOST,
         port: Number(process.env.POSTGRES_PORT),
         database: process.env.POSTGRES_DB,
+        // Deployed as serverless functions, so concurrency comes from many instances rather than
+        // many connections within one. The driver's default pool of 10 would multiply per instance
+        // and, against a 500MB database where each backend costs several MB of RAM, exhaust
+        // `max_connections` long before it ever helped throughput.
+        max: 1,
+        // Let an idle instance hand its connection back rather than holding it until it is frozen.
+        idle_timeout: 20,
+        connect_timeout: 10,
       });
-    if (process.env.NODE_ENV !== "production") globalForDb.client = client;
+    globalForDb.client = client;
     globalForDb.db = drizzle(client, { schema });
   }
   return globalForDb.db;
