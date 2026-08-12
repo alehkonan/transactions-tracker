@@ -3,7 +3,7 @@ import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server
 import { and, eq, gt, lt, or } from "drizzle-orm";
 import { getDb } from "~/database/get-db.server";
 import { sessionsTable, usersTable } from "~/database/tables";
-import { SESSION_HINT_COOKIE } from "~/modules/auth/session-hint";
+import { encodeSessionHint, SESSION_HINT_COOKIE } from "~/modules/auth/session-hint";
 import { clearSelectedProfileCookies } from "./selected-profile.server";
 import { signCookieValue, verifyCookieValue } from "./signed-cookie.server";
 import type { SQL } from "drizzle-orm";
@@ -70,12 +70,13 @@ function setTokenCookie(name: string, token: string, maxAge: number): void {
 }
 
 /**
- * Mirrors the session's deadline into a cookie the client can actually read, so route guards can
- * decide locally instead of asking the server. Deliberately not `httpOnly` — and deliberately
- * holding nothing but a timestamp.
+ * Mirrors the session's deadline and the caller's own username into a cookie the client can actually
+ * read, so route guards can decide locally instead of asking the server, and the settings page can
+ * name the signed-in user without a request. Deliberately not `httpOnly`, and deliberately holding
+ * nothing that is not already on screen.
  */
-function setSessionHintCookie(expiresAt: Date): void {
-  setCookie(SESSION_HINT_COOKIE, String(expiresAt.getTime()), {
+function setSessionHintCookie(expiresAt: Date, username: string): void {
+  setCookie(SESSION_HINT_COOKIE, encodeSessionHint({ exp: expiresAt.getTime(), username }), {
     httpOnly: false,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -120,7 +121,7 @@ export async function createSession(user: SessionUser): Promise<void> {
 
   issueAccessToken({ sessionId: session.id, userId: user.id, username: user.username });
   setTokenCookie(REFRESH_TOKEN_COOKIE, refreshToken, REFRESH_TOKEN_TTL_SECONDS);
-  setSessionHintCookie(refreshTokenExpiresAt);
+  setSessionHintCookie(refreshTokenExpiresAt, user.username);
 }
 
 /** Deletes the current session (if any) and clears the cookies. */
@@ -168,8 +169,11 @@ export async function resolveSession(): Promise<SessionUser | null> {
 
   const refreshToken = getCookie(REFRESH_TOKEN_COOKIE);
   if (!refreshToken) {
-    // An access cookie that resolved to nothing is stale or forged either way — stop resending it.
-    if (access) clearSessionCookies();
+    // Nothing left to refresh from, so whatever the browser is still holding is stale or forged —
+    // stop resending it. The readable hint has to go with the tokens: the route guards believe it,
+    // and one that outlives them leaves the client bouncing between a guard that lets it into the
+    // app and a sync call that refuses to load any data for it.
+    if (access || getCookie(SESSION_HINT_COOKIE)) clearSessionCookies();
     return null;
   }
 
