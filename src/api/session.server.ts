@@ -105,8 +105,18 @@ function clearSessionCookies(): void {
   clearSelectedProfileCookies();
 }
 
-/** Issues a fresh session for `user` and writes the cookies to the response. */
+/**
+ * Issues a fresh session for `user` and writes the cookies to the response.
+ *
+ * The profile selection is dropped first. It is scoped to whoever chose it, and a browser that has
+ * just been signed into may well have been somebody else's a moment ago — leaving the hint behind
+ * would convince the root guard a profile is selected and land the new user on a profile-scoped
+ * page that resolves to nothing, with no route back to `/profile`. They pick again, which is one
+ * click and the only honest answer.
+ */
 export async function createSession(user: SessionUser): Promise<void> {
+  clearSelectedProfileCookies();
+
   const refreshToken = generateToken();
   const refreshTokenExpiresAt = expiresIn(REFRESH_TOKEN_TTL_SECONDS);
 

@@ -6,7 +6,6 @@ import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
 import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
 import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
-import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import type { AccountWithBalance, BalanceTotals } from "~/modules/accounts/compute-balances";
@@ -56,7 +55,6 @@ export const Route = createFileRoute("/accounts")({
     return (
       <PageContainer>
         <div className="flex items-center justify-end gap-2">
-          <ReconcileBalancesButton />
           <CreateAccountButton />
         </div>
         <div className="py-4" />
