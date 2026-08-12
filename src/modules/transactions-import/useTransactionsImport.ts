@@ -5,7 +5,7 @@ import { importTransactions, type ImportReport } from "~/api/transactions-import
 import { parseCsv } from "~/utils/parseCsv";
 import { csvToImportRows, getMissingHeaders, type ImportRow } from "./utils";
 
-export type Step = "upload" | "processing";
+type Step = "upload" | "processing";
 
 type State = {
   file?: File;

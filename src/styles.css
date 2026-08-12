@@ -30,6 +30,27 @@
   --color-income: oklch(0.6 0.15 145);
   --color-expense: var(--color-danger);
   --color-transfer: oklch(0.5 0.01 0);
+
+  /* AccountCard gradient end color for saving accounts (current accounts reuse --color-accent-muted) */
+  --color-saving-muted: oklch(0.837 0.128 66.29);
+  --color-saving-muted-dark: oklch(0.408 0.123 38.172);
+
+  /* AccountCard gradient end color for archived accounts, overriding the type tint above */
+  --color-archived-muted: var(--color-text-muted);
+
+  /*
+   * Global z-index scale — the only place stacking-order numbers are decided.
+   * See the z-index-system skill before adding a new layer or a raw z-index anywhere in src/.
+   * Local/component-scoped stacking (e.g. an overlapping card stack) must be wrapped in an
+   * `isolate` container so it can never compete with these tiers, and should stay inside the
+   * `stack` tier's own bounds rather than growing unbounded.
+   */
+  --z-index-stack: 10; /* local layered UI inside an `isolate`d container, e.g. a card stack */
+  --z-index-navbar: 20; /* app chrome: the fixed/sticky Navbar */
+  --z-index-dialog-backdrop: 30;
+  --z-index-dialog: 31; /* modal Dialog popup, above its own backdrop */
+  --z-index-dropdown: 40; /* floating popups anchored to a trigger: Select, Menu, Popover — above `dialog` since triggers can live inside a Dialog */
+  --z-index-toast: 50; /* Toaster — must outrank everything, including open dialogs */
 }
 
 .popover {

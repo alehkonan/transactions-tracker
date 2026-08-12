@@ -1,25 +1,13 @@
 import { format } from "date-fns";
+import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { ApproxUsdTag } from "~/modules/transactions/ApproxUsdTag";
-import { CategoryTag } from "~/modules/transactions/CategoryTag";
-import { DeleteTransactionButton } from "~/modules/transactions/DeleteTransactionButton";
-import { EditTransactionButton } from "~/modules/transactions/EditTransactionButton";
 import { NecessityLevelTag } from "~/modules/transactions/NecessityLevelTag";
 import { TransactionTypeTag } from "~/modules/transactions/TransactionTypeTag";
 import { formatMoney } from "~/utils/formatMoney";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { getAccounts } from "~/api/account.functions";
-import type { getCategories } from "~/api/category.functions";
 import type { TransactionRow } from "~/api/transaction.functions";
 
-type Options = {
-  accounts: Awaited<ReturnType<typeof getAccounts>>;
-  categories: Awaited<ReturnType<typeof getCategories>>;
-};
-
-export function buildTransactionsTableColumns({
-  accounts,
-  categories,
-}: Options): ColumnDef<TransactionRow>[] {
+export function buildTransactionsTableColumns(): ColumnDef<TransactionRow>[] {
   return [
     {
       accessorKey: "createdAt",
@@ -75,21 +63,6 @@ export function buildTransactionsTableColumns({
             <ApproxUsdTag amountUsd={row.original.approxAmountUsd} />
           )}
           <span>{formatMoney(row.original.amount, row.original.currencyCode)}</span>
-        </div>
-      ),
-    },
-    {
-      id: "actions",
-      header: "",
-      size: 100,
-      cell: ({ row }) => (
-        <div className="flex justify-center gap-1">
-          <EditTransactionButton
-            transaction={row.original}
-            accounts={accounts}
-            categories={categories}
-          />
-          <DeleteTransactionButton id={row.original.id} />
         </div>
       ),
     },

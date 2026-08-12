@@ -34,15 +34,16 @@ Path alias: `~/*` → `./src/*`. Always use it for intra-`src` imports (never re
 4. **`src/modules/<domain>/` groups by feature, not by file type.** A domain folder can mix components, hooks, and helpers for that feature (e.g. `modules/transactions/import/useTransactionsImport.ts` sits next to `modules/transactions/NecessityLevelTag.tsx`). Don't create a `src/features/` split-by-type layout — that directory was removed in favor of this.
 5. **When a sub-feature outgrows its parent domain folder, promote it to its own sibling `src/modules/<name>/`.** `transaction-form/` (component + several single-purpose hooks: `useTransactionForm.ts`, `useAccountBalancePreview.ts`, `useTransferAmountMirror.ts`, `useTransactionFormSubmit.ts`, `transactionFormValues.ts`) was split out of `transactions/` this way once it grew past a couple of files — it's still consumed from `transactions/` (`EditTransactionButton.tsx`) and `routes/transactions.tsx` via `~/modules/transaction-form/...`, same as any other domain. Don't nest a growing sub-feature under its parent domain indefinitely (e.g. `transactions/transaction-form/`) once it has its own hooks/types/helpers worth grouping — a sibling module keeps import paths flat and signals it's its own unit, not a file-type split.
 6. **`src/components/` is single-component-per-file, PascalCase filenames** (`<ComponentName>.tsx`), for things reusable across features or forming app chrome. If a component is only meaningful to one domain, it belongs under `src/modules/<domain>/` instead.
-7. **`src/utils/` has zero server or DB imports.** If a "util" imports `getDb`, `createServerFn`, or anything `.server.ts`, it belongs in `src/api/`, not here.
-8. **`routeTree.gen.ts` is generated — never edit by hand.** Run `pnpm generate-routes` after adding/removing a route.
-9. There is currently **no input-validation layer** wired into server functions (the old `src/utils/*.schema.ts` Zod schemas were removed). If you add validated mutations back, put the Zod schema next to the server function in `src/api/`, not in `src/utils/`.
+7. **Every React component, anywhere in `src/` (`src/components/` or `src/modules/<domain>/`), gets its own file: one component per file, named `<ComponentName>.tsx` in PascalCase.** This applies even to a small component split out of a larger one (e.g. `AccountForm` was pulled out of `CreateAccountButton.tsx` into its own `modules/accounts/AccountForm.tsx` once it stopped being a one-off). Don't stack a second component — even a small presentational one only used by the first — in the same file; give it its own file instead. Hooks/helpers that support a component (e.g. `useTransactionForm.ts`) are not components and don't need their own PascalCase file — they follow the domain folder's normal camelCase naming.
+8. **`src/utils/` has zero server or DB imports.** If a "util" imports `getDb`, `createServerFn`, or anything `.server.ts`, it belongs in `src/api/`, not here.
+9. **`routeTree.gen.ts` is generated — never edit by hand.** Run `pnpm generate-routes` after adding/removing a route.
+10. There is currently **no input-validation layer** wired into server functions (the old `src/utils/*.schema.ts` Zod schemas were removed). If you add validated mutations back, put the Zod schema next to the server function in `src/api/`, not in `src/utils/`.
 
 ## Red flags to call out during review
 
 - A `createServerFn`/`createMiddleware` call outside `src/api/`.
 - A camelCase filename under `src/api/` (e.g. `currencyRates.server.ts`) — rename to kebab-case.
 - A new `src/features/`, `src/layout/`, `src/pages/`, or `src/lib/` directory reappearing — these were folded into `api/`, `database/`, `modules/`, and `components/`.
-- A component file that isn't PascalCase, or a multi-component file that should be split.
+- A component file that isn't PascalCase, or a file (anywhere in `src/`) that defines more than one component.
 - A `getDb()` call, or postgres/drizzle client construction, at module scope instead of inside a handler.
 - A relative `../../` import crossing into `src/` when `~/*` would work.

@@ -1,38 +1,40 @@
 import { useRouter } from "@tanstack/react-router";
 import { Loader2Icon, TrashIcon } from "lucide-react";
-import { useTransition } from "react";
+import { use, useTransition } from "react";
 import { deleteTransactions } from "~/api/transaction.functions";
 import { Button } from "~/components/Button";
+import { DialogContext } from "~/components/Dialog";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
 
-type DeleteTransactionButtonProps = {
+type Props = {
   id: number;
 };
 
-/** Icon button that deletes a single transaction row, after confirmation, and refreshes the table. */
-export function DeleteTransactionButton({ id }: DeleteTransactionButtonProps) {
+/** Deletes the transaction being edited, after confirmation, then closes the form. */
+export function DeleteTransactionButton({ id }: Props) {
   const router = useRouter();
+  const { onClose } = use(DialogContext);
   const [isDeleting, startTransition] = useTransition();
 
   const handleConfirm = () => {
     startTransition(async () => {
       await deleteTransactions({ data: [id] });
       await router.invalidate();
+      onClose();
     });
   };
 
   return (
     <Popover
       renderTrigger={({ onOpen }) => (
-        <Button
-          variant="danger"
-          aria-label="Delete transaction"
-          disabled={isDeleting}
-          onClick={onOpen}
-          className="mx-auto size-8 rounded-lg p-0"
-        >
-          {isDeleting ? <Loader2Icon className="animate-spin" /> : <TrashIcon />}
+        <Button variant="danger" type="button" disabled={isDeleting} onClick={onOpen}>
+          {isDeleting ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : (
+            <TrashIcon className="size-4" />
+          )}
+          Delete
         </Button>
       )}
     >

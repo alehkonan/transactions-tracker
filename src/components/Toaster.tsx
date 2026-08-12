@@ -11,7 +11,7 @@ export function Toaster() {
 
   return (
     <Toast.Portal>
-      <Toast.Viewport className="fixed bottom-4 left-4 z-50 flex w-full max-w-sm flex-col gap-2">
+      <Toast.Viewport className="z-toast fixed bottom-4 left-4 flex w-full max-w-sm flex-col gap-2">
         {toasts.map((toast) => (
           <Toast.Root
             key={toast.id}

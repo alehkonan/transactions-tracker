@@ -10,26 +10,47 @@ type DialogContextProps = {
 
 type Props = {
   children: ReactNode;
-  renderTrigger: (props: DialogContextProps) => JSX.Element;
   title: string;
   /** User has to click any action button to close the dialog */
   requireAction?: boolean;
-};
+} & (
+  | {
+      /** Renders and owns its own trigger; open state is internal. */
+      renderTrigger: (props: DialogContextProps) => JSX.Element;
+      open?: undefined;
+      onOpenChange?: undefined;
+    }
+  | {
+      /** No trigger of its own — open state is driven by the caller (e.g. a menu item). */
+      renderTrigger?: undefined;
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+    }
+);
 
 export const DialogContext = createContext<DialogContextProps>({
   onOpen: () => undefined,
   onClose: () => undefined,
 });
 
-export function Dialog({ children, renderTrigger, title, requireAction }: Props) {
-  const [open, setOpen] = useState(false);
+export function Dialog({
+  children,
+  renderTrigger,
+  title,
+  requireAction,
+  open: controlledOpen,
+  onOpenChange,
+}: Props) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
 
   const contextProps = useMemo<DialogContextProps>(
     () => ({
       onOpen: () => setOpen(true),
       onClose: () => setOpen(false),
     }),
-    [],
+    [setOpen],
   );
 
   return (
@@ -41,15 +62,15 @@ export function Dialog({ children, renderTrigger, title, requireAction }: Props)
         onOpenChange={requireAction ? undefined : setOpen}
         disablePointerDismissal={requireAction}
       >
-        <BaseDialog.Trigger render={renderTrigger(contextProps)} />
+        {renderTrigger && <BaseDialog.Trigger render={renderTrigger(contextProps)} />}
         <BaseDialog.Portal>
           <BaseDialog.Backdrop
             className={twJoin(
-              "fixed inset-0 bg-black/50 transition-opacity duration-150",
+              "z-dialog-backdrop fixed inset-0 bg-black/50 transition-opacity duration-150",
               "data-ending-style:opacity-0 data-starting-style:opacity-0",
             )}
           />
-          <BaseDialog.Viewport className="fixed inset-0 flex items-center justify-center p-4">
+          <BaseDialog.Viewport className="z-dialog fixed inset-0 flex items-center justify-center p-4">
             <BaseDialog.Popup
               className={twJoin(
                 "border-border bg-surface max-h-[85dvh] w-full overflow-y-auto rounded-xl border p-4 sm:w-2xl",

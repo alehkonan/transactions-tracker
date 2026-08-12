@@ -18,3 +18,13 @@ export const currencyCodeEnum = pgEnum("currency_code", [
 export const transactionTypeEnum = pgEnum("transaction_type", ["INCOME", "EXPENSE", "TRANSFER"]);
 
 export const necessityLevelEnum = pgEnum("necessity_level", ["LOW", "MEDIUM", "HIGH", "ESSENTIAL"]);
+
+export const webauthnChallengeTypeEnum = pgEnum("webauthn_challenge_type", [
+  "REGISTRATION",
+  "AUTHENTICATION",
+]);
+
+export const credentialDeviceTypeEnum = pgEnum("credential_device_type", [
+  "singleDevice",
+  "multiDevice",
+]);

@@ -15,12 +15,12 @@ export function NavLink({ children, className, icon, to, ...props }: Props) {
           <span
             className={twMerge(
               className,
-              "flex h-9 items-center gap-2 rounded-2xl px-3",
+              "flex h-10 items-center gap-2 rounded-2xl px-4",
               isActive ? "text-surface bg-accent" : "text-text",
             )}
           >
             {icon}
-            <span className="hidden sm:inline">{children}</span>
+            <span className="hidden md:inline">{children}</span>
           </span>
         );
       }}

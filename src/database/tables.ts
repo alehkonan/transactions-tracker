@@ -1,17 +1,115 @@
-import { integer, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { money } from "./custom-types";
 import {
   accountStatusEnum,
   accountTypeEnum,
+  credentialDeviceTypeEnum,
   currencyCodeEnum,
   necessityLevelEnum,
   transactionTypeEnum,
+  webauthnChallengeTypeEnum,
 } from "./enums";
 
-export const profilesTable = pgTable("profiles", {
+export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+  username: text("username").unique().notNull(),
+  /**
+   * Opaque WebAuthn user handle (base64url) sent to the authenticator as `user.id`. Kept separate
+   * from the primary key so the value stored on the user's device leaks nothing about the row, and
+   * so it can never be reused for a different account.
+   */
+  webauthnUserId: text("webauthn_user_id").unique().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** A passkey registered against a user — one row per authenticator. */
+export const credentialsTable = pgTable(
+  "credentials",
+  {
+    /** The authenticator's own credential ID, base64url-encoded. */
+    id: text("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
+    /** COSE-encoded public key, base64url. */
+    publicKey: text("public_key").notNull(),
+    /**
+     * Signature counter last reported by the authenticator. `bigint` because the spec allows the
+     * full uint32 range, which overflows postgres' signed `integer`.
+     */
+    counter: bigint("counter", { mode: "number" }).notNull().default(0),
+    transports: text("transports").array(),
+    deviceType: credentialDeviceTypeEnum("device_type").notNull(),
+    /** Whether a multi-device credential is currently synced to the provider's cloud. */
+    backedUp: boolean("backed_up").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (table) => [index("credentials_user_id_idx").on(table.userId)],
+);
+
+/**
+ * A logged-in session, addressed by two opaque random tokens rather than a signed payload — so
+ * revoking a session is a single `DELETE` and no signing secret has to be kept in sync. Only the
+ * SHA-256 hashes are stored: a database leak alone does not hand out usable cookies.
+ */
+export const sessionsTable = pgTable(
+  "sessions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
+    accessTokenHash: text("access_token_hash").unique().notNull(),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }).notNull(),
+    refreshTokenHash: text("refresh_token_hash").unique().notNull(),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("sessions_user_id_idx").on(table.userId)],
+);
+
+/**
+ * A challenge issued for an in-flight WebAuthn ceremony, deleted the moment it is verified so it
+ * can never be replayed. Registration rows also park the requested username until the ceremony
+ * succeeds — the user row itself is only created once the authenticator's attestation checks out.
+ */
+export const webauthnChallengesTable = pgTable("webauthn_challenges", {
+  id: serial("id").primaryKey(),
+  challenge: text("challenge").unique().notNull(),
+  type: webauthnChallengeTypeEnum("type").notNull(),
+  username: text("username"),
+  webauthnUserId: text("webauthn_user_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const profilesTable = pgTable(
+  "profiles",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    /**
+     * The owning user — many profiles per user. Nullable only to carry the profiles that predate
+     * authentication through the migration; the first account created adopts them (see `signUp`),
+     * and every profile made since then has an owner.
+     */
+    userId: integer("user_id").references(() => usersTable.id, {
+      onUpdate: "cascade",
+      onDelete: "cascade",
+    }),
+  },
+  (table) => [index("profiles_user_id_idx").on(table.userId)],
+);
 
 export const colorsTable = pgTable("colors", {
   id: serial("id").primaryKey(),
@@ -34,6 +132,9 @@ export const categoriesTable = pgTable("categories", {
 export const accountsTable = pgTable("accounts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  /** Opening amount the account started with, before any transaction. */
+  initialBalance: money("initial_balance").notNull().default("0"),
+  /** `initialBalance` plus the sum of the account's transactions. */
   balance: money("balance").notNull().default("0"),
   currencyCode: currencyCodeEnum("currency_code").notNull().default("USD"),
   status: accountStatusEnum("status").notNull().default("ACTIVE"),

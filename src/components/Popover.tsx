@@ -33,7 +33,7 @@ export function Popover({ children, renderTrigger }: Props) {
       <BasePopover.Root open={open} onOpenChange={setOpen}>
         <BasePopover.Trigger render={renderTrigger(contextProps)} />
         <BasePopover.Portal>
-          <BasePopover.Positioner sideOffset={4}>
+          <BasePopover.Positioner sideOffset={4} className="z-dropdown">
             <BasePopover.Popup
               className={twJoin(
                 "border-border bg-surface text-text m-0 rounded-xl border p-3 shadow-lg",

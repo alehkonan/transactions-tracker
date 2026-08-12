@@ -8,6 +8,7 @@ import { toCsv } from "~/utils/toCsv";
 import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
+import { assertAccountsInProfile, assertCategoriesInProfile } from "./ownership.server";
 import { profileMiddleware } from "./profile.middleware";
 
 /** Parses a `yyyy-MM-dd` filter bound as a local-midnight Date. */
@@ -26,6 +27,7 @@ const transactionsFilterSchema = z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
+    account: z.string().optional(),
   })
   .optional();
 
@@ -42,6 +44,7 @@ export const getTransactions = createServerFn()
       exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
       conditions.push(lt(transactionsTable.createdAt, exclusiveEnd));
     }
+    if (data?.account) conditions.push(eq(accountsTable.name, data.account));
 
     const [rows, rates] = await Promise.all([
       getDb()
@@ -140,19 +143,35 @@ export function groupAmountsByAccount(
   return byAccount;
 }
 
+/**
+ * Restricts a transaction-level query to rows reachable from `profileId`. Transactions have no
+ * profile of their own — they inherit one through the account they belong to.
+ */
+function transactionsInProfile(profileId: number) {
+  return sql`${transactionsTable.accountId} in (
+    select ${accountsTable.id} from ${accountsTable}
+    where ${accountsTable.profileId} = ${profileId}
+  )`;
+}
+
 export const deleteTransactions = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(z.array(z.number()))
-  .handler(async ({ data: ids }) => {
-    if (ids.length === 0) return;
+  .handler(async ({ data: ids, context }) => {
+    if (ids.length === 0 || context.profileId == null) return;
+
+    // Ids come from the client, so both statements below are scoped to the caller's own
+    // transactions. Reading through the same filter also keeps the balance deltas honest:
+    // rows the caller cannot see cannot move anyone's balance either.
+    const scope = and(inArray(transactionsTable.id, ids), transactionsInProfile(context.profileId));
 
     await getDb().transaction(async (tx) => {
       const removed = await tx
         .select({ accountId: transactionsTable.accountId, amount: transactionsTable.amount })
         .from(transactionsTable)
-        .where(inArray(transactionsTable.id, ids));
+        .where(scope);
 
-      await tx.delete(transactionsTable).where(inArray(transactionsTable.id, ids));
+      await tx.delete(transactionsTable).where(scope);
 
       // Deleting a transaction reverses its effect on the account's balance.
       const deltas = groupAmountsByAccount(
@@ -168,10 +187,23 @@ export const deleteTransactions = createServerFn({ method: "POST" })
   });
 
 export const createTransactions = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(z.array(transactionInputSchema))
-  .handler(async ({ data: inputs }) => {
+  .handler(async ({ data: inputs, context }) => {
     if (inputs.length === 0) return { count: 0 };
+    if (context.profileId == null) return { count: 0 };
+
+    // Nothing may be filed against an account or category outside the caller's profile.
+    await Promise.all([
+      assertAccountsInProfile(
+        context.profileId,
+        inputs.map((input) => input.accountId),
+      ),
+      assertCategoriesInProfile(
+        context.profileId,
+        inputs.map((input) => input.categoryId),
+      ),
+    ]);
 
     const rows = inputs.map(({ createdAt, ...input }) => ({
       ...input,
@@ -196,26 +228,39 @@ export const createTransactions = createServerFn({ method: "POST" })
   });
 
 export const updateTransaction = createServerFn({ method: "POST" })
-  .middleware([loggerMiddleware, authMiddleware])
+  .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
   .validator(z.object({ id: z.number(), ...transactionInputSchema.shape }))
-  .handler(async ({ data: { id, createdAt, ...input } }) => {
+  .handler(async ({ data: { id, createdAt, ...input }, context }) => {
+    if (context.profileId == null) return;
+
+    // Both the row being edited and the account/category it is being moved onto have to be the
+    // caller's, or an edit could reach across profiles in either direction.
+    const profileId = context.profileId;
+    await Promise.all([
+      assertAccountsInProfile(profileId, [input.accountId]),
+      assertCategoriesInProfile(profileId, [input.categoryId]),
+    ]);
+
+    const scope = and(eq(transactionsTable.id, id), transactionsInProfile(profileId));
+
     await getDb().transaction(async (tx) => {
       const [previous] = await tx
         .select({ accountId: transactionsTable.accountId, amount: transactionsTable.amount })
         .from(transactionsTable)
-        .where(eq(transactionsTable.id, id));
+        .where(scope);
+
+      // No visible row means it is not the caller's to edit — bail before touching any balance.
+      if (!previous) return;
 
       await tx
         .update(transactionsTable)
         .set({ ...input, createdAt: createdAt ? new Date(createdAt) : undefined })
-        .where(eq(transactionsTable.id, id));
+        .where(scope);
 
       // Reverse the row's old effect and apply its new one; if the account didn't
       // change, these net out to a single delta on that account.
       const deltas = groupAmountsByAccount([
-        ...(previous
-          ? [{ accountId: previous.accountId, amount: negateMoney(previous.amount) }]
-          : []),
+        { accountId: previous.accountId, amount: negateMoney(previous.amount) },
         { accountId: input.accountId, amount: input.amount },
       ]);
       for (const [accountId, amounts] of deltas) {
