@@ -121,27 +121,74 @@ idempotent, which is why the outbox needs no dedup table. Keep the column server
 
 ---
 
-## Phase 2 — read path
+## Phase 2 — read path (shipped)
+
+Landed across `feat(sync): replicate the working set into IndexedDB` and `refactor(app): serve every
+read from the working set`, with `feat(auth): carry the username in the session hint`,
+`feat(sync): drop the local copy when the browser changes hands` and `fix(router): stop flashing a
+spinner on every navigation` alongside.
 
 ```
-src/modules/sync/idb.ts           # idb wrapper, object stores, DB_VERSION (bump ⇒ wipe + re-pull)
-src/modules/sync/useSyncStore.ts  # Zustand: full working set + sync status
-src/api/sync.functions.ts         # pullChanges
+src/modules/sync/sync-types.ts     # the replicated row/cursor shapes, shared by server and client
+src/modules/sync/idb.ts            # idb wrapper, object stores, DB_VERSION (bump ⇒ wipe + re-pull)
+src/modules/sync/useSyncStore.ts   # Zustand: full working set + sync status
+src/modules/sync/SyncGate.tsx      # boot sequence + the first-run loading screen
+src/modules/sync/SyncProgress.tsx  # "syncing 35%" while transactions stream in behind the app
+src/api/sync.functions.ts          # pullChanges
 ```
+
+Four things this phase turned up that the plan above did not anticipate:
+
+1. **Deletes had to become tombstones here, not in Phase 3.** A delta pull can only see rows that
+   still exist, so the moment reads came from a cursor, a hard `DELETE` meant the row lived on every
+   client forever. `deleteAccount` / `deleteCategory` / `deleteTransactions` now set
+   `deletedAt`+`updatedAt`, `deleteAccount` tombstones its transactions explicitly (the FK cascade
+   only fires for real deletes), and every remaining server-side read filters `deleted_at is null`
+   — `transactionsSum`, `reconcileAccountBalances`, `ownership.server.ts`, and the import's
+   account/category lookups.
+2. **The cursor cannot be a `Date`.** Postgres keeps microseconds, `Date` keeps milliseconds, and a
+   strict cursor rounded _down_ keeps matching the rows it was meant to advance past — the first
+   pull looped, re-sending the same 2000 rows indefinitely. The cursor's `updatedAt` is now the
+   exact `updated_at::text`, opaque to everything except `pullChanges`, compared as a row value:
+   `(updated_at, id) > ($1::timestamptz, $2::uuid)`.
+3. **`colors` is pulled every time, not once.** The CSV import mints new colors for the categories it
+   creates, so a client holding a pull-once palette draws them untinted. It is a few dozen rows.
+4. **A rejected server function resolves, it does not throw.** TanStack Start hands back the raw
+   `Response` when middleware throws one, so the 401 from `authMiddleware` arrived as a "payload"
+   with no rows. The store checks for that and turns it into the `/login` redirect. `resolveSession`
+   also had to start clearing the readable session hint when nothing resolves, or the guard keeps
+   letting the client into an app that cannot load any data for it.
+
+Still true after this phase: **mutations remain server functions.** Phase 3 moves them to the
+outbox; until then each call site awaits `syncNow()` instead of `router.invalidate()`, since
+invalidating a loader that no longer exists refetches nothing. And a genuinely offline _cold_ start
+still needs Phase 5's service worker — without one the document and route chunks cannot load, however
+complete the local database is.
 
 ### pullChanges
 
 ```
-pullChanges({ cursors }) → { rows, nextCursors, hasMore, usdRates, colors }
+pullChanges({ cursors }) → { rows, nextCursors, pending, usdRates, colors }
 ```
+
+`pending` is the list of tables that filled their page and have a backlog behind them (empty means
+caught up). Per table rather than one `hasMore` flag because the client opens on the reference tables
+and lets transactions keep arriving — it has to know which table is the one still streaming.
+
+`withCounts` asks for `transactionBacklog`, the size of the run the client is about to make, counted
+through the same predicate as the page (an index-only scan). It is the denominator behind the
+"syncing 35%" indicator, and the client only asks on the first page of a run — the number does not
+change during one, and a `count(*)` per page would be a real cost against a slow database.
 
 - **Composite `(updated_at, id)` keyset cursor.** A scalar `updated_at` cursor would loop or skip
   rows, because the migration gives every existing row an identical timestamp.
 - **Pagination is mandatory.** Netlify functions cap at 10s (26s background) and the DB is slow —
-  cap at ~2000 rows per page and loop on `hasMore`.
+  cap at ~2000 rows per page and loop until nothing is `pending`.
 - `usdRates` rides along in the response (the external fetch stays server-side, per
-  `currency-rates.server.ts`) and is cached in IDB so statistics work offline.
-- `colors` is a global reference table with no `profile_id` — pull once.
+  `currency-rates.server.ts`) and is cached in IDB so statistics work offline. A rate-service outage
+  returns `null` rather than failing the pull; the client keeps its cached rates.
+- `colors` is a global reference table with no `profile_id` — pulled in full on every page (see note
+  3 above).
 - Synced: `profiles`, `accounts`, `categories`, `transactions`. Never synced: `users`,
   `credentials`, `sessions`, `webauthn_challenges`.
 - Overlap the cursor by ~10s on each pull. A row whose `now()` was evaluated before another's can
@@ -149,11 +196,32 @@ pullChanges({ cursors }) → { rows, nextCursors, hasMore, usdRates, colors }
 
 ### Boot sequence
 
-1. SSR renders the shell (no data).
+1. SSR renders the shell (no data) — which is `SyncGate`'s loading screen, so the client hydrates from
+   exactly what was painted and there is no mismatch to reconcile.
 2. Client opens IDB and reads `meta`.
-3. Empty → full-screen "Loading your data…" with row-count progress → paginated full pull → write
-   IDB → hydrate store.
-4. Populated → hydrate from IDB immediately (~50ms to interactive) → delta sync in the background.
+3. Empty → full-screen "Loading your data…" → paginated full pull → write IDB → hydrate store.
+4. Populated → hydrate from IDB immediately → delta sync in the background.
+
+**Hydration is progressive: the app opens on the reference tables, not the whole working set.**
+`profiles`, `accounts` and `categories` all fit in one page, so `isHydrated` flips as soon as none of
+them is `pending` and the transactions stream in behind the rendered app — a cold start reaches
+content in one page instead of six. Measured in dev against 11,584 transactions: reference data at
+~470ms, all transactions in by ~1.8s; a warm boot reads the whole local copy in ~50ms and is
+interactive at ~350ms, of which ~230ms is React hydrating.
+
+The cost is that for that first moment every figure derived from transactions — balances, day totals,
+statistics — is a partial sum still climbing. `SyncProgress` says so, as a pill with a progress bar
+and a percentage of the run's backlog, rather than letting a number that is about to change look
+final. Progress is counted per run, not from `transactions.length`: the latter already holds
+everything replicated earlier, which would put a delta sync at "11,584 of 400".
+
+**The navbar is hidden until the store is hydrated.** While the gate is up every destination leads to
+the same loading screen, so the navigation appears with the app it navigates. `isHydrated` is false
+during SSR too, so the server paints the same chrome-less screen the client starts from.
+
+**`defaultPendingMs` must not be 0.** With no loaders left, the only thing a navigation waits for is
+its own code chunk, and showing the router's pending component immediately turned every navigation
+into a spinner flash that threw away the page already on screen.
 
 ### Derivations move client-side
 
@@ -167,10 +235,17 @@ configured but has two test files).
 | `getTransactions` joins + `approxAmountUsd`  | `modules/transactions/to-transaction-rows.ts`                                                                               |
 | `getTransactions` date/account filters       | `modules/transactions/filter-transactions.ts`                                                                               |
 | `exportTransactionsToCsv`                    | client-side, reusing `utils/to-csv.ts`                                                                                      |
+| `getCategories`' color join                  | `modules/categories/to-category-rows.ts`                                                                                    |
 
 Route loaders are stripped; `__root.tsx` keeps SSR for the shell and the `/login` route.
-`statistics.functions.ts` and every getter in `account`/`category`/`transaction.functions.ts` are
-deleted.
+`statistics.functions.ts` and `color.functions.ts` are deleted outright, along with every getter in
+`account`/`category`/`transaction`/`profile.functions.ts` and `getSession` — `/settings` reads the
+username from the session hint cookie instead, which is also what keeps that page off the network.
+
+Each domain exposes its slice of the working set as a hook (`useAccounts`, `useCategories`,
+`useTransactionRows`) that selects the raw arrays and memoizes the derivation. Selectors must return
+the arrays as-is: mapping or filtering inside one hands Zustand a new snapshot every render and the
+component never settles.
 
 ---
 
