@@ -94,3 +94,115 @@ export type SyncedRow = {
   updatedAt: Date;
   deletedAt: Date | null;
 };
+
+/**
+ * The write path.
+ *
+ * A mutation is a whole row, not a diff: the client already holds the row it is changing, and
+ * sending all of it makes applying one idempotent — the same entry replayed after a failed push
+ * lands on exactly the same state. That, plus `accounts.balance` being recomputed rather than
+ * incremented, is why the outbox needs no dedup table.
+ */
+
+/**
+ * The columns a client owns. `id` travels beside the payload as `rowId`, and `updatedAt`/`deletedAt`
+ * are the server's to stamp — a client clock is not something the sync order may depend on.
+ */
+type ClientColumns<T> = Omit<T, "id" | "updatedAt" | "deletedAt">;
+
+/** `userId` is absent: the server stamps the owner from the session, never from the payload. */
+export type ProfilePayload = Omit<ClientColumns<SyncedProfile>, "userId">;
+
+/**
+ * `profileId` is narrowed to non-null throughout the write path. The column is nullable only to
+ * carry rows that predate profiles having owners; nothing a client creates today may be orphaned,
+ * and it is the claim every ownership check is made against.
+ */
+type Owned<T> = Omit<T, "profileId"> & { profileId: string };
+
+export type AccountPayload = Owned<ClientColumns<SyncedAccount>>;
+
+export type CategoryPayload = Owned<ClientColumns<SyncedCategory>> & {
+  /**
+   * A color the palette does not have yet, minted client-side by the CSV import for the categories
+   * it creates. `colors` is keyed by a serial the client cannot mint, so the hex is what crosses the
+   * wire and the server resolves it to a row (the column is unique, so that is idempotent too);
+   * the id comes back with the canonical row and in the response's refreshed palette.
+   */
+  colorHex?: string;
+};
+
+export type TransactionPayload = ClientColumns<SyncedTransaction>;
+
+export type MutationPayloads = {
+  profiles: ProfilePayload;
+  accounts: AccountPayload;
+  categories: CategoryPayload;
+  transactions: TransactionPayload;
+};
+
+type MutationBase = {
+  /** Identifies the entry across a retry, and correlates it with its slot in the response. */
+  mutationId: string;
+  rowId: string;
+  /**
+   * The row's `updatedAt` as the client last saw it — epoch milliseconds — or `null` when it
+   * believes it is creating.
+   *
+   * Milliseconds rather than the cursor's exact timestamp literal, because the client only ever
+   * holds the driver-parsed `Date`, and comparing that against a postgres value kept to the
+   * microsecond would report a conflict on every single edit. Truncating both sides to what the
+   * client can actually represent is what makes the comparison mean something.
+   *
+   * Purely for detection: the server applies the write either way and reports the clobber, since
+   * resolution is last-write-wins on the server clock (see `docs/offline-first-sync.md`).
+   */
+  baseUpdatedAt: number | null;
+};
+
+type UpsertMutation = {
+  [Table in SyncedTable]: MutationBase & {
+    table: Table;
+    op: "upsert";
+    payload: MutationPayloads[Table];
+  };
+}[SyncedTable];
+
+// Spelled out per table, like the upserts above, so `Extract<Mutation, { table: "accounts" }>`
+// narrows to both of that table's operations rather than losing the deletes.
+type DeleteMutation = {
+  [Table in SyncedTable]: MutationBase & { table: Table; op: "delete" };
+}[SyncedTable];
+
+export type Mutation = UpsertMutation | DeleteMutation;
+
+/**
+ * How many mutations one push may carry.
+ *
+ * The same constraint as a pull page: the deployed functions are capped at 10s, and a CSV import
+ * arrives as one entry per transaction. The client drains its outbox in batches of this size until
+ * it is empty; the server rejects anything larger.
+ */
+export const PUSH_BATCH_LIMIT = 500;
+
+/** Every mutation addressing one table, both operations. */
+export type MutationFor<Table extends SyncedTable> = Extract<Mutation, { table: Table }>;
+
+/** A write that landed on top of a row the client had not seen the latest version of. */
+export type PushConflict = {
+  mutationId: string;
+  table: SyncedTable;
+  rowId: string;
+  /** What the row's `updatedAt` was before this push overwrote it, in epoch milliseconds. */
+  serverUpdatedAt: number;
+};
+
+export type PushChangesResult = {
+  /** The `mutationId`s that were applied — what the client drops from its outbox. */
+  applied: string[];
+  /** The affected rows as the server now holds them, server-stamped `updatedAt` included. */
+  canonicalRows: SyncedRows;
+  conflicts: PushConflict[];
+  /** The palette, refreshed: a push may have minted colors for categories that carried a hex. */
+  colors: Color[];
+};

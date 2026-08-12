@@ -10,6 +10,16 @@ const globalForDb = globalThis as unknown as {
   db?: ReturnType<typeof drizzle<typeof schema>>;
 };
 
+type Database = ReturnType<typeof drizzle<typeof schema>>;
+
+/**
+ * A handle statements can run on: the connection itself, or an open transaction.
+ *
+ * Helpers that read on behalf of a write — the ownership assertions, say — have to accept the
+ * transaction, or they query outside it and cannot see the rows the batch inserted a moment ago.
+ */
+export type Executor = Database | Parameters<Parameters<Database["transaction"]>[0]>[0];
+
 export function getDb() {
   if (!globalForDb.db) {
     const client =

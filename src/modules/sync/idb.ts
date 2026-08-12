@@ -1,13 +1,14 @@
 import { SYNCED_TABLES } from "./sync-types";
-import type { Color, SyncCursors, SyncedRow, SyncedRows } from "./sync-types";
+import type { Color, Mutation, SyncCursors, SyncedRow, SyncedRows } from "./sync-types";
 
 /**
- * IndexedDB persistence for the replicated working set.
+ * IndexedDB persistence for the replicated working set, and for the writes that have not reached the
+ * server yet.
  *
  * Persistence only, not a query layer: the whole dataset is read into memory at boot and every
  * read, filter and statistic runs against that (see `useSyncStore`). So there are no secondary
- * indexes here — just one object store per synced table keyed by uuid, plus a `meta` store for the
- * cursors and the reference data that rides along with a pull.
+ * indexes here — just one object store per synced table keyed by uuid, a `meta` store for the
+ * cursors and the reference data that rides along with a pull, and the append-only `outbox`.
  *
  * Client-only. Nothing here runs at module scope, so importing it during SSR is inert.
  */
@@ -18,10 +19,17 @@ const DATABASE_NAME = "transactions-tracker";
  * Bumping this wipes every store and forces a full re-pull, which is the intended migration
  * strategy: the local copy is a cache of the server's rows, so throwing it away is always safe and
  * always cheaper than writing an upgrade path for it.
+ *
+ * The outbox is the one exception to "always safe", since unpushed writes exist nowhere else. It
+ * arrived with version 2 and was empty by definition until then; from here on, a bump has to drain
+ * the outbox before it wipes.
  */
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 const META_STORE = "meta";
+
+/** The queue of local writes waiting to be pushed, in the order they were made. */
+export const OUTBOX_STORE = "outbox";
 
 /** Everything the store needs to come up without the network. */
 export type LocalSnapshot = {
@@ -48,7 +56,7 @@ function whenComplete(transaction: IDBTransaction): Promise<void> {
 
 let databasePromise: Promise<IDBDatabase> | undefined;
 
-function openDatabase(): Promise<IDBDatabase> {
+export function openDatabase(): Promise<IDBDatabase> {
   databasePromise ??= new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
 
@@ -59,6 +67,9 @@ function openDatabase(): Promise<IDBDatabase> {
       for (const name of Array.from(database.objectStoreNames)) database.deleteObjectStore(name);
       for (const table of SYNCED_TABLES) database.createObjectStore(table, { keyPath: "id" });
       database.createObjectStore(META_STORE);
+      // Keyed by an auto-incrementing sequence, which is the whole point of the store: the order
+      // writes were made in is what makes "create the account, then its transactions" pushable.
+      database.createObjectStore(OUTBOX_STORE, { keyPath: "seq", autoIncrement: true });
     });
 
     request.addEventListener("success", () => resolve(request.result));
@@ -96,6 +107,23 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
   };
 }
 
+/**
+ * Writes rows into their stores: an ordinary row is upserted by id, and a tombstone deletes its row
+ * outright, since the cursor — not the tombstone — is what remembers that the deletion was seen.
+ */
+function putRows(transaction: IDBTransaction, rows: Partial<SyncedRows>): void {
+  for (const table of SYNCED_TABLES) {
+    const incoming = rows[table] as SyncedRow[] | undefined;
+    if (!incoming?.length) continue;
+
+    const store = transaction.objectStore(table);
+    for (const row of incoming) {
+      if (row.deletedAt) store.delete(row.id);
+      else store.put(row);
+    }
+  }
+}
+
 type PulledPage = {
   rows: SyncedRows;
   cursors: SyncCursors;
@@ -104,28 +132,58 @@ type PulledPage = {
 };
 
 /**
- * Applies one pulled page, atomically: rows are upserted by id and tombstones delete their row
- * outright, since the cursor — not the tombstone — is what remembers that the deletion was seen.
+ * Applies one pulled page, atomically.
  *
- * The cursors land in the same transaction as the rows they describe, so a pull interrupted
- * halfway can never leave a cursor claiming rows the client does not actually hold.
+ * The cursors land in the same transaction as the rows they describe, so a pull interrupted halfway
+ * can never leave a cursor claiming rows the client does not actually hold.
  */
 export async function writeLocalPage(page: PulledPage): Promise<void> {
   const database = await openDatabase();
   const transaction = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
 
-  for (const table of SYNCED_TABLES) {
-    const store = transaction.objectStore(table);
-    for (const row of page.rows[table] as SyncedRow[]) {
-      if (row.deletedAt) store.delete(row.id);
-      else store.put(row);
-    }
-  }
+  putRows(transaction, page.rows);
 
   const meta = transaction.objectStore(META_STORE);
   meta.put(page.cursors, "cursors");
   meta.put(page.colors, "colors");
   if (page.usdRates) meta.put(page.usdRates, "usdRates");
+
+  await whenComplete(transaction);
+}
+
+/**
+ * Persists a local write and its outbox entries together.
+ *
+ * One transaction for both halves is the point: a row saved without its entry is a change that
+ * silently never reaches the server, and an entry without its row is a change the device making it
+ * cannot see. Either alone is worse than neither.
+ */
+export async function writeLocalMutations(
+  rows: Partial<SyncedRows>,
+  mutations: Mutation[],
+): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction([...SYNCED_TABLES, OUTBOX_STORE], "readwrite");
+
+  putRows(transaction, rows);
+
+  const outbox = transaction.objectStore(OUTBOX_STORE);
+  // `seq` is the store's key path and auto-increments, so it is deliberately not set here.
+  for (const mutation of mutations) outbox.add(mutation);
+
+  await whenComplete(transaction);
+}
+
+/** Applies rows the server handed back, with the palette they may have added to. */
+export async function writeLocalRows(
+  rows: Partial<SyncedRows>,
+  colors: Color[] | undefined,
+): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
+
+  putRows(transaction, rows);
+  if (colors) transaction.objectStore(META_STORE).put(colors, "colors");
 
   await whenComplete(transaction);
 }
