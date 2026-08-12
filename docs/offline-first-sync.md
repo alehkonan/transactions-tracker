@@ -23,9 +23,12 @@ IndexedDB is persistence only, not a query layer. All reads are synchronous.
 
 ---
 
-## Phase 0 — quick wins (ships on its own)
+## Phase 0 — quick wins (shipped)
 
 Independent of sync. Worth measuring after, since it may account for most of the current slowness.
+
+Landed across `perf(db): index profile-scoped lookups and shrink the connection pool` and
+`perf(auth): resolve sessions and route guards without touching the database`.
 
 ### Indexes
 
@@ -75,9 +78,15 @@ production. On a 500MB Postgres with concurrent lambdas: `max: 1`, `idle_timeout
 
 ---
 
-## Phase 1 — schema for sync
+## Phase 1 — schema for sync (shipped)
 
-The current schema cannot answer "what changed since X". Four gaps, one migration.
+The schema could not answer "what changed since X". Four gaps, one migration —
+`0007_handy_vermin.sql`, hand-written as anticipated below.
+
+Two things the migration deliberately left for later: the `deleted_at` columns exist but nothing
+writes one yet, so deletes are still hard deletes and no read filters on them — the phase that
+starts writing tombstones has to add those filters in the same change. And the id default is
+`gen_random_uuid()` rather than `uuidv7()`, since production is on Postgres 17.
 
 1. **UUIDv7 primary keys** on `profiles`, `accounts`, `categories`, `transactions`. `serial` cannot
    be minted offline; without this, every optimistic insert needs a temp id plus FK rewriting on
