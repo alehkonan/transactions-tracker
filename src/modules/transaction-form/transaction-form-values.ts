@@ -20,11 +20,11 @@ export function getDefaultFormValues(
 ): TransactionFormValues {
   return {
     type: transaction?.type ?? "EXPENSE",
-    accountId: transaction?.accountId ? String(transaction.accountId) : "",
+    accountId: transaction?.accountId ?? "",
     toAccountId: "",
     amount: transaction?.amount.replace(/^-/, "") ?? "",
     toAmount: "",
-    categoryId: transaction?.categoryId ? String(transaction.categoryId) : "",
+    categoryId: transaction?.categoryId ?? "",
     necessityLevel: transaction?.necessityLevel ?? "",
     comment: transaction?.comment ?? "",
   };

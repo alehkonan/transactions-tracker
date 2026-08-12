@@ -33,8 +33,7 @@ export const getAvailableSpendingMonths = createServerFn()
     const rows = await getDb()
       .selectDistinct({ month: monthExpr })
       .from(transactionsTable)
-      .leftJoin(accountsTable, eq(transactionsTable.accountId, accountsTable.id))
-      .where(and(isSpending, eq(accountsTable.profileId, context.profileId)))
+      .where(and(isSpending, eq(transactionsTable.profileId, context.profileId)))
       .orderBy(sql`${monthExpr} desc`);
 
     return rows.map(({ month }) => {
@@ -103,7 +102,7 @@ export const getDailyAverages = createServerFn()
             .where(
               and(
                 inArray(transactionsTable.type, ["EXPENSE", "INCOME"]),
-                eq(accountsTable.profileId, context.profileId),
+                eq(transactionsTable.profileId, context.profileId),
                 gte(transactionsTable.createdAt, start),
                 lt(transactionsTable.createdAt, end),
               ),
@@ -192,7 +191,7 @@ export const getMonthlySpendingTrend = createServerFn()
             .where(
               and(
                 isSpending,
-                eq(accountsTable.profileId, context.profileId),
+                eq(transactionsTable.profileId, context.profileId),
                 gte(transactionsTable.createdAt, monthStart),
                 lt(transactionsTable.createdAt, monthEnd),
               ),

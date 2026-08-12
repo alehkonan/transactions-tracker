@@ -15,10 +15,10 @@ import {
 } from "~/modules/transaction-form/transaction-form-values";
 
 type CreateTransactionInput = {
-  categoryId?: number;
+  categoryId?: string;
   necessityLevel?: NecessityLevel;
   type: TransactionType;
-  accountId?: number;
+  accountId?: string;
   amount: string;
   comment?: string;
 };
@@ -35,7 +35,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
 
   const submit = async (values: TransactionFormValues) => {
     const shared = {
-      categoryId: values.categoryId ? Number(values.categoryId) : undefined,
+      categoryId: values.categoryId || undefined,
       necessityLevel: values.necessityLevel || undefined,
       comment: values.comment || undefined,
     };
@@ -49,7 +49,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
           id: transaction.id,
           ...shared,
           type: values.type,
-          accountId: Number(values.accountId),
+          accountId: values.accountId,
           amount: negative ? negateIfPositive(values.amount) : values.amount,
         },
       });
@@ -63,13 +63,13 @@ export function useTransactionFormSubmit({ transaction }: Options) {
               {
                 ...shared,
                 type: "TRANSFER",
-                accountId: Number(values.accountId),
+                accountId: values.accountId,
                 amount: negateIfPositive(values.amount),
               },
               {
                 ...shared,
                 type: "TRANSFER",
-                accountId: Number(values.toAccountId),
+                accountId: values.toAccountId,
                 amount: values.toAmount,
               },
             ]
@@ -77,7 +77,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
               {
                 ...shared,
                 type: values.type,
-                accountId: Number(values.accountId),
+                accountId: values.accountId,
                 amount: negative ? negateIfPositive(values.amount) : values.amount,
               },
             ];

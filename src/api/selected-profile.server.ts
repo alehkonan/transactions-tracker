@@ -18,10 +18,16 @@ import { signCookieValue, verifyCookieValue } from "./signed-cookie.server";
  * Only safe to call from inside a server function's `.handler(...)` (or another `.server.ts`
  * module) — this file is stripped from the client bundle, same as `getDb.server.ts`.
  */
-export function getSelectedProfileIdFromCookie(userId: number): number | null {
+export function getSelectedProfileIdFromCookie(userId: number): string | null {
   const raw = getCookie(SELECTED_PROFILE_COOKIE);
   const selection = verifyCookieValue<SelectedProfilePayload>(raw);
-  if (selection && selection.userId === userId) return selection.profileId;
+  // The type check is not paranoia about a payload this server signed itself: cookies minted
+  // before profiles were re-keyed to UUIDs carry a number, and handing one to a `uuid` column
+  // fails the query rather than simply matching nothing. Treated as no selection, so the browser
+  // is sent back to `/profile` to pick again.
+  if (selection && typeof selection.profileId === "string" && selection.userId === userId) {
+    return selection.profileId;
+  }
 
   // The readable hint has to go with it. It outlives the cookie it stands for whenever the
   // signature stops verifying — a rotated `AUTH_SECRET`, or somebody else signing in on this
@@ -53,5 +59,5 @@ export function setSelectedProfileCookie(payload: SelectedProfilePayload): void 
   setCookie(SELECTED_PROFILE_COOKIE, signCookieValue(payload), { ...shared, httpOnly: true });
   // Readable counterpart, so the root route's guard can tell a profile has been chosen without
   // asking the server. See `SESSION_HINT_COOKIE`.
-  setCookie(PROFILE_HINT_COOKIE, String(payload.profileId), { ...shared, httpOnly: false });
+  setCookie(PROFILE_HINT_COOKIE, payload.profileId, { ...shared, httpOnly: false });
 }

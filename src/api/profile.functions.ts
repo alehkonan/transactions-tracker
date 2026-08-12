@@ -16,7 +16,7 @@ import { setSelectedProfileCookie } from "./selected-profile.server";
  */
 export const selectProfile = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
-  .validator(z.object({ profileId: z.number() }))
+  .validator(z.object({ profileId: z.uuid() }))
   .handler(async ({ data, context }) => {
     const [profile] = await getDb()
       .select({ id: profilesTable.id })
@@ -53,7 +53,9 @@ export const getProfiles = createServerFn()
         })
         .from(profilesTable)
         .leftJoin(accountsTable, eq(accountsTable.profileId, profilesTable.id))
-        .leftJoin(transactionsTable, eq(transactionsTable.accountId, accountsTable.id))
+        // Transactions carry their profile directly now, so this no longer has to reach them
+        // through the accounts join above.
+        .leftJoin(transactionsTable, eq(transactionsTable.profileId, profilesTable.id))
         .where(eq(profilesTable.userId, context.user.id))
         .groupBy(profilesTable.id),
       getDb()
@@ -71,7 +73,7 @@ export const getProfiles = createServerFn()
 
     // Accounts can be in different currencies, so balances are converted to USD before summing.
     const balancesByProfile = new Map<
-      number,
+      string,
       { currentBalanceUsd: number; savingsBalanceUsd: number }
     >();
     for (const account of activeAccounts) {

@@ -7,7 +7,7 @@ import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
 
 type DeleteSelectedTransactionsButtonProps = {
-  ids: number[];
+  ids: string[];
 };
 
 /** Batch-deletes the given transaction ids, after confirmation, and refreshes the table. */

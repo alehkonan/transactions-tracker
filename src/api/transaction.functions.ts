@@ -37,7 +37,7 @@ export const getTransactions = createServerFn()
   .handler(async ({ data, context }) => {
     if (context.profileId == null) return [];
 
-    const conditions = [eq(accountsTable.profileId, context.profileId)];
+    const conditions = [eq(transactionsTable.profileId, context.profileId)];
     if (data?.from) conditions.push(gte(transactionsTable.createdAt, parseDateOnly(data.from)));
     if (data?.to) {
       const exclusiveEnd = parseDateOnly(data.to);
@@ -109,15 +109,15 @@ export const exportTransactionsToCsv = createServerFn()
 
 const transactionInputSchema = z.object({
   createdAt: z.string().optional(),
-  categoryId: z.number().optional(),
+  categoryId: z.uuid().optional(),
   necessityLevel: z.enum(necessityLevelEnum.enumValues).optional(),
   type: z.enum(transactionTypeEnum.enumValues),
-  accountId: z.number().optional(),
+  accountId: z.uuid().optional(),
   amount: z.string(),
   comment: z.string().optional(),
 });
 
-// Postgres allows at most 65535 bind parameters per query; each row here uses up to 6.
+// Postgres allows at most 65535 bind parameters per query; each row here uses up to 8.
 export const INSERT_CHUNK_SIZE = 1000;
 
 /** Sums decimal money strings via integer cents, to avoid floating-point drift from repeated addition. */
@@ -133,9 +133,9 @@ export function negateMoney(amount: string): string {
 
 /** Groups signed amounts by the account they affect, dropping rows with no account. */
 export function groupAmountsByAccount(
-  rows: { accountId?: number | null; amount: string }[],
-): Map<number, string[]> {
-  const byAccount = new Map<number, string[]>();
+  rows: { accountId?: string | null; amount: string }[],
+): Map<string, string[]> {
+  const byAccount = new Map<string, string[]>();
   for (const { accountId, amount } of rows) {
     if (accountId == null) continue;
     byAccount.set(accountId, [...(byAccount.get(accountId) ?? []), amount]);
@@ -143,27 +143,19 @@ export function groupAmountsByAccount(
   return byAccount;
 }
 
-/**
- * Restricts a transaction-level query to rows reachable from `profileId`. Transactions have no
- * profile of their own — they inherit one through the account they belong to.
- */
-function transactionsInProfile(profileId: number) {
-  return sql`${transactionsTable.accountId} in (
-    select ${accountsTable.id} from ${accountsTable}
-    where ${accountsTable.profileId} = ${profileId}
-  )`;
-}
-
 export const deleteTransactions = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .validator(z.array(z.number()))
+  .validator(z.array(z.uuid()))
   .handler(async ({ data: ids, context }) => {
     if (ids.length === 0 || context.profileId == null) return;
 
     // Ids come from the client, so both statements below are scoped to the caller's own
     // transactions. Reading through the same filter also keeps the balance deltas honest:
     // rows the caller cannot see cannot move anyone's balance either.
-    const scope = and(inArray(transactionsTable.id, ids), transactionsInProfile(context.profileId));
+    const scope = and(
+      inArray(transactionsTable.id, ids),
+      eq(transactionsTable.profileId, context.profileId),
+    );
 
     await getDb().transaction(async (tx) => {
       const removed = await tx
@@ -193,14 +185,15 @@ export const createTransactions = createServerFn({ method: "POST" })
     if (inputs.length === 0) return { count: 0 };
     if (context.profileId == null) return { count: 0 };
 
+    const profileId = context.profileId;
     // Nothing may be filed against an account or category outside the caller's profile.
     await Promise.all([
       assertAccountsInProfile(
-        context.profileId,
+        profileId,
         inputs.map((input) => input.accountId),
       ),
       assertCategoriesInProfile(
-        context.profileId,
+        profileId,
         inputs.map((input) => input.categoryId),
       ),
     ]);
@@ -208,6 +201,8 @@ export const createTransactions = createServerFn({ method: "POST" })
     const rows = inputs.map(({ createdAt, ...input }) => ({
       ...input,
       createdAt: createdAt ? new Date(createdAt) : undefined,
+      // Denormalized from the account, which the assertion above just proved is this profile's.
+      profileId,
     }));
 
     await getDb().transaction(async (tx) => {
@@ -229,7 +224,7 @@ export const createTransactions = createServerFn({ method: "POST" })
 
 export const updateTransaction = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .validator(z.object({ id: z.number(), ...transactionInputSchema.shape }))
+  .validator(z.object({ id: z.uuid(), ...transactionInputSchema.shape }))
   .handler(async ({ data: { id, createdAt, ...input }, context }) => {
     if (context.profileId == null) return;
 
@@ -241,7 +236,7 @@ export const updateTransaction = createServerFn({ method: "POST" })
       assertCategoriesInProfile(profileId, [input.categoryId]),
     ]);
 
-    const scope = and(eq(transactionsTable.id, id), transactionsInProfile(profileId));
+    const scope = and(eq(transactionsTable.id, id), eq(transactionsTable.profileId, profileId));
 
     await getDb().transaction(async (tx) => {
       const [previous] = await tx
@@ -254,7 +249,11 @@ export const updateTransaction = createServerFn({ method: "POST" })
 
       await tx
         .update(transactionsTable)
-        .set({ ...input, createdAt: createdAt ? new Date(createdAt) : undefined })
+        .set({
+          ...input,
+          createdAt: createdAt ? new Date(createdAt) : undefined,
+          updatedAt: new Date(),
+        })
         .where(scope);
 
       // Reverse the row's old effect and apply its new one; if the account didn't

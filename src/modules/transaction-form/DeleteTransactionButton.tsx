@@ -8,7 +8,7 @@ import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
 
 type Props = {
-  id: number;
+  id: string;
 };
 
 /** Deletes the transaction being edited, after confirmation, then closes the form. */

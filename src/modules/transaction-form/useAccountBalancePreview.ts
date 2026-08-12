@@ -37,8 +37,8 @@ export function useAccountBalancePreview({ accounts, control, transaction }: Opt
   const originalIsNegative = transaction?.amount.trim().startsWith("-") ?? false;
   const negative = isOutgoing(type, Boolean(transaction), originalIsNegative);
 
-  const selectedAccount = accounts.find((account) => String(account.id) === accountId);
-  const selectedToAccount = accounts.find((account) => String(account.id) === toAccountId);
+  const selectedAccount = accounts.find((account) => account.id === accountId);
+  const selectedToAccount = accounts.find((account) => account.id === toAccountId);
 
   return {
     selectedAccount,

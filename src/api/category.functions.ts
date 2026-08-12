@@ -42,7 +42,7 @@ export const createCategory = createServerFn({ method: "POST" })
       .values({ ...data, profileId: context.profileId });
   });
 
-const updateCategorySchema = categorySchema.extend({ id: z.number() });
+const updateCategorySchema = categorySchema.extend({ id: z.uuid() });
 
 export const updateCategory = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
@@ -53,13 +53,13 @@ export const updateCategory = createServerFn({ method: "POST" })
     // Scoped by profile as well as id: the id alone comes from the client.
     await getDb()
       .update(categoriesTable)
-      .set({ name, colorId })
+      .set({ name, colorId, updatedAt: new Date() })
       .where(and(eq(categoriesTable.id, id), eq(categoriesTable.profileId, context.profileId)));
   });
 
 export const deleteCategory = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .validator(z.number())
+  .validator(z.uuid())
   .handler(async ({ data: id, context }) => {
     if (context.profileId == null) return;
 

@@ -83,12 +83,12 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
   const activeAccountOptions = accounts
     .filter((account) => account.status === "ACTIVE")
     .map((account) => ({
-      value: String(account.id),
+      value: account.id,
       label: `${account.name} (${account.currencyCode})`,
     }));
 
   const categoryOptions = categories.map((category) => ({
-    value: String(category.id),
+    value: category.id,
     label: category.name,
   }));
 

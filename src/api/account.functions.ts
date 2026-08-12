@@ -80,7 +80,7 @@ export const createAccount = createServerFn({ method: "POST" })
   });
 
 const updateAccountSchema = z.object({
-  id: z.number(),
+  id: z.uuid(),
   name: z.string().trim().min(1),
   currencyCode: z.enum(currencyCodeEnum.enumValues),
   type: z.enum(accountTypeEnum.enumValues),
@@ -101,6 +101,7 @@ export const updateAccount = createServerFn({ method: "POST" })
       // account's transaction history intact.
       .set({
         ...values,
+        updatedAt: new Date(),
         ...(values.initialBalance != null && {
           balance: sql`${values.initialBalance}::numeric + ${transactionsSum}`,
         }),
@@ -112,7 +113,7 @@ export const updateAccount = createServerFn({ method: "POST" })
 /** Deletes an account; its transactions cascade-delete with it (see `transactionsTable.accountId`). */
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])
-  .validator(z.number())
+  .validator(z.uuid())
   .handler(async ({ data: id, context }) => {
     if (context.profileId == null) return;
 
@@ -125,6 +126,9 @@ export const deleteAccount = createServerFn({ method: "POST" })
  * Recomputes every account's balance from its initial balance plus the sum of its transactions.
  * `balance` is normally kept in sync incrementally by the transaction mutations, so this is only
  * needed to fix drift (e.g. rows written before that logic existed, or a manual DB edit).
+ *
+ * Leaves `updatedAt` alone on purpose: `balance` is derived and never replicated, so restating it
+ * is not a change a syncing client has to hear about.
  */
 export const reconcileAccountBalances = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware, profileMiddleware])

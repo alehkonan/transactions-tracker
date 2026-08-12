@@ -11,7 +11,7 @@ export const SELECTED_PROFILE_COOKIE = "selected_profile";
 export const SELECTED_PROFILE_TTL_SECONDS = 60 * 60 * 24 * 365;
 
 export type SelectedProfilePayload = {
-  profileId: number;
+  profileId: string;
   /** Whose selection this is, so the cookie is inert if a different user signs in on this browser. */
   userId: number;
 };

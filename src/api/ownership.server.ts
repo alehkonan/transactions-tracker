@@ -18,14 +18,14 @@ function forbidden(): Response {
 }
 
 /** Drops nulls and duplicates so the count comparison below is meaningful. */
-function uniqueIds(ids: (number | null | undefined)[]): number[] {
+function uniqueIds(ids: (string | null | undefined)[]): string[] {
   return [...new Set(ids.filter((id) => id != null))];
 }
 
 /** Throws 403 unless every account id given belongs to `profileId`. */
 export async function assertAccountsInProfile(
-  profileId: number,
-  ids: (number | null | undefined)[],
+  profileId: string,
+  ids: (string | null | undefined)[],
 ): Promise<void> {
   const wanted = uniqueIds(ids);
   if (wanted.length === 0) return;
@@ -40,8 +40,8 @@ export async function assertAccountsInProfile(
 
 /** Throws 403 unless every category id given belongs to `profileId`. */
 export async function assertCategoriesInProfile(
-  profileId: number,
-  ids: (number | null | undefined)[],
+  profileId: string,
+  ids: (string | null | undefined)[],
 ): Promise<void> {
   const wanted = uniqueIds(ids);
   if (wanted.length === 0) return;

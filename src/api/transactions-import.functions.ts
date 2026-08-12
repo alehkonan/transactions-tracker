@@ -36,7 +36,7 @@ export type ImportReport = {
   failedCount: number;
   failures: ImportFailure[];
   durationMs: number;
-  createdTransactionIds: number[];
+  createdTransactionIds: string[];
 };
 
 function splitCategoryNames(raw: string): string[] {
@@ -99,11 +99,13 @@ function generateUniqueHexColors(count: number, existingHexes: Iterable<string>)
 
 type PreparedRow = {
   createdAt: Date;
-  categoryId?: number;
+  categoryId?: string;
   comment?: string;
   type: TransactionType;
-  accountId: number;
+  accountId: string;
   amount: string;
+  /** Denormalized from the account, the same way every other transaction write carries it. */
+  profileId: string;
 };
 
 /**
@@ -138,7 +140,7 @@ export const importTransactions = createServerFn({ method: "POST" })
     }
 
     const report = await getDb().transaction(async (tx) => {
-      const categoryMap = new Map<string, number>();
+      const categoryMap = new Map<string, string>();
       if (categoryNames.size > 0) {
         const existingCategories = await tx.query.categoriesTable.findMany({
           where: and(
@@ -174,7 +176,7 @@ export const importTransactions = createServerFn({ method: "POST" })
         }
       }
 
-      const accountMap = new Map<string, number>();
+      const accountMap = new Map<string, string>();
       if (accountCurrencies.size > 0) {
         const existingAccounts = await tx.query.accountsTable.findMany({
           where: and(
@@ -189,7 +191,7 @@ export const importTransactions = createServerFn({ method: "POST" })
           if (desiredCurrency && desiredCurrency !== account.currencyCode) {
             await tx
               .update(accountsTable)
-              .set({ currencyCode: desiredCurrency })
+              .set({ currencyCode: desiredCurrency, updatedAt: new Date() })
               .where(eq(accountsTable.id, account.id));
           }
         }
@@ -244,6 +246,7 @@ export const importTransactions = createServerFn({ method: "POST" })
           createdAt,
           categoryId: categoryName ? categoryMap.get(categoryName) : undefined,
           comment: row.comment.trim() || undefined,
+          profileId,
         };
 
         if (outcomeAmount > 0 && incomeAmount > 0) {
@@ -300,7 +303,7 @@ export const importTransactions = createServerFn({ method: "POST" })
         });
       });
 
-      const createdTransactionIds: number[] = [];
+      const createdTransactionIds: string[] = [];
       for (let i = 0; i < preparedRows.length; i += INSERT_CHUNK_SIZE) {
         const inserted = await tx
           .insert(transactionsTable)

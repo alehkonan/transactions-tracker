@@ -14,7 +14,7 @@ export const Route = createFileRoute("/profile")({
     const { profiles } = useLoaderData({ from: "/profile" });
     const navigate = useNavigate();
 
-    const handleSelect = async (id: number) => {
+    const handleSelect = async (id: string) => {
       // The cookies the guard reads are set by the server, so the navigation waits for them —
       // leaving early would bounce straight back here with nothing selected.
       await selectProfile({ data: { profileId: id } });
