@@ -9,14 +9,14 @@ export function ProcessingStep() {
   const report = useTransactionsImport((state) => state.report);
   const isCancelling = useTransactionsImport((state) => state.isCancelling);
 
+  // No way out of this step any more, and nothing to wait for: an import is a write to the local
+  // database now, so this is a flash rather than the minutes-long server call it used to be. What
+  // takes time is the push behind it, which the app stays usable through.
   if (!report) {
     return (
       <div className="flex flex-col items-center gap-4">
         <Loader />
         <p className="text-text-muted">Importing transactions…</p>
-        <Button variant="secondary" onClick={actions.cancelProcessing}>
-          Cancel
-        </Button>
       </div>
     );
   }

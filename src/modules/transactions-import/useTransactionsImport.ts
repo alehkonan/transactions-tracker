@@ -1,12 +1,23 @@
 import { create, type StateCreator } from "zustand";
 import { devtools } from "zustand/middleware";
-import { deleteTransactions } from "~/api/transaction.functions";
-import { importTransactions, type ImportReport } from "~/api/transactions-import.functions";
-import { syncNow } from "~/modules/sync/useSyncStore";
+import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { commit } from "~/modules/sync/mutations";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
+import { deleteTransactions } from "~/modules/transactions/transaction-mutations";
 import { parseCsv } from "~/utils/parse-csv";
+import { buildImportPlan } from "./build-import-plan";
 import { csvToImportRows, getMissingHeaders, type ImportRow } from "./utils";
+import type { ImportFailure } from "./build-import-plan";
 
 type Step = "upload" | "processing";
+
+type ImportReport = {
+  createdCount: number;
+  failedCount: number;
+  failures: ImportFailure[];
+  durationMs: number;
+  createdTransactionIds: string[];
+};
 
 type State = {
   file?: File;
@@ -24,11 +35,8 @@ const initState: StateCreator<State> = () => ({
 
 export const useTransactionsImport = create(devtools(initState));
 
-let abortController: AbortController | undefined;
-
 export const actions = {
   reset: () => {
-    abortController?.abort();
     useTransactionsImport.setState(useTransactionsImport.getInitialState(), true);
   },
   selectFile: async (file: File) => {
@@ -54,42 +62,57 @@ export const actions = {
   clearFile: () => {
     useTransactionsImport.setState({ file: undefined, rows: undefined, uploadError: undefined });
   },
+  /**
+   * Imports the parsed file into the working set.
+   *
+   * Local and synchronous, where this used to be a long-running server call: everything an import
+   * has to match against — the existing accounts, categories and the palette — is already in the
+   * store, so the rows land immediately and reach the server afterwards, a batch at a time, behind
+   * the unsynced-changes indicator. Which also means it works with no connection at all.
+   */
   startImport: async () => {
     const { rows } = useTransactionsImport.getState();
-    if (!rows) return;
+    const profileId = readSelectedProfileId();
+    if (!rows || profileId == null) return;
 
-    abortController = new AbortController();
     useTransactionsImport.setState({ step: "processing", report: undefined });
+    const startedAt = Date.now();
 
     try {
-      const report = await importTransactions({ data: rows, signal: abortController.signal });
-      useTransactionsImport.setState({ report });
-      // The import writes straight to the database, so the store only learns about the new
-      // accounts, categories and transactions by pulling them back.
-      await syncNow();
+      const { accounts, categories, colors } = useSyncStore.getState();
+      const plan = buildImportPlan(rows, {
+        profileId,
+        accounts: accounts.filter((account) => account.profileId === profileId),
+        categories: categories.filter((category) => category.profileId === profileId),
+        colors,
+      });
+
+      await commit(plan.changes);
+
+      useTransactionsImport.setState({
+        report: {
+          createdCount: plan.createdTransactionIds.length,
+          failedCount: plan.failures.length,
+          failures: plan.failures,
+          durationMs: Date.now() - startedAt,
+          createdTransactionIds: plan.createdTransactionIds,
+        },
+      });
     } catch (error) {
-      if (abortController.signal.aborted) {
-        useTransactionsImport.setState({ step: "upload" });
-        return;
-      }
       useTransactionsImport.setState({
         step: "upload",
         uploadError: error instanceof Error ? error.message : "Import failed.",
       });
     }
   },
-  cancelProcessing: () => {
-    abortController?.abort();
-  },
   discardImportedTransactions: async () => {
     const { report } = useTransactionsImport.getState();
     if (!report) return;
 
     useTransactionsImport.setState({ isCancelling: true });
-    if (report.createdTransactionIds.length > 0) {
-      await deleteTransactions({ data: report.createdTransactionIds });
-      await syncNow();
-    }
+    // The accounts and categories the import created stay, as they always have: they are what the
+    // file said exists, and deleting them would take any pre-existing rows filed under them along.
+    await deleteTransactions(report.createdTransactionIds);
     actions.reset();
   },
 };
