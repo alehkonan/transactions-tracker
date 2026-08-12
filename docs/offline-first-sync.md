@@ -15,8 +15,9 @@ boot ─→ IDB ─→ Zustand store (full working set in memory) ─→ every r
                      └──── sync engine ───┘ ─→ PostgreSQL
 ```
 
-The server keeps exactly two data endpoints (`pullChanges`, `pushChanges`) plus auth. Everything
-else in `src/api/*.functions.ts` is deleted.
+The server keeps exactly two data endpoints (`pullChanges`, `pushChanges`) plus auth. Everything else
+in `src/api/*.functions.ts` is deleted, bar `selectProfile` — which is not a data endpoint at all,
+just the one thing only a server can do: sign a cookie.
 
 Data is small — 10k transactions is roughly 2MB — so the entire working set is held in memory and
 IndexedDB is persistence only, not a query layer. All reads are synchronous.
@@ -106,7 +107,9 @@ Plus `(profile_id, updated_at, id)` on each synced table, keeping `(account_id, 
 fight over. Derive it — `initialBalance + sum(transactions)` — computed from memory client-side and
 recomputed server-side on push. This removes a whole conflict class _and_ makes every mutation
 idempotent, which is why the outbox needs no dedup table. Keep the column server-side for
-`reconcileAccountBalances` and debugging; never send it in a pull.
+`reconcileAccountBalances` and debugging; never send it in a pull. _(Phase 3 note: the recompute on
+push made `reconcileAccountBalances` unreachable drift-wise, and it was deleted with its button. The
+column stays for whatever reads the database directly.)_
 
 ### Migration notes
 
@@ -144,8 +147,8 @@ Four things this phase turned up that the plan above did not anticipate:
    client forever. `deleteAccount` / `deleteCategory` / `deleteTransactions` now set
    `deletedAt`+`updatedAt`, `deleteAccount` tombstones its transactions explicitly (the FK cascade
    only fires for real deletes), and every remaining server-side read filters `deleted_at is null`
-   — `transactionsSum`, `reconcileAccountBalances`, `ownership.server.ts`, and the import's
-   account/category lookups.
+   — `transactionsSum`, `reconcileAccountBalances` (both since folded into the push's balance
+   recompute), `ownership.server.ts`, and the import's account/category lookups.
 2. **The cursor cannot be a `Date`.** Postgres keeps microseconds, `Date` keeps milliseconds, and a
    strict cursor rounded _down_ keeps matching the rows it was meant to advance past — the first
    pull looped, re-sending the same 2000 rows indefinitely. The cursor's `updatedAt` is now the
@@ -159,11 +162,9 @@ Four things this phase turned up that the plan above did not anticipate:
    also had to start clearing the readable session hint when nothing resolves, or the guard keeps
    letting the client into an app that cannot load any data for it.
 
-Still true after this phase: **mutations remain server functions.** Phase 3 moves them to the
-outbox; until then each call site awaits `syncNow()` instead of `router.invalidate()`, since
-invalidating a loader that no longer exists refetches nothing. And a genuinely offline _cold_ start
-still needs Phase 5's service worker — without one the document and route chunks cannot load, however
-complete the local database is.
+Still true after this phase: **mutations remain server functions** — Phase 3 moves them to the
+outbox. And a genuinely offline _cold_ start still needs Phase 5's service worker: without one the
+document and route chunks cannot load, however complete the local database is.
 
 ### pullChanges
 
@@ -249,53 +250,117 @@ component never settles.
 
 ---
 
-## Phase 3 — write path
+## Phase 3 — write path (shipped)
 
 ```
-src/modules/sync/outbox.ts     # append-only {mutationId, table, rowId, op, payload, baseUpdatedAt}
-src/modules/sync/mutations.ts  # store + IDB + outbox, in one IDB transaction
+src/modules/sync/outbox.ts             # append-only {seq, mutationId, table, rowId, op, payload, baseUpdatedAt}
+src/modules/sync/mutations.ts          # commit(): store + IDB + outbox, in one IDB transaction
+src/modules/sync/UnsyncedChanges.tsx   # "N unsaved changes", and the beforeunload guard
+src/modules/sync/SyncConflictToasts.tsx
+src/api/apply-mutations.server.ts      # the rules a pushed row is put through, and the balance recompute
 ```
+
+Domain code does not build mutations. It describes changes in terms of rows —
+`accounts/account-mutations.ts`, `categories/category-mutations.ts`,
+`transactions/transaction-mutations.ts`, `profile/profile-mutations.ts` — and hands them to
+`commit`, which is the only place that knows how a local write reaches memory, IndexedDB and the
+queue at once.
+
+Everything left in `src/api/*.functions.ts` besides `sync` and `auth` is there because it is _not_ a
+data endpoint: `selectProfile`, and nothing else. `reconcileAccountBalances` went too — a push
+restates `accounts.balance` for every profile it writes into, so the column cannot drift from the
+app, and a button to repair it was repairing nothing. `profileMiddleware` and
+`getSelectedProfileIdFromCookie` went with it, since it was the last caller: the server never needs
+to know which profile is _selected_, only that the one a pushed row names belongs to the caller.
+
+That leaves the profile selection a purely client-side concern. `createSession` now clears it, which
+is where the "somebody else signed in on this browser" check used to live inside the middleware —
+a stale hint would otherwise convince the root guard a profile is selected and strand the new user
+on a page that resolves to nothing.
 
 ### pushChanges
 
 ```
-pushChanges({ mutations }) → { applied, canonicalRows, conflicts }
+pushChanges({ mutations }) → { applied, canonicalRows, conflicts, colors }
 ```
 
 - **Atomic per batch**, applied in outbox order in one DB transaction, so "create account, then
-  create transaction referencing it" works and a rejected parent rejects its dependents.
+  create transaction referencing it" works and a rejected parent rejects its dependents. 500
+  mutations per batch, for the same reason a pull pages at 2000 rows.
+- **A mutation is a whole row, not a diff.** The client already holds the row it is changing, and
+  sending all of it is what makes applying one idempotent — which is why the outbox needs no dedup
+  table, and why a retry after a half-finished push is safe rather than merely likely to work.
 - **Offline-first does not relax authorization.** Every pushed row re-runs the checks in
-  `ownership.server.ts` — this becomes a single choke point instead of scattered assertions.
-- Server stamps `updated_at` and recomputes `accounts.balance`.
+  `ownership.server.ts`, now the single choke point: `assertProfilesOwnedBy` for the profile each
+  row names, and the account/category assertions for the ids a transaction is filed against. They
+  take the open transaction, so a profile the same batch created a moment ago counts. The
+  `on conflict do update` clauses are guarded too (`setWhere`), so a client guessing an existing
+  uuid updates nothing rather than taking a stranger's row over.
+- Server stamps `updated_at` (`now()`, so a batch sorts together) and recomputes `accounts.balance`
+  for every profile the batch wrote into.
 - **Conflicts: last-write-wins on the server clock at push time.** Single user, few devices, one
   writer at a time in practice — no CRDTs. Each mutation carries `baseUpdatedAt` so the server can
-  _detect_ a clobber and return a warning; surface it as a toast, do not build merge UI.
+  _detect_ a clobber and return a warning, surfaced as a toast; there is no merge UI.
 
 ### Mutation flow
 
-1. Apply to the store (optimistic).
-2. Persist row + outbox entry in one IDB transaction.
-3. Debounced push (~1s).
+1. Persist row + outbox entry in one IDB transaction.
+2. Apply to the store (optimistic).
+3. Debounced push (~1s), then a pull.
 4. Success → drop outbox entries, apply canonical rows.
-5. Failure → keep outbox, retry with backoff, show "unsynced changes".
+5. Failure → keep outbox, retry with exponential backoff, show "N unsaved changes".
 
-Call sites to repoint: `useTransactionFormSubmit`, `DeleteSelectedTransactionsButton`,
-`AccountForm`, `CategoryForm`, `CreateProfileButton`, `ReconcileBalancesButton`, and the CSV import
-flow. The import currently chunks at 1000 rows server-side (`INSERT_CHUNK_SIZE`); offline it becomes
-N outbox entries pushed in timeout-sized batches.
+Four things this phase turned up:
+
+1. **`baseUpdatedAt` cannot be the cursor's timestamp.** The client only ever holds the
+   driver-parsed `Date`, and comparing that against a postgres value kept to the microsecond reports
+   a conflict on every single edit. Both sides truncate to epoch milliseconds — the precision the
+   client can actually represent.
+2. **An optimistic write leaves `updatedAt` alone.** Only the server advances it. Stamping a client
+   clock over it would make the _second_ edit of a row report a base the server has never heard of,
+   and every edit after the first would look like a clobber.
+3. **A pull must not overwrite a row with a write still queued.** The server's copy is the version
+   from before the local write, so applying it reverts what the user just did until the push puts it
+   back. `outbox.rowKeys` is what the merge step checks; the local copy wins until its own entry is
+   confirmed.
+4. **The push has to be followed by a pull.** The canonical rows settle the client's own writes, but
+   nothing moves the pull cursor past them, so without it the next boot re-downloads everything this
+   device just created — on the loading path rather than behind `SyncProgress`.
+
+Two deliberate asymmetries. **Deleting an account cascades server-side**, and the client mirrors the
+same cascade locally, rather than queueing an entry per transaction: one entry says what thousands
+would, and deleting a well-used account should not be a minutes-long push. And **creating a profile
+is the one mutation awaited all the way to the server**, because the next thing the user does is
+select it, and only the server can sign the cookie that records the choice.
+
+### The CSV import
+
+`importTransactions` (330 lines of server function) is now `build-import-plan.ts`, a pure function
+over the working set: the client already holds every account, category and color an import has to
+match against, so the whole thing is decided in memory and lands in the outbox. It is instant, it
+works with no connection at all, and it is finally unit-tested.
+
+The one thing a client cannot decide is a **color id** — `colors` is keyed by a serial and shared by
+every user. So a category created by an import carries `colorHex` in its payload instead;
+`pushChanges` resolves it to a row (`hex` is unique, so two devices importing the same file converge
+on one palette entry) and the refreshed palette rides back in the response. Until that push lands,
+an imported category draws untinted.
 
 ---
 
 ## Phase 4 — sync engine
 
 `src/modules/sync/sync-engine.ts` — a singleton with a mutex so pushes and pulls never interleave.
+Phase 3 left a promise chain doing that job (`enqueue` in `useSyncStore`), which is enough for one
+tab and nothing like enough for several.
 
-**Triggers:** boot · post-mutation (debounced) · every 5min while `visibilityState === "visible"` ·
-`visibilitychange` → visible when stale · `online`.
+**Triggers:** boot and post-mutation (debounced) are in; still to come are every 5min while
+`visibilityState === "visible"`, `visibilitychange` → visible when stale, and `online` — the last of
+which is what turns the push backoff from patience into a response.
 
-Plus: sync status in `Navbar` (synced / syncing / N unsynced / offline), conflict toasts,
-`beforeLoad` distinguishing 401 from network failure, and IDB wiped on explicit sign-out (financial
-data on a shared device) but kept on session expiry.
+Plus: sync status in `Navbar` (synced / syncing / N unsynced / offline), folding in the
+`UnsyncedChanges` pill; `beforeLoad` distinguishing 401 from network failure; and IDB wiped on
+explicit sign-out (financial data on a shared device) but kept on session expiry.
 
 ---
 
