@@ -1,4 +1,4 @@
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 import type { TransactionRow } from "~/api/transaction.functions";
 
 type Props = {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { twMerge } from "tailwind-merge";
 import { Dialog } from "~/components/Dialog";
 import { Title } from "~/components/Title";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 import { AccountForm } from "./AccountForm";
 import { AccountStatusChip } from "./AccountStatusChip";
 import type { getAccounts } from "~/api/account.functions";

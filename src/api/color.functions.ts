@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { asc } from "drizzle-orm";
-import { getDb } from "~/database/getDb.server";
+import { getDb } from "~/database/get-db.server";
 import { colorsTable } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";

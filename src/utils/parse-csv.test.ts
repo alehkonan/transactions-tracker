@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv } from "./parseCsv";
+import { parseCsv } from "./parse-csv";
 
 describe("parseCsv", () => {
   it("parses headers and rows", () => {

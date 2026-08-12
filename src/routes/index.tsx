@@ -3,7 +3,7 @@ import { getAccounts } from "~/api/account.functions";
 import { Card } from "~/components/Card";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 
 export const Route = createFileRoute("/")({
   loader: async () => {

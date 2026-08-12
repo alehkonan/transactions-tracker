@@ -2,7 +2,7 @@ import { useWatch, type Control } from "react-hook-form";
 import {
   isOutgoing,
   type TransactionFormValues,
-} from "~/modules/transaction-form/transactionFormValues";
+} from "~/modules/transaction-form/transaction-form-values";
 import type { getAccounts } from "~/api/account.functions";
 import type { TransactionRow } from "~/api/transaction.functions";
 

@@ -1,6 +1,6 @@
 import { Card } from "~/components/Card";
 import { Title } from "~/components/Title";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 import type { getDailyAverages } from "~/api/statistics.functions";
 
 type Props = {

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 import { and, eq, gt, lt, or } from "drizzle-orm";
-import { getDb } from "~/database/getDb.server";
+import { getDb } from "~/database/get-db.server";
 import { sessionsTable, usersTable } from "~/database/tables";
 import type { SQL } from "drizzle-orm";
 

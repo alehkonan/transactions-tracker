@@ -1,9 +1,9 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { getAccounts, getBalanceTotals } from "~/api/account.functions";
 import { PageContainer } from "~/components/PageContainer";
+import { accountTypeStyles } from "~/modules/accounts/account-type-tag";
 import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
 import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
-import { accountTypeStyles } from "~/modules/accounts/accountTypeTag";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
 import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
 

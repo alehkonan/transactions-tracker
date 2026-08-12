@@ -1,4 +1,4 @@
-import type { ParsedCsv } from "~/utils/parseCsv";
+import type { ParsedCsv } from "~/utils/parse-csv";
 
 export const IMPORT_HEADERS = [
   "categoryName",

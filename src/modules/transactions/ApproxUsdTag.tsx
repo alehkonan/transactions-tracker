@@ -1,4 +1,4 @@
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 
 type Props = {
   amountUsd: string;

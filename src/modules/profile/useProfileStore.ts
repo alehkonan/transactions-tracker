@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
-import { SELECTED_PROFILE_COOKIE } from "./profileCookie";
+import { SELECTED_PROFILE_COOKIE } from "./profile-cookie";
 
 type State = {
   selectedProfileId: number | null;

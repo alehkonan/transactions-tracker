@@ -7,7 +7,7 @@ import {
 import { createServerFn } from "@tanstack/react-start";
 import { eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "~/database/getDb.server";
+import { getDb } from "~/database/get-db.server";
 import { credentialsTable, profilesTable, usersTable } from "~/database/tables";
 import { sessionMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";

@@ -7,7 +7,7 @@ import { twJoin } from "tailwind-merge";
 import { Chip } from "~/components/Chip";
 import { Title } from "~/components/Title";
 import { AccountCard } from "~/modules/accounts/AccountCard";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 import type { getAccounts } from "~/api/account.functions";
 
 gsap.registerPlugin(useGSAP, Flip);

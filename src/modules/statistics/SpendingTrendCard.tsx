@@ -6,7 +6,7 @@ import { Button } from "~/components/Button";
 import { Card } from "~/components/Card";
 import { Select, type SelectOption } from "~/components/Select";
 import { Title } from "~/components/Title";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 import type { TooltipContentProps } from "recharts";
 import type { getMonthlySpendingTrend } from "~/api/statistics.functions";
 

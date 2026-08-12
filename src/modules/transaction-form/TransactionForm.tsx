@@ -14,7 +14,7 @@ import {
   transactionTypeIcons,
   transactionTypeStyles,
 } from "~/modules/transactions/TransactionTypeTag";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 import type { getAccounts } from "~/api/account.functions";
 import type { getCategories } from "~/api/category.functions";
 import type { TransactionRow } from "~/api/transaction.functions";

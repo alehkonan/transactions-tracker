@@ -1,5 +1,5 @@
 import { Title } from "~/components/Title";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 import type { getProfiles } from "~/api/profile.functions";
 
 type Profile = Awaited<ReturnType<typeof getProfiles>>[number];

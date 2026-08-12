@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useWatch, type Control, type UseFormSetValue } from "react-hook-form";
-import type { TransactionFormValues } from "~/modules/transaction-form/transactionFormValues";
+import type { TransactionFormValues } from "~/modules/transaction-form/transaction-form-values";
 
 type Options = {
   control: Control<TransactionFormValues>;

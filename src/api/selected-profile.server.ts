@@ -1,8 +1,8 @@
 import { getCookie } from "@tanstack/react-start/server";
 import { and, eq } from "drizzle-orm";
-import { getDb } from "~/database/getDb.server";
+import { getDb } from "~/database/get-db.server";
 import { profilesTable } from "~/database/tables";
-import { SELECTED_PROFILE_COOKIE, parseSelectedProfileId } from "~/modules/profile/profileCookie";
+import { SELECTED_PROFILE_COOKIE, parseSelectedProfileId } from "~/modules/profile/profile-cookie";
 
 /**
  * Resolves the cookie-selected profile, but only if `userId` actually owns it.

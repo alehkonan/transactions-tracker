@@ -2,7 +2,7 @@ import { create, type StateCreator } from "zustand";
 import { devtools } from "zustand/middleware";
 import { deleteTransactions } from "~/api/transaction.functions";
 import { importTransactions, type ImportReport } from "~/api/transactions-import.functions";
-import { parseCsv } from "~/utils/parseCsv";
+import { parseCsv } from "~/utils/parse-csv";
 import { csvToImportRows, getMissingHeaders, type ImportRow } from "./utils";
 
 type Step = "upload" | "processing";

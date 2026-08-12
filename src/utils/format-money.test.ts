@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney } from "./formatMoney";
+import { formatMoney } from "./format-money";
 
 describe("formatMoney", () => {
   it("formats USD with its narrow symbol", () => {

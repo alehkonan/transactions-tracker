@@ -13,8 +13,8 @@ import { InputControl } from "~/components/InputControl";
 import { SelectControl } from "~/components/SelectControl";
 import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
-import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/accountTypeTag";
-import { formatMoney } from "~/utils/formatMoney";
+import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/account-type-tag";
+import { formatMoney } from "~/utils/format-money";
 import type { getAccounts } from "~/api/account.functions";
 
 type Account = Awaited<ReturnType<typeof getAccounts>>[number];

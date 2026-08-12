@@ -4,7 +4,7 @@ import { DialogContext } from "~/components/Dialog";
 import {
   getDefaultFormValues,
   type TransactionFormValues,
-} from "~/modules/transaction-form/transactionFormValues";
+} from "~/modules/transaction-form/transaction-form-values";
 import { useAccountBalancePreview } from "~/modules/transaction-form/useAccountBalancePreview";
 import { useTransactionFormSubmit } from "~/modules/transaction-form/useTransactionFormSubmit";
 import { useTransferAmountMirror } from "~/modules/transaction-form/useTransferAmountMirror";

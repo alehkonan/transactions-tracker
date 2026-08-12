@@ -12,7 +12,7 @@ import {
   type NecessityLevel,
   type TransactionFormValues,
   type TransactionType,
-} from "~/modules/transaction-form/transactionFormValues";
+} from "~/modules/transaction-form/transaction-form-values";
 
 type CreateTransactionInput = {
   categoryId?: number;

@@ -13,9 +13,9 @@ import { PageContainer } from "~/components/PageContainer";
 import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
 import { DaySummary } from "~/modules/transactions/DaySummary";
 import { DeleteSelectedTransactionsButton } from "~/modules/transactions/DeleteSelectedTransactionsButton";
+import { buildTransactionsTableColumns } from "~/modules/transactions/transactions-table-columns";
 import { TransactionsAccountFilter } from "~/modules/transactions/TransactionsAccountFilter";
 import { TransactionsDateRangeFilter } from "~/modules/transactions/TransactionsDateRangeFilter";
-import { buildTransactionsTableColumns } from "~/modules/transactions/transactionsTableColumns";
 
 const dateKeySchema = z
   .string()

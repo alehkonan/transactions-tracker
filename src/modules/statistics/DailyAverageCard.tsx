@@ -1,7 +1,7 @@
 import { twJoin } from "tailwind-merge";
 import { Card } from "~/components/Card";
 import { Title } from "~/components/Title";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 
 type Props = {
   title: string;
