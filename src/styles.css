@@ -53,6 +53,51 @@
   --z-index-toast: 50; /* Toaster — must outrank everything, including open dialogs */
 }
 
+/*
+ * The same tokens after dark, so the `dark:` variants scattered through the markup (tags, account
+ * cards) have a page to sit on rather than tinting details on a permanently white one. Overriding
+ * the custom properties is what themes the app: every utility reads them through `var()`, so
+ * nothing else has to know.
+ *
+ * The scale inverts rather than mirrors. `surface` is lighter than `background` in both themes
+ * (a card lifts off the page), but `-hover`/`-active` step *up* in lightness here and down in the
+ * light theme, and the accent has to lighten to keep its contrast against a dark surface.
+ */
+/* Both themes are supported, so the browser paints its own furniture — form controls, scrollbars,
+   the native month/year dropdowns inside DatePicker — to match the one in use. */
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: oklch(0.17 0.005 250);
+
+    --color-accent: oklch(0.7 0.14 250);
+    --color-accent-hover: oklch(0.76 0.13 250);
+    --color-accent-active: oklch(0.82 0.11 250);
+    --color-accent-muted: oklch(0.36 0.09 250);
+
+    --color-surface: oklch(0.22 0.006 250);
+    --color-surface-hover: oklch(0.27 0.007 250);
+    --color-surface-active: oklch(0.32 0.008 250);
+    --color-surface-muted: oklch(0.19 0.005 250);
+
+    --color-danger: oklch(0.68 0.19 25);
+    --color-danger-hover: oklch(0.74 0.17 25);
+    --color-danger-active: oklch(0.8 0.15 25);
+    --color-danger-muted: oklch(0.4 0.1 25);
+
+    --color-text: oklch(0.95 0.004 250);
+    --color-text-muted: oklch(0.72 0.008 250);
+
+    --color-border: oklch(0.33 0.008 250);
+
+    --color-income: oklch(0.75 0.16 145);
+    --color-transfer: oklch(0.72 0.01 250);
+  }
+}
+
 .popover {
   position-area: bottom;
   position-try-fallbacks: flip-inline, flip-block;
