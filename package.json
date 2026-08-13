@@ -17,7 +17,8 @@
     "test:e2e": "playwright test",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "gc:tombstones": "node --env-file=.env netlify/functions/tombstone-gc.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

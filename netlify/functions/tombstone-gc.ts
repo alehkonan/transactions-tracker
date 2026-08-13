@@ -1,0 +1,110 @@
+import { pathToFileURL } from "node:url";
+import postgres from "postgres";
+
+/**
+ * Tombstone garbage collection: the deletions that have been replicated for long enough that no
+ * client still needs to hear about them.
+ *
+ * A delete in this app is a row with `deleted_at` set, never a `DELETE` — a row that simply vanishes
+ * is invisible to a delta pull and would live on every client forever. The cost is that the
+ * tombstones accumulate, so they are swept once they are older than the window a client is allowed
+ * to be away for. A device that has been dormant longer than that does not resume from its cursor at
+ * all; it drops its local copy and pulls afresh (see `isCursorStale`), which is the other half of
+ * this and the reason the two numbers are deliberately far apart.
+ *
+ * Runs on a schedule in production and by hand in development:
+ *
+ * ```
+ * pnpm gc:tombstones
+ * ```
+ *
+ * Deliberately standalone — it talks to postgres directly rather than through `getDb()` and the
+ * Drizzle schema, so it is a file Node can run on its own and a function Netlify can bundle without
+ * dragging the app's server graph in behind it. The price is the table names below, which are the
+ * one thing here that has to be kept in step with `SYNCED_TABLES` by hand.
+ */
+
+export const config = { schedule: "@daily" };
+
+/**
+ * How long a tombstone is kept.
+ *
+ * Must stay well above `STALE_CURSOR_AFTER_DAYS` in `src/modules/sync/sync-types.ts`, which is the
+ * point at which a client gives up on its cursor and re-pulls from nothing: the gap between the two
+ * is the whole safety margin. Spelled out again here rather than imported, because this file is
+ * deliberately standalone — see above.
+ */
+const RETENTION_DAYS = 90;
+
+/**
+ * The synced tables, children before parents.
+ *
+ * Order matters only to keep the work predictable: `profiles` and `accounts` cascade on delete, so
+ * sweeping a parent first would take its children with it and leave the later statements with
+ * nothing to do. Doing it the other way round means each table's count reports its own tombstones.
+ */
+const SWEPT_TABLES = ["transactions", "categories", "accounts", "profiles"] as const;
+
+type SweepResult = Record<string, number>;
+
+function connect() {
+  const host = process.env.POSTGRES_HOST;
+  if (!host) throw new Error("POSTGRES_HOST is not set — no database to sweep.");
+
+  return postgres({
+    user: process.env.POSTGRES_USER,
+    password: process.env.POSTGRES_PASSWORD,
+    host,
+    port: Number(process.env.POSTGRES_PORT),
+    database: process.env.POSTGRES_DB,
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 10,
+  });
+}
+
+/**
+ * Hard-deletes every tombstone past the retention window, and reports how many per table.
+ *
+ * One statement per table rather than one statement with several CTEs: the cascades mean two
+ * branches of the same statement could try to delete the same row from the same snapshot, and
+ * housekeeping that runs off the request path has no reason to be clever about round trips.
+ */
+export async function sweepTombstones(): Promise<SweepResult> {
+  const sql = connect();
+
+  try {
+    const removed: SweepResult = {};
+
+    for (const table of SWEPT_TABLES) {
+      const result = await sql`
+        delete from ${sql(table)}
+        where deleted_at is not null
+          and deleted_at < now() - ${`${RETENTION_DAYS} days`}::interval
+      `;
+      removed[table] = result.count;
+    }
+
+    return removed;
+  } finally {
+    await sql.end();
+  }
+}
+
+/** The scheduled invocation. Netlify reads `config.schedule` above to know when to call it. */
+export default async function handler(): Promise<Response> {
+  const removed = await sweepTombstones();
+  console.log("Swept tombstones older than %d days:", RETENTION_DAYS, removed);
+
+  return new Response(JSON.stringify(removed), {
+    headers: { "content-type": "application/json" },
+  });
+}
+
+// Run the sweep when this file is executed directly (`pnpm gc:tombstones`), so it can be tried
+// against a real database without waiting for a deploy or for midnight. Netlify imports the module
+// rather than running it, so this stays inert there.
+if (process.argv[1] != null && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const removed = await sweepTombstones();
+  console.log("Swept tombstones older than %d days:", RETENTION_DAYS, removed);
+}
