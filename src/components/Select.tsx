@@ -108,7 +108,7 @@ export function Select({
           className={twMerge(
             // A minimum width so the trigger doesn't collapse around a short label, or resize
             // under the pointer as the selection changes.
-            "inline-flex h-9 min-w-32 items-center justify-between gap-1 rounded-2xl px-3",
+            "inline-flex h-11 min-w-32 items-center justify-between gap-1 rounded-2xl px-3 sm:h-9",
             "transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow",
             "bg-surface text-text border-border disabled:bg-surface-muted border",
             "data-disabled:cursor-not-allowed",

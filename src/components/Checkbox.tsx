@@ -8,6 +8,8 @@ type CheckboxProps = {
   disabled?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   className?: string;
+  /** What this checkbox is called, for a checkbox that carries no visible label of its own. */
+  "aria-label"?: string;
 };
 
 /** Checkbox styled to match the `Button` secondary variant. */
@@ -17,15 +19,17 @@ export function Checkbox({
   checked,
   disabled,
   onCheckedChange,
+  "aria-label": ariaLabel,
 }: CheckboxProps) {
   return (
     <BaseCheckbox.Root
+      aria-label={ariaLabel}
       checked={checked}
       indeterminate={indeterminate}
       disabled={disabled}
       onCheckedChange={onCheckedChange}
       className={twMerge(
-        "border-border bg-surface grid size-5 shrink-0 place-items-center rounded-md border transition-shadow",
+        "border-border bg-surface grid size-6 shrink-0 place-items-center rounded-md border transition-shadow sm:size-5",
         "focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2",
         disabled ? "cursor-not-allowed" : "cursor-pointer",
         !disabled && "hover:shadow",

@@ -10,7 +10,10 @@ export function Button({ variant, className, type = "button", ...props }: Button
     <button
       type={type}
       className={twMerge(
-        "inline-flex h-9 items-center justify-center gap-1 rounded-2xl px-3",
+        // Taller on a phone than on a desktop: 44px is the thumb-sized target Apple and Material
+        // both ask for, and 36px is what a pointer wants. Every control in the app follows this
+        // pair — see `Select`, `InputControl` and the toggle groups.
+        "inline-flex h-11 items-center justify-center gap-1 rounded-2xl px-3 sm:h-9",
         "transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow",
         variant === "primary" && "bg-accent text-surface disabled:bg-accent-muted",
         variant === "secondary" &&

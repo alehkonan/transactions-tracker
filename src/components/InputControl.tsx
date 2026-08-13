@@ -51,7 +51,7 @@ export function InputControl<
           onBlur?.(event);
         }}
         className={twMerge(
-          "border-border bg-surface text-text h-9 rounded-lg border px-2",
+          "border-border bg-surface text-text h-11 rounded-lg border px-2 sm:h-9",
           className,
         )}
       />

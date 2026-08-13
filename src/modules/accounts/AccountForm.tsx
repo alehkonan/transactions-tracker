@@ -123,7 +123,7 @@ export function AccountForm({ account }: Props) {
               value={option.value}
               className={(toggleState) =>
                 twMerge(
-                  "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors",
+                  "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors sm:h-9",
                   toggleState.pressed
                     ? accountTypeStyles[option.value]
                     : "text-text-muted hover:bg-surface-muted",
@@ -160,7 +160,7 @@ export function AccountForm({ account }: Props) {
                 getProjectedBalance(account, initialBalance),
                 account.currencyCode,
               )}
-              className="border-border bg-surface-muted text-text-muted h-9 rounded-lg border px-2"
+              className="border-border bg-surface-muted text-text-muted h-11 rounded-lg border px-2 sm:h-9"
             />
             <Field.Description className="text-text-muted text-sm">
               Initial balance plus all transactions

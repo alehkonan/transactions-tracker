@@ -55,7 +55,9 @@ export function CategoryTag(props: Props) {
           type="button"
           aria-label={`Edit category ${props.category.name}`}
           onClick={onOpen}
-          className="max-w-full rounded-full transition-[box-shadow] hover:shadow"
+          // The pill keeps its size; the button around it grows to a thumb-sized target on a phone,
+          // since these chips are the only way to edit a category.
+          className="inline-flex min-h-11 max-w-full items-center rounded-full transition-[box-shadow] hover:shadow sm:min-h-0"
         >
           {tag}
         </button>

@@ -106,7 +106,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               value={option.value}
               className={(toggleState) =>
                 twMerge(
-                  "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors",
+                  "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors sm:h-9",
                   toggleState.pressed
                     ? transactionTypeStyles[option.value]
                     : "text-text-muted hover:bg-surface-muted",
@@ -130,7 +130,9 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
       />
 
       {type !== "TRANSFER" && (
-        <div className="grid grid-cols-2 gap-3">
+        // One per row on a phone: four necessity labels do not fit half of 390px, and shrinking
+        // them to fit only trades a clipped word for a truncated one.
+        <div className="grid gap-3 sm:grid-cols-2">
           <SelectControl
             control={control}
             name="categoryId"
@@ -144,7 +146,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             name="necessityLevel"
             label="Necessity"
             aria-label="Necessity"
-            className="border-border bg-surface flex h-9 items-center gap-1 rounded-lg border p-1"
+            className="border-border bg-surface flex h-11 items-center gap-1 rounded-lg border p-1 sm:h-9"
           >
             {necessityOptions.map((option) => (
               <Toggle
