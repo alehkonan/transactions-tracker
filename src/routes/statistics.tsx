@@ -62,35 +62,47 @@ export const Route = createFileRoute("/statistics")({
     return (
       <PageContainer>
         <Title variant="page">Statistics</Title>
-        <div className="py-4" />
-        <div className="flex items-center justify-between gap-4 pb-2">
-          <Title variant="section">Averages</Title>
-          <AveragePeriodToggle
-            value={period}
-            onValueChange={(next) => navigate({ search: (prev) => ({ ...prev, period: next }) })}
-          />
+        {/* The chart is the reason this page exists and it used to start below the fold on a
+            phone, under a screen and a half of stacked cards. Three abreast is what buys it back —
+            rather than reordering, which would have left the reading order disagreeing with the
+            visual one at one size or the other. */}
+        <div className="mt-4 flex flex-col gap-4">
+          <section>
+            <div className="flex items-center justify-between gap-4 pb-2">
+              <Title variant="section">Averages</Title>
+              <AveragePeriodToggle
+                value={period}
+                onValueChange={(next) =>
+                  navigate({ search: (prev) => ({ ...prev, period: next }) })
+                }
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+              <DailyAverageCard
+                title="Income per day"
+                shortTitle="Income / day"
+                tone="income"
+                perDayUsd={averages.income.perDayUsd}
+                totalUsd={averages.income.totalUsd}
+                days={averages.days}
+                rangeLabel={averages.rangeLabel}
+              />
+              <DailyAverageCard
+                title="Spending per day"
+                shortTitle="Spent / day"
+                tone="expense"
+                perDayUsd={averages.expense.perDayUsd}
+                totalUsd={averages.expense.totalUsd}
+                days={averages.days}
+                rangeLabel={averages.rangeLabel}
+              />
+              <MoneyRunwayCard runway={averages.runway} perDayUsd={averages.expense.perDayUsd} />
+            </div>
+          </section>
+          <section>
+            <SpendingTrendCard months={months} month={month} trend={trend} />
+          </section>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <DailyAverageCard
-            title="Income per day"
-            tone="income"
-            perDayUsd={averages.income.perDayUsd}
-            totalUsd={averages.income.totalUsd}
-            days={averages.days}
-            rangeLabel={averages.rangeLabel}
-          />
-          <DailyAverageCard
-            title="Spending per day"
-            tone="expense"
-            perDayUsd={averages.expense.perDayUsd}
-            totalUsd={averages.expense.totalUsd}
-            days={averages.days}
-            rangeLabel={averages.rangeLabel}
-          />
-          <MoneyRunwayCard runway={averages.runway} perDayUsd={averages.expense.perDayUsd} />
-        </div>
-        <div className="py-2" />
-        <SpendingTrendCard months={months} month={month} trend={trend} />
       </PageContainer>
     );
   },

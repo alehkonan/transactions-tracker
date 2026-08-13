@@ -30,14 +30,29 @@ const round2 = (value: number) => Math.round(value * 100) / 100;
  * significant non-zero units, so long runways stay readable without drowning the headline in
  * trailing precision.
  */
+function runwayUnits(duration: Duration): (keyof Duration)[] {
+  if (duration.years) return ["years", "months"];
+  if (duration.months) return ["months", "days"];
+  return ["days"];
+}
+
 function formatRunway(from: Date, days: number) {
   const duration = intervalToDuration({ start: from, end: addDays(from, days) });
-  const units: (keyof Duration)[] = duration.years
-    ? ["years", "months"]
-    : duration.months
-      ? ["months", "days"]
-      : ["days"];
-  return formatDuration(duration, { format: units, delimiter: " " }) || "0 days";
+  return formatDuration(duration, { format: runwayUnits(duration), delimiter: " " }) || "0 days";
+}
+
+const shortUnits: Record<string, string> = { years: "y", months: "mo", days: "d" };
+
+/**
+ * The same figure as `formatRunway` with the words cut down to "3mo 11d", for the three-up stat
+ * strip a phone gets, where "3 months 11 days" wraps onto three lines in a 120px column.
+ */
+function formatShortRunway(from: Date, days: number) {
+  const duration = intervalToDuration({ start: from, end: addDays(from, days) });
+  const parts = runwayUnits(duration)
+    .map((unit) => (duration[unit] ? `${duration[unit]}${shortUnits[unit]}` : null))
+    .filter(Boolean);
+  return parts.join(" ") || "0d";
 }
 
 export type DailyAverages = {
@@ -49,6 +64,8 @@ export type DailyAverages = {
     balanceUsd: number;
     days: number | null;
     label: string | null;
+    /** `label` with the units abbreviated, for a column too narrow to spell them out. */
+    shortLabel: string | null;
     emptyOnLabel: string | null;
   };
 };
@@ -119,6 +136,7 @@ export function computeDailyAverages({
       balanceUsd: round2(balanceUsd),
       days: runwayDays,
       label: runwayDays == null ? null : formatRunway(today, runwayDays),
+      shortLabel: runwayDays == null ? null : formatShortRunway(today, runwayDays),
       emptyOnLabel: runwayDays == null ? null : format(addDays(today, runwayDays), "MMM d, yyyy"),
     },
   };
