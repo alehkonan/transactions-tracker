@@ -3,7 +3,7 @@ import { LogOutIcon } from "lucide-react";
 import { useState } from "react";
 import { signOut } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
-import { resetLocalData } from "~/modules/sync/useSyncStore";
+import { resetLocalData } from "~/modules/sync/sync-engine";
 
 export function SignOutButton() {
   const router = useRouter();

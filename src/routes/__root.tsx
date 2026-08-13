@@ -73,7 +73,16 @@ export const Route = createRootRoute({
                 <Navbar />
               </header>
             )}
-            <div className={showNavbar ? "pb-24 sm:pb-0" : undefined}>
+            {/* Room for the two pieces of chrome that float over the page: the navbar, and the
+                sync indicator at the top (a full-width strip on a phone, a corner pill from `md`).
+                Written as one expression per edge, since two `md:pt-*` utilities would be settled
+                by stylesheet order rather than by what is meant. */}
+            <div
+              className={twJoin(
+                !isLogin && (showNavbar ? "pt-8 md:pt-0" : "pt-8 md:pt-14"),
+                showNavbar && "pb-24 sm:pb-0",
+              )}
+            >
               {isLogin ? children : <SyncGate>{children}</SyncGate>}
             </div>
             <Toaster />

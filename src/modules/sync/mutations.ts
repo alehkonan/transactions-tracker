@@ -1,7 +1,8 @@
 import { uuidV7 } from "~/utils/uuid-v7";
 import { writeLocalMutations } from "./idb";
+import { announceLocalWrite, schedulePush } from "./sync-engine";
 import { SYNCED_TABLES } from "./sync-types";
-import { applyLocalRows, refreshOutboxState, schedulePush, useSyncStore } from "./useSyncStore";
+import { applyLocalRows, refreshOutboxState, useSyncStore } from "./useSyncStore";
 import type { Mutation, MutationPayloads, SyncedRows, SyncedTable } from "./sync-types";
 
 /**
@@ -131,6 +132,9 @@ export async function commit(changes: LocalChange[]): Promise<void> {
   await writeLocalMutations(rows, mutations);
   await refreshOutboxState();
   applyLocalRows(rows);
+  // On disk is on disk: any other tab on this browser is looking at the same database and should
+  // show the change now, not once the push that carries it away has been round-tripped.
+  announceLocalWrite();
   schedulePush();
 }
 

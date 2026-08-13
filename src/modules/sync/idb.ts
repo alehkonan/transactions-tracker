@@ -108,6 +108,20 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
 }
 
 /**
+ * The pull position, on its own.
+ *
+ * Read from disk rather than from the store because this database is shared with every other tab on
+ * the same browser: one of them may have pulled while this tab sat idle, and starting a pull from
+ * the store's older copy would re-download everything the other one already has.
+ */
+export async function readLocalCursors(): Promise<SyncCursors | undefined> {
+  const database = await openDatabase();
+  const store = database.transaction(META_STORE, "readonly").objectStore(META_STORE);
+
+  return (await promisify(store.get("cursors"))) as SyncCursors | undefined;
+}
+
+/**
  * Writes rows into their stores: an ordinary row is upserted by id, and a tombstone deletes its row
  * outright, since the cursor — not the tombstone — is what remembers that the deletion was seen.
  */

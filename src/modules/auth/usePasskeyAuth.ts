@@ -8,7 +8,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { getSignInOptions, getSignUpOptions, signIn, signUp } from "~/api/auth.functions";
-import { resetLocalData } from "~/modules/sync/useSyncStore";
+import { resetLocalData } from "~/modules/sync/sync-engine";
 
 /**
  * A cancelled ceremony is the user closing the OS passkey sheet — expected, not an error worth

@@ -3,10 +3,10 @@ import { LoaderCircleIcon } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "~/components/Button";
 import { Title } from "~/components/Title";
+import { bootSync, startSyncTriggers, syncNow } from "./sync-engine";
 import { SyncConflictToasts } from "./SyncConflictToasts";
-import { SyncProgress } from "./SyncProgress";
-import { UnsyncedChanges } from "./UnsyncedChanges";
-import { bootSync, syncNow, useSyncStore } from "./useSyncStore";
+import { SyncStatus } from "./SyncStatus";
+import { useSyncStore } from "./useSyncStore";
 import type { ReactNode } from "react";
 
 type Props = {
@@ -16,7 +16,7 @@ type Props = {
 /**
  * Holds the app back until there is enough data to render it with — which is the reference tables,
  * not the whole working set. Transactions arrive behind the app rather than in front of it, reported
- * by `SyncProgress` while they do.
+ * by `SyncStatus` in the corner while they do.
  *
  * The server renders the shell and nothing else, so `isHydrated` is false on both sides of the first
  * paint — the loading screen below is what SSR emits, and the client picks up from exactly there
@@ -31,6 +31,9 @@ export function SyncGate({ children }: Props) {
 
   useEffect(() => {
     void bootSync();
+    // Registered alongside the boot rather than after it, so a tab that opens offline is already
+    // listening for the `online` event that will let it finish.
+    return startSyncTriggers();
   }, []);
 
   // The route guards run off a forgeable hint cookie, so the server rejecting the pull is the first
@@ -43,8 +46,7 @@ export function SyncGate({ children }: Props) {
     return (
       <>
         {children}
-        <SyncProgress />
-        <UnsyncedChanges />
+        <SyncStatus />
         <SyncConflictToasts />
       </>
     );

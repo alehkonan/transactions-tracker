@@ -1,5 +1,5 @@
 import { commit, newRow } from "~/modules/sync/mutations";
-import { pushNow } from "~/modules/sync/useSyncStore";
+import { pushNow } from "~/modules/sync/sync-engine";
 import type { ProfilePayload } from "~/modules/sync/sync-types";
 
 /**
