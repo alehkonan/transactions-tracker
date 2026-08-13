@@ -203,6 +203,25 @@ export async function writeLocalRows(
 }
 
 /**
+ * Empties the replicated stores and forgets where the pull got to, so the next one starts from
+ * nothing — the repair for a copy that has diverged, or that is too far behind for a delta pull to
+ * catch up (see `isCursorStale`).
+ *
+ * The outbox is deliberately left alone. It is the one store here that is not a cache of the
+ * server's rows: dropping it would throw away writes that exist nowhere else. The palette and the
+ * rates stay too, so a re-pull that has not landed yet still renders in colour.
+ */
+export async function clearLocalRows(): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
+
+  for (const table of SYNCED_TABLES) transaction.objectStore(table).clear();
+  transaction.objectStore(META_STORE).delete("cursors");
+
+  await whenComplete(transaction);
+}
+
+/**
  * Deletes the local copy outright — used when the browser changes hands (an explicit sign-out, or a
  * different account signing in), where financial data lingering in IndexedDB would be a leak.
  */

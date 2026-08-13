@@ -7,6 +7,7 @@ import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { CreateCategoryButton } from "~/modules/categories/CreateCategoryButton";
 import { useCategories } from "~/modules/categories/useCategories";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { IntegrityCheck } from "~/modules/sync/IntegrityCheck";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { ExportTransactionsButton } from "~/modules/transactions/ExportTransactionsButton";
 
@@ -58,6 +59,9 @@ export const Route = createFileRoute("/settings")({
           </Link>
           <ExportTransactionsButton />
         </div>
+        <hr className="border-border my-3" />
+        <Title variant="section">Local data</Title>
+        <IntegrityCheck />
       </PageContainer>
     );
   },

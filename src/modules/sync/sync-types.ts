@@ -96,6 +96,35 @@ export type SyncedRow = {
 };
 
 /**
+ * One table's fingerprint, as either end can compute it without sending a single row.
+ *
+ * `count` alone would miss an edit; the checksum alone would miss a duplicated row. Together they
+ * are enough to answer "does this device still hold what the server holds", which is the only
+ * question an integrity check is asking.
+ *
+ * The checksum is a decimal string rather than a number: it is a signed 64-bit value, which is
+ * exactly what neither JSON nor a JS `number` can carry intact.
+ */
+export type TableIntegrity = {
+  count: number;
+  checksum: string;
+};
+
+export type IntegrityResult = Record<SyncedTable, TableIntegrity>;
+
+/**
+ * When a local copy is too far behind to trust, and has to be thrown away and pulled afresh.
+ *
+ * Deletions are only visible to a delta pull for as long as their tombstone exists, and the sweep
+ * (`netlify/functions/tombstone-gc.ts`) keeps one for 90 days. This is deliberately well inside
+ * that, because the two are not measured by the same clock: the cursor is rewound by the pull's
+ * overlap window, the sweep runs on its own schedule, and a client that cut it fine would silently
+ * keep rows the server has deleted, forever. A month of slack costs a full re-pull that a device
+ * dormant for two months was going to pay for anyway.
+ */
+export const STALE_CURSOR_AFTER_DAYS = 60;
+
+/**
  * The write path.
  *
  * A mutation is a whole row, not a diff: the client already holds the row it is changing, and

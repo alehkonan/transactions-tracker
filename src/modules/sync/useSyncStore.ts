@@ -169,6 +169,28 @@ export function replaceRows(rows: SyncedRows, colors: Color[], usdRates: Record<
   useSyncStore.setState({ ...rows, colors, usdRates });
 }
 
+/**
+ * Drops the replicated rows and everything that describes how complete they were, putting the app
+ * back behind the loading gate while they are pulled again from nothing.
+ *
+ * The counterpart of `clearLocalRows`, and used with it: a working set that outlived the database it
+ * was read from would be re-persisted by the next merge, which is exactly the divergence being
+ * repaired. Queued writes and the palette are untouched, for the same reasons they are on disk.
+ */
+export function clearWorkingSet(): void {
+  useSyncStore.setState({
+    profiles: [],
+    accounts: [],
+    categories: [],
+    transactions: [],
+    isHydrated: false,
+    lastSyncedAt: null,
+    pending: [],
+    syncedRows: 0,
+    syncTotalRows: null,
+  });
+}
+
 /** Re-reads how much is queued, and which rows a pull therefore has to leave alone. */
 export async function refreshOutboxState(): Promise<void> {
   const { count, rowKeys } = await readOutboxState();

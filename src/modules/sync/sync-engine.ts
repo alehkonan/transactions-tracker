@@ -1,21 +1,30 @@
-import { pullChanges, pushChanges } from "~/api/sync.functions";
+import { checkIntegrity, pullChanges, pushChanges } from "~/api/sync.functions";
 import {
+  clearLocalRows,
   deleteLocalDatabase,
   readLocalCursors,
   readLocalSnapshot,
   writeLocalPage,
   writeLocalRows,
 } from "./idb";
+import { compareIntegrity, isCursorStale, localIntegrity } from "./integrity";
 import { dropOutboxEntries, readOutboxBatch } from "./outbox";
 import { PUSH_BATCH_LIMIT } from "./sync-types";
 import {
   applyServerRows,
+  clearWorkingSet,
   refreshOutboxState,
   replaceRows,
   resetSyncState,
   useSyncStore,
 } from "./useSyncStore";
-import type { PullChangesResult, PushChangesResult, SyncedTable } from "./sync-types";
+import type { IntegrityDivergence } from "./integrity";
+import type {
+  IntegrityResult,
+  PullChangesResult,
+  PushChangesResult,
+  SyncedTable,
+} from "./sync-types";
 
 /**
  * The one place that talks to the sync endpoints: when a pull or a push runs, in what order, and
@@ -160,6 +169,18 @@ function toMessage(error: unknown): string {
   return "Could not reach the server.";
 }
 
+/**
+ * Throws the local copy away, rows and cursors, leaving the queue of unpushed writes intact.
+ *
+ * Both halves have to go together: IndexedDB is what the next boot reads, and the store is what the
+ * next merge writes back to it, so dropping one and keeping the other would restore exactly the
+ * divergence being repaired.
+ */
+async function dropLocalCopy(): Promise<void> {
+  await clearLocalRows();
+  clearWorkingSet();
+}
+
 async function pullUntilCaughtUp(): Promise<void> {
   useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
 
@@ -168,6 +189,16 @@ async function pullUntilCaughtUp(): Promise<void> {
     // cursor is the one that says what this browser already holds.
     let cursors = await readLocalCursors();
     let changedRows = 0;
+
+    // A copy older than the tombstone retention window cannot be caught up by a delta pull: the
+    // deletions it missed have been swept, so it would collect every edit and none of the removals,
+    // and — since a pull only ever adds — hold the deleted rows forever with nothing looking wrong.
+    // Skipped while writes are queued, because those exist nowhere else and a re-pull will not
+    // bring them back; the next attempt, after the push lands, does the wipe instead.
+    if (isCursorStale(cursors) && useSyncStore.getState().outboxCount === 0) {
+      await dropLocalCopy();
+      cursors = undefined;
+    }
 
     for (let page = 0; ; page++) {
       if (page >= MAX_PAGES_PER_PULL) throw new Error("Sync did not converge — too many pages.");
@@ -321,6 +352,74 @@ export function pushNow(): Promise<void> {
 export function schedulePush(delayMs: number = PUSH_DEBOUNCE_MS): void {
   if (pushTimer != null) return;
   pushTimer = setTimeout(() => void pushNow(), delayMs);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Integrity                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export type IntegrityReport =
+  /** Every table's fingerprint agrees with the server's. */
+  | { outcome: "matched" }
+  | { outcome: "diverged"; divergences: IntegrityDivergence[] }
+  /**
+   * The two ends are not comparable right now — writes are still queued, or a pull is still
+   * streaming — so they are *expected* to differ and comparing them would only cry wolf.
+   */
+  | { outcome: "unsettled" };
+
+/**
+ * Asks the server what this user's data should look like, and compares it against what is on this
+ * device — counts and checksums only, so the answer costs four aggregates and no rows.
+ *
+ * Held under the sync mutex so nothing is moving underneath the comparison, and reported rather
+ * than acted on: the repair is `resyncFromScratch`, and throwing away a local copy is not something
+ * to do behind the user's back on the strength of one mismatched number.
+ */
+export function verifyIntegrity(): Promise<IntegrityReport> {
+  return runExclusive(async () => {
+    const before = useSyncStore.getState();
+    if (!before.isHydrated || before.outboxCount > 0 || before.pending.length > 0) {
+      return { outcome: "unsettled" };
+    }
+
+    const server: IntegrityResult | Response = await checkIntegrity();
+    if (!isSyncResult(server)) throw server;
+
+    // Folded after the answer arrives rather than before it, so the local side of the comparison is
+    // the more recent of the two — a peer tab's write landing mid-call reads as data the server has
+    // not been asked about yet, which the next check settles.
+    const state = useSyncStore.getState();
+    const divergences = compareIntegrity(
+      localIntegrity({
+        profiles: state.profiles,
+        accounts: state.accounts,
+        categories: state.categories,
+        transactions: state.transactions,
+      }),
+      server,
+    );
+
+    return divergences.length === 0 ? { outcome: "matched" } : { outcome: "diverged", divergences };
+  });
+}
+
+/**
+ * Drops the local copy and pulls the whole working set again.
+ *
+ * The only repair there is, and deliberately the blunt one: the sync path cannot tell *which* of its
+ * assumptions failed, so it does not try to patch the difference. Refuses while writes are queued —
+ * they are the one thing here that a re-pull could not bring back.
+ */
+export function resyncFromScratch(): Promise<void> {
+  return runExclusive(async () => {
+    if (useSyncStore.getState().outboxCount > 0) {
+      throw new Error("There are changes still waiting to be sent. Send them first.");
+    }
+
+    await dropLocalCopy();
+    await pullUntilCaughtUp();
+  });
 }
 
 /* -------------------------------------------------------------------------- */

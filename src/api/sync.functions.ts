@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, asc, count, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   accountStatusEnum,
@@ -27,6 +27,7 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import type {
   AccountPayload,
   CategoryPayload,
+  IntegrityResult,
   ProfilePayload,
   PullChangesResult,
   PushChangesResult,
@@ -34,6 +35,7 @@ import type {
   SyncCursors,
   SyncedRows,
   SyncedTable,
+  TableIntegrity,
   TransactionPayload,
 } from "~/modules/sync/sync-types";
 
@@ -289,6 +291,105 @@ export const pullChanges = createServerFn()
       transactionBacklog: backlog?.[0]?.count,
       usdRates,
       colors,
+    };
+  });
+
+/**
+ * A row's contribution to its table's checksum: both halves of its uuid, xor'd together and with
+ * its `updated_at` in epoch milliseconds.
+ *
+ * Milliseconds for the same reason `baseUpdatedAt` is (see `Mutation`) — postgres keeps
+ * microseconds and the client only ever holds a `Date`, so anything finer would make every single
+ * row disagree. The uuid is what makes the digest more than a timestamp: the Phase 1 migration
+ * stamped every pre-existing row with an identical `updated_at`, so a client that had swapped one
+ * of those rows for another would otherwise pass a timestamp-only checksum. Both halves of it,
+ * because a v7 uuid's leading 64 bits are 48 bits of millisecond and only 12 of randomness.
+ *
+ * Combined with `bit_xor` rather than a running hash because a checksum has to be order-independent
+ * — the client folds the rows in whatever order its arrays happen to hold them. Kept to arithmetic
+ * postgres and JavaScript can both do exactly; a server-side hash function would have no
+ * counterpart in `integrity.ts`.
+ */
+const rowDigest = (columns: KeysetColumns) => {
+  const hex = sql`translate(${columns.id}::text, '-', '')`;
+
+  return sql`
+    ('x' || substr(${hex}, 1, 16))::bit(64)::bigint
+    # ('x' || substr(${hex}, 17, 16))::bit(64)::bigint
+    # floor(extract(epoch from ${columns.updatedAt}) * 1000)::bigint
+  `;
+};
+
+/**
+ * What this user's copy of one table should look like, in two numbers.
+ *
+ * Tombstones are excluded: a client deletes the row rather than keeping the tombstone (see
+ * `putRows`), so counting them here would report a divergence on every recent deletion.
+ */
+function integrityOf(columns: KeysetColumns) {
+  return {
+    count: count(),
+    checksum: sql<string>`coalesce(bit_xor(${rowDigest(columns)}), 0)::text`,
+  };
+}
+
+/**
+ * A fingerprint of the caller's data, per table, for a client to compare its own copy against.
+ *
+ * The third data endpoint, and the only one that moves no rows in either direction: replication is
+ * a long chain of assumptions — a cursor that advanced correctly, a page that was written before it
+ * was applied, a pull that left a queued row alone — and this is the cheap way to find out that one
+ * of them did not hold, without transferring the dataset to check.
+ *
+ * Answers for the whole user rather than the selected profile, because that is the scope a pull
+ * replicates in.
+ */
+export const checkIntegrity = createServerFn()
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(async ({ context }): Promise<IntegrityResult> => {
+    const db = getDb();
+
+    const ownProfiles = await db
+      .select({ id: profilesTable.id })
+      .from(profilesTable)
+      .where(eq(profilesTable.userId, context.user.id));
+    const profileIds = ownProfiles.map((profile) => profile.id);
+
+    const [profiles, accounts, categories, transactions] = await Promise.all([
+      db
+        .select(integrityOf(profilesTable))
+        .from(profilesTable)
+        .where(and(eq(profilesTable.userId, context.user.id), isNull(profilesTable.deletedAt))),
+      db
+        .select(integrityOf(accountsTable))
+        .from(accountsTable)
+        .where(and(inArray(accountsTable.profileId, profileIds), isNull(accountsTable.deletedAt))),
+      db
+        .select(integrityOf(categoriesTable))
+        .from(categoriesTable)
+        .where(
+          and(inArray(categoriesTable.profileId, profileIds), isNull(categoriesTable.deletedAt)),
+        ),
+      db
+        .select(integrityOf(transactionsTable))
+        .from(transactionsTable)
+        .where(
+          and(
+            inArray(transactionsTable.profileId, profileIds),
+            isNull(transactionsTable.deletedAt),
+          ),
+        ),
+    ]);
+
+    // An aggregate always returns its one row; the fallback is here so the shape is a `TableIntegrity`
+    // by construction rather than by argument.
+    const empty: TableIntegrity = { count: 0, checksum: "0" };
+
+    return {
+      profiles: profiles[0] ?? empty,
+      accounts: accounts[0] ?? empty,
+      categories: categories[0] ?? empty,
+      transactions: transactions[0] ?? empty,
     };
   });
 
