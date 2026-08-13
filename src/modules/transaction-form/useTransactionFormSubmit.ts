@@ -28,6 +28,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
     if (profileId == null) return;
 
     const shared = {
+      createdAt: values.createdAt,
       categoryId: values.categoryId || null,
       necessityLevel: values.necessityLevel || "MEDIUM",
       comment: values.comment || null,

@@ -6,6 +6,8 @@ export type TransactionType = (typeof transactionTypeEnum.enumValues)[number];
 
 export type TransactionFormValues = {
   type: TransactionType;
+  /** When the money moved — not when the row was typed, which is only the default. */
+  createdAt: Date;
   accountId: string;
   toAccountId: string;
   amount: string;
@@ -20,6 +22,7 @@ export function getDefaultFormValues(
 ): TransactionFormValues {
   return {
     type: transaction?.type ?? "EXPENSE",
+    createdAt: transaction?.createdAt ?? new Date(),
     accountId: transaction?.accountId ?? "",
     toAccountId: "",
     amount: transaction?.amount.replace(/^-/, "") ?? "",

@@ -2,6 +2,7 @@ import { Toggle } from "@base-ui/react/toggle";
 import { ArrowDownIcon } from "lucide-react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
+import { DatePickerControl } from "~/components/DatePickerControl";
 import { InputControl } from "~/components/InputControl";
 import { SelectControl } from "~/components/SelectControl";
 import { TextareaControl } from "~/components/TextareaControl";
@@ -118,6 +119,15 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
           );
         })}
       </ToggleGroupControl>
+
+      <DatePickerControl
+        control={control}
+        name="createdAt"
+        label="Date"
+        // Money that has not moved yet isn't a transaction this app knows how to hold: it would
+        // count against balances and averages as though it had already been spent.
+        disabled={{ after: new Date() }}
+      />
 
       {type !== "TRANSFER" && (
         <div className="grid grid-cols-2 gap-3">
