@@ -348,19 +348,62 @@ an imported category draws untinted.
 
 ---
 
-## Phase 4 — sync engine
+## Phase 4 — sync engine (shipped)
 
-`src/modules/sync/sync-engine.ts` — a singleton with a mutex so pushes and pulls never interleave.
-Phase 3 left a promise chain doing that job (`enqueue` in `useSyncStore`), which is enough for one
-tab and nothing like enough for several.
+```
+src/modules/sync/sync-engine.ts   # the mutex, the triggers, the cross-tab channel
+src/modules/sync/SyncStatus.tsx   # synced / syncing / N unsynced / offline, in one corner icon
+```
 
-**Triggers:** boot and post-mutation (debounced) are in; still to come are every 5min while
-`visibilityState === "visible"`, `visibilitychange` → visible when stale, and `online` — the last of
-which is what turns the push backoff from patience into a response.
+`useSyncStore.ts` is state again — the rows, the flags, and the merge that keeps a pulled row from
+overwriting a queued one. Everything about _when_ the network is touched moved to the engine, along
+with `bootSync`, `pushNow`, `schedulePush` and `resetLocalData`.
 
-Plus: sync status in `Navbar` (synced / syncing / N unsynced / offline), folding in the
-`UnsyncedChanges` pill; `beforeLoad` distinguishing 401 from network failure; and IDB wiped on
-explicit sign-out (financial data on a shared device) but kept on session expiry.
+**The mutex is a Web Lock, not a promise chain.** Phase 3's `enqueue` serializes one document's
+work and knows nothing about any other, and a second tab is not exotic here — it is what happens
+when someone opens the app again instead of switching windows. Two tabs share one IndexedDB, so two
+uncoordinated pulls write over each other's cursors and two uncoordinated drains push the same
+outbox entries twice. `navigator.locks` is held across the browser rather than the document, which
+is exactly the scope the database has. Where it is missing (it is genuinely absent outside a secure
+context) the old promise chain is the fallback.
+
+**Triggers**, on top of boot and the post-mutation debounce: a staleness check once a minute that
+syncs when the working set is more than 5 minutes old _and_ the tab is visible;
+`visibilitychange` → visible, through the same check; and `online`, which resets the push backoff
+rather than waiting out the rest of it. The `beforeunload` guard for a non-empty outbox moved into
+the engine with them, so it holds on `/profile` too, where the indicator is not rendered.
+
+**Tabs are kept in step over a `BroadcastChannel`.** A tab announces when IndexedDB has moved —
+after a commit, after a confirmed push batch, after a pull that actually brought something back —
+and its peers re-read the whole local snapshot, debounced. Whole rather than incremental because
+IndexedDB is the shared truth between tabs and every write reaches disk before it reaches memory,
+so a straight replace can only move a tab forward. Signing out broadcasts a second message, which
+reloads the other tabs onto `/login`: the point of dropping the local copy on a shared device is
+lost if the tab next door keeps showing it.
+
+Four things this phase turned up:
+
+1. **A pull has to read its cursor from IndexedDB, not from the store.** The store's copy is what
+   _this_ tab last pulled; the tab next to it may have moved the cursor on since. Starting from the
+   older one re-downloads the difference on every boot of a second tab.
+2. **A no-op delta pull must not announce anything.** Announcing every completed pull instead of
+   every pull that changed something meant each idle tab rebuilt its entire working set — and every
+   memoized derivation over it — once every five minutes, for rows that had not moved.
+3. **The status does not belong in the navbar.** The plan said to fold the `UnsyncedChanges` pill
+   into it, but the bar is already five destinations wide and measured 350px of a 360px viewport
+   with a status on the end. It takes the top edge instead, opposite the navigation at both
+   breakpoints, and the shell reserves that strip the way it already reserves the navbar's. Two
+   shapes for the two amounts of room: a full-width one-line **strip** on a phone, where edge to
+   edge costs nothing and buys the space to say the state in words, and a **corner pill** from `md`
+   up, an icon with a figure beside it. `SyncProgress` folded in as well — the "syncing 35%" of a
+   first run is the same question as "is this saved", asked a few seconds earlier.
+4. **Nothing was left to do for 401-vs-network.** The root guard has read cookies since Phase 0 and
+   makes no request to fail, and the store has split "the server said no" from "the server did not
+   answer" since Phase 2. The engine keeps the distinction: `unauthorized` sends the gate to
+   `/login`, everything else is an error the retry schedule owns.
+
+Still Phase 5's: a genuinely offline _cold_ start. Route chunks are fetched on navigation, so a full
+page load with no connection has nothing to serve it however complete the local database is.
 
 ---
 
@@ -384,6 +427,6 @@ explicit sign-out (financial data on a shared device) but kept on session expiry
 - **IndexedDB eviction.** Safari evicts non-installed sites after 7 days; unsynced outbox entries
   would be lost. Keep the post-mutation debounce short and warn on `beforeunload` when the outbox is
   non-empty.
-- **Multiple tabs** sharing one IDB → hold the sync mutex in a Web Lock, and use `BroadcastChannel`
-  to keep stores in step.
+- ~~**Multiple tabs** sharing one IDB → hold the sync mutex in a Web Lock, and use
+  `BroadcastChannel` to keep stores in step.~~ Both landed in Phase 4.
 - **Cursor gap** from commit-order vs. timestamp-order, mitigated by the overlap window above.
