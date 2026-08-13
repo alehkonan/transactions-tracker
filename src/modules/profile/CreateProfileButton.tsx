@@ -28,7 +28,7 @@ function CreateProfileForm() {
         value={name}
         onChange={(event) => setName(event.target.value)}
         placeholder="Profile name"
-        className="border-border bg-surface text-text h-9 rounded-lg border px-2"
+        className="border-border bg-surface text-text h-11 rounded-lg border px-2 sm:h-9"
       />
       <div className="flex justify-end gap-2">
         <Button variant="secondary" type="button" onClick={onClose}>
@@ -47,7 +47,7 @@ export function CreateProfileButton() {
     <Dialog
       title="Create profile"
       renderTrigger={({ onOpen }) => (
-        <Button variant="primary" onClick={onOpen}>
+        <Button variant="primary" aria-label="New profile" onClick={onOpen}>
           <PlusIcon />
           <span className="hidden sm:block">New profile</span>
         </Button>
