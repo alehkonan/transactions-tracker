@@ -407,21 +407,99 @@ page load with no connection has nothing to serve it however complete the local 
 
 ---
 
-## Phase 5 — optional
+## Phase 5 — housekeeping (shipped, bar the service worker)
 
-- **PWA service worker.** Required for a genuinely offline _cold_ start — without it the shell
-  itself won't load.
-- **Integrity check.** Per-table `count` + XOR of `updated_at`, compared on demand. Cheap way to
-  catch divergence without transferring the dataset.
-- **Tombstone GC.** Delete `deleted_at < now() - 90 days`.
+```
+src/api/sync.functions.ts            # checkIntegrity — the third endpoint, and the only one that moves no rows
+src/modules/sync/integrity.ts        # the same checksum in JavaScript, and "is this copy too old to resume"
+src/modules/sync/IntegrityCheck.tsx  # the /settings control, and the one repair there is
+netlify/functions/tombstone-gc.ts    # the daily sweep, and `pnpm gc:tombstones`
+```
+
+**The PWA service worker is deliberately not done.** A genuinely offline _cold_ start still has
+nothing to serve the document and the route chunks, however complete the local database is; a warm
+tab remains fully offline-capable, as it has been since Phase 2.
+
+### Integrity check
+
+```
+checkIntegrity() → { profiles, accounts, categories, transactions }   # each { count, checksum }
+```
+
+The plan asked for `count` + XOR of `updated_at`. It shipped as `count` + XOR of a per-row digest,
+because a timestamp on its own is not enough here: the Phase 1 migration stamped every pre-existing
+row with an identical `updated_at`, so a copy holding one of those rows in place of another would
+have passed. The digest folds the uuid in — **both halves of it**. A unit test caught the first
+attempt using only the leading 64 bits, which for a v7 uuid is 48 bits of millisecond and 12 of
+randomness: a CSV import mints thousands of ids per millisecond, so rows would have collided once
+every few thousand.
+
+Three constraints shaped the rest of it:
+
+1. **Both ends have to compute the same number**, so the digest is arithmetic postgres and
+   JavaScript can each do exactly — no `hashtextextended`, which has no counterpart in the browser.
+   `updated_at` is truncated to epoch milliseconds for the reason `baseUpdatedAt` already is: the
+   client only ever holds a `Date`, and anything finer would make every row disagree.
+2. **Order-independent**, hence `bit_xor` rather than a running hash — the store's arrays are in
+   whatever order pages and merges left them.
+3. **Tombstones are excluded on both sides.** A client deletes the row rather than keeping the
+   tombstone, so counting them would report a divergence on every recent deletion.
+
+Reported, never repaired automatically. The comparison refuses to run at all while writes are queued
+or a pull is still streaming — the two ends are _supposed_ to differ then — and the only repair is
+`resyncFromScratch`, which drops the local rows and cursors, keeps the outbox, and pulls again from
+nothing. It refuses while the outbox is non-empty, since queued writes are the one thing here a
+re-pull could not bring back.
+
+Verified against 11,584 real transactions: the SQL and the JavaScript agree on all four tables. And
+a divergence has to be planted as a **phantom row** to stick — deleting a row from IndexedDB by hand
+does not diverge anything, because the cursor's 10s overlap has the server re-send it on the next
+pull. A delta pull only ever adds, which is exactly why a row the server has never heard of is the
+one thing it cannot fix.
+
+### Tombstone GC
+
+`netlify/functions/tombstone-gc.ts`, `@daily`, hard-deleting `deleted_at < now() - 90 days` across
+the four synced tables, children before parents. Also `pnpm gc:tombstones`, which runs the same file
+directly — housekeeping that only proves itself on a deploy is housekeeping nobody checks.
+
+Deliberately standalone: raw SQL over its own postgres client rather than `getDb()` and the Drizzle
+schema, so Node can execute the file as-is and Netlify can bundle it without dragging the app's
+server graph in behind it. The price is the table list, which has to be kept in step with
+`SYNCED_TABLES` by hand.
+
+No index on `deleted_at`. A daily sweep off the request path can afford a sequential scan of tables
+this size, and four partial indexes would tax every write to save a job nobody is waiting for.
+
+### The other half of a retention window
+
+A retention window is a deadline for clients as much as for rows: once a tombstone is swept, a
+device that never saw it would pull every edit and none of the deletions, and — since a pull only
+adds — hold the deleted rows forever with nothing looking wrong. So a local copy whose oldest cursor
+is more than **60 days** old is not resumed from at all. `pullUntilCaughtUp` drops the rows and the
+cursors and starts from nothing, keeping the outbox; a full re-pull is what a device dormant for two
+months was going to pay for anyway.
+
+60 against 90 is the margin, and the two must not be allowed to converge: they are not measured by
+the same clock — the cursor is rewound by the pull's overlap window and the sweep runs on its own
+schedule. The wipe is also skipped while writes are queued, because those exist nowhere else and a
+re-pull will not bring them back; the attempt after the push lands does it instead.
+
+### Still open
+
+- **PWA service worker**, as above.
+- **Automatic integrity checks.** It costs a round trip and its only answer is a full re-download, so
+  it stays something the user asks for. A weekly background check would be reasonable if divergence
+  ever turns out to be real rather than theoretical.
 
 ---
 
 ## Risks
 
 - **Netlify 10s function timeout on the initial pull** → keyset pagination, ~2000 rows/page.
-- **Tombstone GC vs. a stale client.** A client offline longer than the retention window would miss
-  deletions. Detect a cursor older than retention and force a wipe + full re-pull.
+- ~~**Tombstone GC vs. a stale client.** A client offline longer than the retention window would miss
+  deletions. Detect a cursor older than retention and force a wipe + full re-pull.~~ Landed in
+  Phase 5, at 60 days against the sweep's 90.
 - **LWW clobber window.** A device editing offline for days overwrites newer server values on push.
   Detection only (via `baseUpdatedAt`), reported not resolved.
 - **IndexedDB eviction.** Safari evicts non-installed sites after 7 days; unsynced outbox entries
