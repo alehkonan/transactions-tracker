@@ -11,10 +11,11 @@
       "Bash(pnpm typecheck *)",
       "Bash(pnpm lint *)",
       "Bash(pnpm knip *)",
+      "Bash(pnpm test:*)",
       "Bash(playwright-cli *)"
     ],
     "ask": ["Bash(gh pr create:*)", "Bash(git commit:*)"],
-    "deny": ["Read(*.env*)", "Bash(rm:*)", "Bash(curl:*)"]
+    "deny": ["Read(*.env*)", "Bash(rm:*)", "Bash(curl:*)", "Bash(git push:*)"]
   },
   "hooks": {
     "PreToolUse": [
