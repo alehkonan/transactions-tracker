@@ -7,7 +7,7 @@ import { deleteTransactions } from "~/modules/transactions/transaction-mutations
 import { parseCsv } from "~/utils/parse-csv";
 import { buildImportPlan } from "./build-import-plan";
 import { csvToImportRows, getMissingHeaders, type ImportRow } from "./utils";
-import type { ImportFailure } from "./build-import-plan";
+import type { ImportFailure, ImportWarning } from "./build-import-plan";
 
 type Step = "upload" | "processing";
 
@@ -15,6 +15,7 @@ type ImportReport = {
   createdCount: number;
   failedCount: number;
   failures: ImportFailure[];
+  warnings: ImportWarning[];
   durationMs: number;
   createdTransactionIds: string[];
 };
@@ -94,6 +95,7 @@ export const actions = {
           createdCount: plan.createdTransactionIds.length,
           failedCount: plan.failures.length,
           failures: plan.failures,
+          warnings: plan.warnings,
           durationMs: Date.now() - startedAt,
           createdTransactionIds: plan.createdTransactionIds,
         },

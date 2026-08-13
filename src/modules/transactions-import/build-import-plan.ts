@@ -29,9 +29,22 @@ type CurrencyCode = (typeof currencyCodeEnum.enumValues)[number];
 
 export type ImportFailure = { row: number; reason: string };
 
+/**
+ * A currency the file names that this app has no code for. The rows still import — the money is
+ * real either way — but the account ends up denominated in something the file never said, which is
+ * only honest if the import says so.
+ */
+export type ImportWarning = {
+  /** The unsupported short title, as the file spelled it. */
+  currency: string;
+  /** The accounts filed under it, and the currency each one actually ended up with. */
+  accounts: { name: string; currencyCode: CurrencyCode }[];
+};
+
 export type ImportPlan = {
   changes: LocalChange[];
   failures: ImportFailure[];
+  warnings: ImportWarning[];
   /** What "discard" would have to delete — the accounts and categories are left alone, as before. */
   createdTransactionIds: string[];
 };
@@ -124,13 +137,24 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
 
   const accountsByName = new Map(context.accounts.map((account) => [account.name, account]));
   const accountIdByName = new Map<string, string>();
+  const unsupportedCurrencies = new Map<string, ImportWarning["accounts"]>();
+
+  const noteUnsupportedCurrency = (raw: string, name: string, currencyCode: CurrencyCode) => {
+    const currency = raw.trim().toUpperCase();
+    const accounts = unsupportedCurrencies.get(currency);
+    if (accounts) accounts.push({ name, currencyCode });
+    else unsupportedCurrencies.set(currency, [{ name, currencyCode }]);
+  };
 
   for (const [name, rawCurrency] of accountCurrencies) {
     const currencyCode = normalizeCurrencyCode(rawCurrency);
+    // A blank currency column says nothing; a filled one this app can't place is worth reporting.
+    const isUnsupported = rawCurrency.trim().length > 0 && currencyCode === undefined;
     const existing = accountsByName.get(name);
 
     if (existing) {
       accountIdByName.set(name, existing.id);
+      if (isUnsupported) noteUnsupportedCurrency(rawCurrency, existing.name, existing.currencyCode);
       // An account whose currency has drifted from what the file says is corrected, as the server
       // import did. Everything else about it is left exactly as it is.
       if (currencyCode && currencyCode !== existing.currencyCode && existing.profileId != null) {
@@ -160,6 +184,7 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
       type: "CURRENT",
       profileId,
     };
+    if (isUnsupported) noteUnsupportedCurrency(rawCurrency, name, payload.currencyCode);
     const row = newRow(payload);
     accountIdByName.set(name, row.id);
     changes.push({ op: "upsert", table: "accounts", row, payload });
@@ -258,5 +283,9 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
     });
   });
 
-  return { changes, failures, createdTransactionIds };
+  const warnings = [...unsupportedCurrencies].map(
+    ([currency, accounts]): ImportWarning => ({ currency, accounts }),
+  );
+
+  return { changes, failures, warnings, createdTransactionIds };
 }

@@ -140,6 +140,40 @@ describe("buildImportPlan", () => {
     expect(corrected.payload).toMatchObject({ currencyCode: "EUR", name: "Wallet" });
   });
 
+  it("warns about a currency it has no code for, rather than quietly using dollars", () => {
+    const plan = buildImportPlan(
+      [
+        row({ outcomeAccountName: "Millennium", outcome: "20", outcomeCurrencyShortTitle: "PLN" }),
+        row({ outcomeAccountName: "Wallet", outcome: "5", outcomeCurrencyShortTitle: "pln" }),
+      ],
+      context({ accounts: [account()] }),
+    );
+
+    // The rows still import — the money moved either way.
+    expect(plan.createdTransactionIds).toHaveLength(2);
+    expect(plan.failures).toEqual([]);
+    expect(plan.warnings).toEqual([
+      {
+        currency: "PLN",
+        accounts: [
+          // Created in dollars, since the file names a currency this app cannot store...
+          { name: "Millennium", currencyCode: "USD" },
+          // ...and this one already existed, so it is simply left as it is.
+          { name: "Wallet", currencyCode: "USD" },
+        ],
+      },
+    ]);
+  });
+
+  it("says nothing about a blank currency column, which claims nothing", () => {
+    const plan = buildImportPlan(
+      [row({ outcomeAccountName: "Card", outcome: "20" })],
+      context({ accounts: [] }),
+    );
+
+    expect(plan.warnings).toEqual([]);
+  });
+
   it("reports unusable rows instead of dropping them silently", () => {
     const plan = buildImportPlan(
       [
