@@ -108,7 +108,10 @@ Still open: whether the enum should become a validated text column, so PLN and f
 The phone experience is materially worse than the desktop one, and it's the size where a
 transactions tracker actually gets used — at the till, not at a desk.
 
-### 5. The amount column is off-screen on a phone
+**All six are fixed**, and item 7 from phase 1 came along with them. What each one turned out to be
+is kept below, same as P0.
+
+### 5. The amount column is off-screen on a phone — _fixed_
 
 `transactions-table-columns.tsx` declares fixed widths totalling ~875px, and `DataTable` virtualises
 columns horizontally. At 390px you see **Datetime and Category only**. Amount, account and type
@@ -116,57 +119,117 @@ require a sideways scroll, and the day-summary rows ("Spent: $131.81") sit in th
 too — at rest they're blank grey strips. Date and amount, the two things anyone scans for, can never
 be on screen together.
 
-**Fix:** below `sm`, stop rendering a table. Render a list row instead:
+**Fixed:** below `sm` the table is replaced by `TransactionsList` — two lines per transaction, with
+category, account and amount on the first and time, necessity and the comment on the second. The
+comment had no column at all before, so it is new information rather than a rearrangement.
 
 ```
-┌──────────────────────────────────────────┐
-│ Groceries · Revolut EUR          −€7.35  │
-│ 11 Aug · Medium                  ≈−$8.48 │
-└──────────────────────────────────────────┘
-   ── Tue 11 Aug ·············· −$8.48 ──     ← day header, not a trailing summary
+├────────────────────────────────────────────┤
+│ ☐  Food · GEL BOG card            −₾17.39  │
+│    12:46 · Medium · Coffee         ≈−$6.65 │
+├────────────────────────────────────────────┤
 ```
 
-Keep `DataTable` for `sm` and up. The row data already exists in `TransactionRow`; this is a
-presentation swap, not a data change.
+It runs the full width of the screen — `-mx-4` cancelling `PageContainer`'s padding, top and bottom
+borders only. 390px has no width to spare for a gutter either side of a rounded card, and the width
+it buys back goes to the amount.
 
-### 6. Day totals come after their day
+Its height is measured rather than declared (`useAvailableHeight`): the distance from wherever the
+list starts to whatever the page reserves below it, so it ends exactly above the floating navbar
+instead of behind it, and the page itself stops scrolling — the list scrolls, and there is one
+scroll region under the thumb rather than two. Measuring both ends is what makes it survive a
+filter row that wraps and a viewport that changes; the first attempt read the space below off
+`documentElement.scrollHeight`, which never reports less than the viewport, so a list that had once
+shrunk could never grow back.
+
+The two presentations are mounted one at a time, chosen by `useMediaQuery("(min-width: 40rem)")`
+(`src/utils/useMediaQuery.ts`, subscribed through `useSyncExternalStore` so the first paint is
+already right) rather than rendered twice and hidden with CSS. **The list is virtualised like the
+table** — a profile here holds 10,747 transactions, and rendering them all is not a phone's idea of
+a good time; 20 nodes are in the DOM against a 720,049px scroll height. Selection, the bulk-delete
+button and tap-to-edit all work as they do on the desktop table.
+
+**And the table is now lazy.** The route's markup for it moved into `TransactionsTable.tsx` — same
+props as the list, so the route just picks one — and is imported through `React.lazy`, which makes
+it a chunk of its own: **51KB (13.7KB gzipped), TanStack Table and all, that a phone never
+downloads**. Verified against a production build: `getCoreRowModel` appears in that chunk and
+nowhere else. The `Suspense` fallback is a bordered box the height the table will be, not a spinner,
+so nothing jumps when it arrives.
+
+### 6. Day totals come after their day — _fixed_
 
 `renderGroupSummary` emits the summary _below_ the group it summarises, so you read the total before
 you know which day ended. Making it a sticky day **header** (date + net for the day) reads forwards
 and removes 100+ half-height rows from the scroll.
 
-### 7. Primary actions on mobile have no accessible name
+**Fixed:** the prop is `renderGroupHeader` now and the row is emitted _before_ its group, in both
+presentations. `DaySummary` became `DayHeader`, which puts the day on the left ("Today",
+"Yesterday", then `EEE d MMM`) and what was spent and earned on it on the right; income is left out
+of days that had none. In the list the header is genuinely sticky, via the virtualiser's
+`rangeExtractor` — the pinned day is kept in the rendered range even after its own rows scroll past,
+since it is the only thing saying which day is on screen. In the table it scrolls with its group:
+inside a virtualiser every row is absolutely positioned, and only one element per scroller can be
+in flow to stick.
+
+### 7. Primary actions on mobile have no accessible name — _fixed_
 
 `Add` on `/transactions` (`src/routes/transactions.tsx:73-76`) and `New profile`
 (`CreateProfileButton.tsx:51-53`) hide their label with `hidden sm:block` and add no `aria-label`, so
 below `sm` they are unnamed buttons — Playwright can't find them by name and neither can a screen
 reader. `CreateAccountButton` does it correctly, which is the inconsistency to resolve.
 
-**Fix:** `aria-label` on every icon-only button; audit for `hidden sm:block` inside a `Button`.
+**Fixed:** both carry an `aria-label` that contains their visible text ("Add transaction", "New
+profile"), so the accessible name still matches what a voice-control user reads aloud. Those two
+were the only `hidden sm:block` labels in the app.
 
-### 8. Touch targets are 26–36px
+### 8. Touch targets are 26–36px — _fixed_
 
 Measured on a phone: every button is `h-9` (36px), the necessity toggles and category chips are
 26–28px. WCAG 2.5.8 asks for 24px minimum, Apple and Material both ask for 44px. The category chips
 in Settings are edit buttons at 28px.
 
-**Fix:** a `size="touch"` variant, or bump to `h-11` below `sm`.
+**Fixed:** one rule, applied everywhere rather than as a variant to remember — **`h-11` below `sm`,
+`h-9` from `sm` up**: `Button`, `Select`, `InputControl`, both toggle groups in the transaction
+form, the account form and the period toggle. The category chips keep their pill size and grow a
+44px button around it; the list's checkboxes stay 24px and take their taps through a
+`before:-inset-2.5` pseudo-element, so the box is not the target. The calendar is the one
+compromise: its day cells go to 36px, because seven 44px columns do not fit 390px.
 
-### 9. Statistics is three screens of chrome before a chart
+Two things deliberately left: the bottom nav's links are 40px (`h-10`, and the P3 note about
+labelling them will move that anyway), and `DataTable`'s checkboxes are 24px on a screen where the
+table no longer renders.
+
+### 9. Statistics is three screens of chrome before a chart — _fixed_
 
 At 390px the three stat cards occupy ~1000px stacked, so the spending chart starts below the fold on
 a screen that exists to show you the chart. Each card is ~330px tall to display one number.
 
-**Fix:** on mobile, collapse the three stats into a single three-up strip, chart first.
+**Fixed:** the three cards are a single three-up strip below `sm` — headline figure only, with the
+supporting lines `hidden sm:block` — which brings the whole chart above the fold on a 390×844
+screen. The runway needed its own compact label (`shortLabel`, "5mo 24d") since "5 months 24 days"
+wraps to three lines in a 120px column.
 
-### 10. Account cards are mostly empty
+Not reordered, in the end: the strip alone is enough, and `order` utilities would have left the
+reading order disagreeing with the visual one at one size or the other.
+
+### 10. Account cards are mostly empty — _fixed_
 
 An account card is ~230px tall on desktop and ~450px on a phone, carrying a name, a type, a status
 chip and a balance. Three accounts fill a 900px desktop viewport and overflow a phone. The gradient
 is doing all the work and none of the communicating.
 
-**Fix:** halve the height and spend the recovered space on something real — last activity, this
-month's delta, a 30-day sparkline.
+**Fixed:** the 8:5 aspect ratio is gone for a `min-h-28` box (~104px), and the space bought back
+went to two figures derived from rows already in the store (`compute-account-activity.ts`): when the
+account last moved, and its net for the current month, tinted and signed. Nine accounts now fit the
+desktop viewport that used to hold three, and five fit a phone screen.
+
+Fixing it exposed a second defect: **the card was translucent**. Its gradient ends on
+`archived-muted/20`, so in a collapsed peek stack you could read the card behind through the one in
+front — invisible while the cards were tall enough to keep the stacked text far apart, obvious once
+they were not. The card now paints `bg-surface` under its gradient.
+
+Not done: the 30-day sparkline. Two figures and a shorter card is the whole of the complaint; a
+sparkline is a new chart to design, and `/statistics` is where P2 is already going.
 
 ---
 
@@ -235,8 +298,10 @@ Empty states are an invitation to act; `No data` is a database talking.
   "collapse". Use a rotating `v`.
 - **The sync strip is permanent on mobile** — a full-width row saying "Synced" at all times. Show it
   on change and on error; fade it when idle.
-- **Nested scroll areas**: `DataTable` is a fixed `h-[600px]` scroller inside a scrolling page. On a
-  phone this means two scrollbars in one gesture region.
+- **Nested scroll areas**: `DataTable` is a fixed `h-[600px]` scroller inside a scrolling page, and
+  the phone list it hands over to is the same shape at `h-[75dvh]` — a bounded scroller is what a
+  virtualiser measures against. Window virtualisation would fix the gesture and is the real answer;
+  it was not worth blocking P1 on.
 - **The bottom nav has icons only** with no labels, while the desktop navbar has both. Five icons
   with no text is a memory test; labels fit at 390px.
 - **The transaction dialog is a centred modal on mobile** (442px tall, floating at y=201). A bottom
@@ -312,11 +377,13 @@ the number follows you without repeating itself.
 ## Sequence
 
 **Phase 1 — defects.** ~~Items 1, 2, 4~~ done, along with item 3, which came along with them because
-the base-text-colour defect it exposed made the app unreadable after dark. Item 7 (the missing
-`aria-label`s) is the remainder and belongs with phase 2.
+the base-text-colour defect it exposed made the app unreadable after dark. ~~Item 7~~ done with
+phase 2, where it belonged.
 
-**Phase 2 — mobile (1–2 days).** Items 5, 6, 8, 9, 10. A card list below `sm`, day headers instead of
-trailing summaries, larger targets, and shorter cards. This is where the app changes most.
+**Phase 2 — mobile.** ~~Items 5, 6, 8, 9, 10~~ done. A virtualised card list below `sm`, day headers
+instead of trailing summaries, larger targets, and shorter cards carrying two figures they didn't
+have. One thing found on the way that wasn't on the list: the necessity toggle's four labels never
+fit half of a 390px row, so that pair of fields is one per row below `sm`.
 
 **Phase 3 — information (2–3 days).** Items 11, 12, 13, 14, 15, 16. A dashboard worth landing on, a
 category breakdown, search, honest chart bounds, and the copy pass.
@@ -330,8 +397,9 @@ direction, if you want it. Anything that changes the palette now has two themes 
   the position of the fixed bottom nav.
 - Keyboard-only navigation and screen-reader flow were spot-checked (accessible names, target sizes)
   but not walked end to end.
-- No performance profiling: the 241-row table scrolled smoothly, but that's a small dataset for a
-  virtualiser and says nothing about 10,000 rows.
+- No performance profiling. The P1 pass did run against a 10,747-row profile — both the table and
+  the new phone list keep ~20–30 rows in the DOM and scrolled smoothly at 150,000px deep — but
+  "smooth to drive" is not a measurement.
 - The review ran against a seeded profile whose accounts were created by the CSV importer, so account
   _types_ are all `CURRENT` and the savings grouping on `/accounts` was never exercised with a real
   `SAVING` account.
