@@ -21,8 +21,12 @@ type Props<TData extends RowData> = {
   onRowClick?: (data: TData) => void;
   /** Groups consecutive rows sharing a key; a bold divider is drawn where the key changes. */
   groupBy?: (data: TData) => string | number | undefined;
-  /** Renders a full-width summary row after each `groupBy` group, given that group's key. */
-  renderGroupSummary?: (groupKey: string | number) => ReactNode;
+  /**
+   * Renders a full-width header row *before* each `groupBy` group, given that group's key.
+   * Ahead of the group rather than after it: a total you read before you know which group ended
+   * is a total you have to hold in your head until the next divider explains it.
+   */
+  renderGroupHeader?: (groupKey: string | number) => ReactNode;
 };
 
 const selectionColumn: ColumnDef<any, any> = {
@@ -44,11 +48,11 @@ const selectionColumn: ColumnDef<any, any> = {
 };
 
 const ROW_HEIGHT_ESTIMATE = 38;
-const SUMMARY_ROW_HEIGHT_ESTIMATE = 30;
+const HEADER_ROW_HEIGHT_ESTIMATE = 30;
 
 type BodyItem<TData> =
   | { kind: "row"; row: Row<TData>; isGroupStart: boolean }
-  | { kind: "summary"; groupKey: string | number };
+  | { kind: "header"; groupKey: string | number };
 
 // Firefox reports table-row heights incorrectly via getBoundingClientRect.
 const measureElement =
@@ -63,7 +67,7 @@ export function DataTable<TData extends RowData>({
   onSelectionChange,
   onRowClick,
   groupBy,
-  renderGroupSummary,
+  renderGroupHeader,
 }: Props<TData>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -101,21 +105,18 @@ export function DataTable<TData extends RowData>({
     bodyRows.forEach((row, index) => {
       const previousGroupKey = index > 0 ? groupBy(bodyRows[index - 1].original) : undefined;
       const groupKey = groupBy(row.original);
-      const isGroupStart = index > 0 && groupKey !== previousGroupKey;
+      const isGroupStart = index === 0 || groupKey !== previousGroupKey;
 
-      if (isGroupStart && renderGroupSummary && previousGroupKey !== undefined) {
-        list.push({ kind: "summary", groupKey: previousGroupKey });
+      if (isGroupStart && renderGroupHeader && groupKey !== undefined) {
+        list.push({ kind: "header", groupKey });
       }
-      list.push({ kind: "row", row, isGroupStart });
+      // The header row is the divider once there is one, so the thick group-start border would
+      // only draw a second line under it.
+      list.push({ kind: "row", row, isGroupStart: isGroupStart && !renderGroupHeader });
     });
 
-    if (renderGroupSummary && bodyRows.length > 0) {
-      const lastGroupKey = groupBy(bodyRows[bodyRows.length - 1].original);
-      if (lastGroupKey !== undefined) list.push({ kind: "summary", groupKey: lastGroupKey });
-    }
-
     return list;
-  }, [bodyRows, groupBy, renderGroupSummary]);
+  }, [bodyRows, groupBy, renderGroupHeader]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -123,7 +124,7 @@ export function DataTable<TData extends RowData>({
     count: items.length,
     getScrollElement: () => containerRef.current,
     estimateSize: (index) =>
-      items[index].kind === "summary" ? SUMMARY_ROW_HEIGHT_ESTIMATE : ROW_HEIGHT_ESTIMATE,
+      items[index].kind === "header" ? HEADER_ROW_HEIGHT_ESTIMATE : ROW_HEIGHT_ESTIMATE,
     measureElement,
     overscan: 10,
   });
@@ -189,20 +190,20 @@ export function DataTable<TData extends RowData>({
           {virtualRows.map((virtualRow) => {
             const item = items[virtualRow.index];
 
-            if (item.kind === "summary") {
+            if (item.kind === "header") {
               return (
                 <tr
-                  key={`summary-${item.groupKey}`}
+                  key={`header-${item.groupKey}`}
                   data-index={virtualRow.index}
                   ref={rowVirtualizer.measureElement}
                   className={twJoin(
                     "bg-surface-muted absolute flex w-full",
-                    virtualRow.index > 0 && "border-border border-t",
+                    virtualRow.index > 0 && "border-t-text-muted/40 border-t-2",
                   )}
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
                   <td className="px-3 py-1" style={{ width: columnVirtualizer.getTotalSize() }}>
-                    {renderGroupSummary?.(item.groupKey)}
+                    {renderGroupHeader?.(item.groupKey)}
                   </td>
                 </tr>
               );
