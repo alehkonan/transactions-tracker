@@ -8,6 +8,7 @@ import { Chip } from "~/components/Chip";
 import { Title } from "~/components/Title";
 import { AccountCard } from "~/modules/accounts/AccountCard";
 import { formatMoney } from "~/utils/format-money";
+import type { AccountActivity } from "~/modules/accounts/compute-account-activity";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
 gsap.registerPlugin(useGSAP, Flip);
@@ -17,6 +18,8 @@ type Props = {
   id: string;
   title: string;
   accounts: AccountWithBalance[];
+  /** Last movement and month-to-date per account id — see `computeAccountActivity`. */
+  activityByAccount: Map<string, AccountActivity>;
   totalUsd?: string;
   /** Tint classes for the total chip, matching this group's `AccountCard` color (see `accountTypeStyles`/`accountStatusStyles` in `accountTypeTag`/`AccountStatusChip`). */
   totalChipClassName?: string;
@@ -53,6 +56,7 @@ export function AccountGroupSection({
   id,
   title,
   accounts,
+  activityByAccount,
   totalUsd,
   totalChipClassName,
   defaultCollapsed,
@@ -173,7 +177,11 @@ export function AccountGroupSection({
                   : undefined,
               }}
             >
-              <AccountCard account={account} onClick={collapsed ? expand : undefined} />
+              <AccountCard
+                account={account}
+                activity={activityByAccount.get(account.id)}
+                onClick={collapsed ? expand : undefined}
+              />
             </div>
           );
         })}
