@@ -1,6 +1,6 @@
 ---
 name: z-index-system
-description: This repo's single global z-index scale, defined once in src/styles.css under @theme (--z-index-*) and consumed via generated z-* utility classes (z-navbar, z-dropdown, z-dialog, ...) — never a raw z-10/z-50 or an inline zIndex number. Activate before adding any new z-index, stacking, `position: fixed/sticky/absolute` overlay, or troubleshooting an element rendering behind something it shouldn't.
+description: "This repo's single global z-index scale, defined once in src/styles.css under @theme (--z-index-*) and consumed via generated z-* utility classes (z-navbar, z-dropdown, z-dialog, ...) — never a raw z-10/z-50 or an inline zIndex number. Activate before adding any new z-index, stacking, `position: fixed/sticky/absolute` overlay, or troubleshooting an element rendering behind something it shouldn't."
 ---
 
 # z-index system (transactions-tracker)
