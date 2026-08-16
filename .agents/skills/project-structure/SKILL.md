@@ -6,7 +6,7 @@ description: This repo's src/ folder-structure convention (routes, api, database
 # Project Structure (transactions-tracker)
 
 This is a TanStack Start app. `src/` is organized by _role_, not by feature-type-per-folder.
-Full architecture notes live in `CLAUDE.md` — this skill is the placement cheat sheet.
+This skill is the placement cheat sheet.
 
 Path alias: `~/*` → `./src/*`. Always use it for intra-`src` imports (never relative `../../`).
 

@@ -10,7 +10,7 @@ skill when adding a new interactive primitive (Combobox, Menu, Toast, Popover, �
 whether an existing hand-rolled component should be rebuilt on a Base UI primitive for free accessibility/keyboard/focus
 handling. If adopted, components still get wrapped in this repo's own `src/components/*.tsx` file per the
 `project-structure` skill — Base UI supplies the unstyled behavior, this repo supplies the styling with design tokens
-(`bg-accent`, `border-border`, etc. — see main `CLAUDE.md`) and `twMerge`/`twJoin`.
+(`bg-accent`, `border-border`, etc.) and `twMerge`/`twJoin`.
 
 Source: https://base-ui.com/react (condensed, not verbatim).
 
