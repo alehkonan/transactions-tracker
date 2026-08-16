@@ -392,11 +392,10 @@ now()`, `deleted_at timestamptz`, and a `(profile_id, updated_at, id)` index; tr
 every payload — `utils/money.ts` does the arithmetic over integer cents, so a long list of amounts
 cannot drift.
 
-**Pick either `db:push` or `db:generate` + `db:migrate` for a given database and stick to it.**
-`push` applies the schema diff without recording anything in `drizzle.__drizzle_migrations`, so a
-pushed database looks unmigrated to `db:migrate`, which then replays old migrations and fails on the
-first already-applied statement — with the error swallowed by drizzle-kit, leaving only a bare exit
-code 1.
+**Use `db:generate` followed by `db:migrate` for every database.** Do not use `db:push`: it applies
+the schema diff without recording anything in `drizzle.__drizzle_migrations`, so the database looks
+unmigrated to `db:migrate`, which then replays old migrations and fails on the first already-applied
+statement — with the error swallowed by drizzle-kit, leaving only a bare exit code 1.
 
 Production runs Postgres 17 and local dev runs 18, so the id default is `gen_random_uuid()`:
 `uuidv7()` is an 18-only builtin. Ordering only matters for rows clients create, and those carry a

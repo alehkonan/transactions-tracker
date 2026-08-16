@@ -31,7 +31,7 @@ protocol, the sync engine, tombstones and retention, integrity checking, and the
 pnpm install
 $EDITOR .env             # see the variables below — compose.yaml reads them too
 docker compose up -d     # local PostgreSQL 18
-pnpm db:migrate          # or pnpm db:push against a scratch DB — pick one and stick to it
+pnpm db:migrate          # apply generated migrations
 pnpm dev                 # http://localhost:5454
 ```
 
@@ -61,7 +61,6 @@ pnpm lint             # oxlint  (lint:fix to autofix)
 pnpm knip             # unused files, exports and dependencies
 pnpm format           # oxfmt
 pnpm generate-routes  # tsr generate — regenerate src/routeTree.gen.ts
-pnpm db:push          # sync schema straight to the dev DB
 pnpm db:generate      # write a migration for the schema diff
 pnpm db:migrate       # apply pending migrations
 pnpm gc:tombstones    # run the tombstone sweep by hand
