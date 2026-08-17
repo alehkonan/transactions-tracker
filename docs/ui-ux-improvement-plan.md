@@ -235,32 +235,40 @@ sparkline is a new chart to design, and `/statistics` is where P2 is already goi
 
 ## P2 — information design
 
-### 11. The dashboard is the emptiest screen in the app
+**All six are fixed.** What each one turned out to be is kept below, same as P0 and P1.
 
-`/` is the landing route and renders one card listing account balances, inside a `md:grid-cols-2`
-whose second column is empty. Roughly 85% of a 1440×900 viewport is blank. It is also the only screen
-a user sees before deciding whether the app is worth opening again.
+### 11. The dashboard is the emptiest screen in the app — _fixed_
 
-The app already computes the most interesting number it owns — **Money runway**, "3 months 11 days" —
-and buries it third on a secondary page. See the visual direction below for what to do with it.
+So let's remove it for now and add later when it's needed. Instead default screen will be "/transactions".
 
-### 12. Every row shows the same two chips
+**Fixed:** `/` now redirects to `/transactions` and the Dashboard item is gone from the navbar. The route
+stays as a redirect rather than being deleted, so sign-in and profile selection — which both navigate to
+`/` — land somewhere real. The dashboard itself can come back when there is something worth landing on
+(see the visual direction's runway ribbon).
+
+### 12. Every row shows the same two chips — _fixed_
 
 `Necessity: Medium` and `Type: Expense` render on every row. Two full columns and a lot of colour
 carry almost no information, while `Account` truncates to "Millennium cu…" next to 500px of unused
 table width.
 
 **Fix:** drop the Type column (the sign and colour of the amount already say it; keep the icon only
-for transfers), show necessity only when it isn't the default, and give the reclaimed width to
-Account and Amount. Consider a running-balance column, which is what people actually reconcile
-against.
+for transfers), and give the reclaimed width to
+Account and Amount. As we have day header rename "Datetime" to time and display only "HH:mm" in rows for this column. Move Necessity column after amount and add Comment column after Necessity.
 
-### 13. No search, no category filter
+**Fixed:** the columns are now Time (HH:mm only — the day is in the group header) | Category | Account |
+Amount | Necessity | Comment. The Type column is gone; only transfers keep a mark, an icon in the Amount
+cell. The reclaimed width went to Account and Amount, and the Amount cell wraps rather than clips when
+a long amount plus its USD approximation outgrow the column.
 
-241 rows, and the only filters are date range and account. There's no text search over comments and
-no filter by category — even though category is the field the app tints, tags and charts by.
+### 13. No category filter — _fixed_
 
-### 14. The spending trend flatlines into the future
+241 rows, and the only filters are date range and account. There's no filter by category — even though category is the field the app tints, tags and charts by.
+
+**Fixed:** a third select, "All categories", drives a `category` search param and the in-memory filter
+matches rows by category name — the same shape as the account filter.
+
+### 14. The spending trend flatlines into the future — _fixed_
 
 `SpendingTrendCard` plots cumulative spend across _every_ day of the month, so on 13 Aug the line
 runs flat to the 31st and reads as "spending stopped". Cut the series at today, or render the
@@ -269,24 +277,34 @@ remainder as a dashed projection to the month's expected total.
 Also: the axis ticks are rendered as bordered pills (`AxisChipTick`), which gives chart furniture the
 same visual weight as the data. Plain muted labels, abbreviated (`$2.5k`), would let the line lead.
 
-### 15. Missing the chart the app is for
+**Fixed:** both. The series is cut at today for the current month (past months keep their full shape), and
+the pill ticks are plain muted text, abbreviated to `$2.5k`.
+
+### 15. Missing the chart the app is for — _fixed_
 
 There is no category breakdown anywhere. "Where did the money go" is the first question a
 transactions tracker exists to answer, and the app can answer it entirely from data already in the
 store. A ranked bar list (not a pie) for the selected month is the highest-value addition to
 `/statistics`.
 
-### 16. Copy that leaks the implementation
+**Fixed:** `Where the money went` — a ranked bar list for the selected month, computed from rows already
+in the store and sharing the trend card's month selector. A bar list rather than a pie: ranked lengths
+read at a glance, and a pie with a slice per category needs a legend to mean anything.
+
+### 16. Copy that leaks the implementation — _fixed_
 
 | Now                                               | Better                                                         |
 | ------------------------------------------------- | -------------------------------------------------------------- |
-| `Datetime` (column header)                        | `Date`                                                         |
 | `Delete rows (2)`                                 | `Delete 2 transactions`                                        |
 | `No data` (empty table)                           | `No transactions in this range. Clear the filters or add one.` |
 | `Current` / `Saving` (account type on every card) | show only when it disambiguates                                |
 | `Check this device`                               | fine — this one is good                                        |
 
 Empty states are an invitation to act; `No data` is a database talking.
+
+**Fixed:** `Delete 2 transactions`, `No transactions in this range. Clear the filters or add one.` on
+both the table and the phone list, and the account-type label only on archived cards — the one group
+that mixes types. `Check this device` stayed as it was.
 
 ---
 
@@ -385,8 +403,9 @@ instead of trailing summaries, larger targets, and shorter cards carrying two fi
 have. One thing found on the way that wasn't on the list: the necessity toggle's four labels never
 fit half of a 390px row, so that pair of fields is one per row below `sm`.
 
-**Phase 3 — information (2–3 days).** Items 11, 12, 13, 14, 15, 16. A dashboard worth landing on, a
-category breakdown, search, honest chart bounds, and the copy pass.
+**Phase 3 — information (2–3 days).** ~~Items 11, 12, 13, 14, 15, 16~~ done. The landing screen is now
+`/transactions`, the columns carry only what they need (with category joining date and account as a
+filter), the trend stops at today, and `/statistics` gained the category breakdown it existed for.
 
 **Phase 4 — theming (design time).** The dark tokens are in, so what's left here is the visual
 direction, if you want it. Anything that changes the palette now has two themes to satisfy.
