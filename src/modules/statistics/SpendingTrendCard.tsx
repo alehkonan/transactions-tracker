@@ -12,43 +12,13 @@ import type { SpendingTrendPoint } from "~/modules/statistics/compute-monthly-sp
 
 const formatUsd = (value: number) => formatMoney(String(value), "USD");
 
-/** Renders an axis tick as a pill-shaped chip, matching the `Chip` component's look. */
-function AxisChipTick({
-  x,
-  y,
-  label,
-  align,
-}: {
-  x: number;
-  y: number;
-  label: string;
-  align: "center" | "end";
-}) {
-  const width = label.length * 6.5 + 16;
-  const height = 18;
-  const rectX = align === "end" ? -width : -width / 2;
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <rect
-        x={rectX}
-        y={-height / 2}
-        width={width}
-        height={height}
-        rx={height / 2}
-        fill="var(--color-surface)"
-        stroke="var(--color-border)"
-      />
-      <text
-        x={rectX + width / 2}
-        y={4}
-        textAnchor="middle"
-        fontSize={11}
-        fill="var(--color-text-muted)"
-      >
-        {label}
-      </text>
-    </g>
-  );
+/** `$2,500` → `$2.5k` — an axis label, not a quote, so one decimal and a `k` are enough. */
+function formatUsdCompact(value: number) {
+  if (value >= 1000) {
+    const thousands = value / 1000;
+    return `$${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
+  }
+  return `$${value}`;
 }
 
 /**
@@ -72,12 +42,30 @@ function pickMoneyTicks(maxValue: number, step = 500) {
 
 type TickProps = { x?: string | number; y?: string | number; payload?: { value: number } };
 
+// Plain muted text rather than the pill chips the axes used to wear: chart furniture should
+// stay quieter than the data it annotates.
 const renderDayTick = ({ x, y, payload }: TickProps) => (
-  <AxisChipTick x={Number(x)} y={Number(y) + 10} label={String(payload?.value)} align="center" />
+  <text
+    x={Number(x)}
+    y={Number(y) + 14}
+    textAnchor="middle"
+    fontSize={11}
+    fill="var(--color-text-muted)"
+  >
+    {payload?.value}
+  </text>
 );
 
 const renderUsdTick = ({ x, y, payload }: TickProps) => (
-  <AxisChipTick x={Number(x)} y={Number(y)} label={formatUsd(payload?.value ?? 0)} align="end" />
+  <text
+    x={Number(x) - 6}
+    y={Number(y)}
+    textAnchor="end"
+    fontSize={11}
+    fill="var(--color-text-muted)"
+  >
+    {formatUsdCompact(payload?.value ?? 0)}
+  </text>
 );
 
 const renderChartTooltip = ({ active, payload, label }: TooltipContentProps) => {
@@ -106,8 +94,16 @@ export function SpendingTrendCard({ months, month, trend }: Props) {
   const nextMonth = currentIndex > 0 ? months[currentIndex - 1] : undefined;
 
   const [year, monthNum] = month.split("-").map(Number);
-  const weekTicks = pickWeekTicks(year, monthNum - 1, trend.length);
-  const moneyTicks = pickMoneyTicks(Math.max(0, ...trend.map((point) => point.cumulativeUsd)));
+  // A current-month series must not run flat into the future — the cumulative total stops at
+  // today and the axis stops with it, so the line reads as "spending so far" rather than
+  // "spending stopped". Past months keep their full shape.
+  const now = new Date();
+  const isCurrentMonth = now.getFullYear() === year && now.getMonth() === monthNum - 1;
+  const visibleTrend = isCurrentMonth ? trend.slice(0, now.getDate()) : trend;
+  const weekTicks = pickWeekTicks(year, monthNum - 1, visibleTrend.length);
+  const moneyTicks = pickMoneyTicks(
+    Math.max(0, ...visibleTrend.map((point) => point.cumulativeUsd)),
+  );
 
   return (
     <Card>
@@ -152,7 +148,7 @@ export function SpendingTrendCard({ months, month, trend }: Props) {
           )}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trend} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+            <AreaChart data={visibleTrend} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
               <defs>
                 <linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--color-danger)" stopOpacity={0.4} />
@@ -170,7 +166,7 @@ export function SpendingTrendCard({ months, month, trend }: Props) {
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                width={90}
+                width={44}
                 domain={[0, moneyTicks.at(-1) ?? 0]}
                 ticks={moneyTicks}
                 tick={renderUsdTick}
