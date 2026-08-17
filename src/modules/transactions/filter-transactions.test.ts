@@ -26,6 +26,8 @@ const rows = [
   row({ id: "middle", createdAt: new Date(2026, 0, 11, 12, 0) }),
   row({ id: "end-of-to", createdAt: new Date(2026, 0, 12, 23, 59) }),
   row({ id: "after", createdAt: new Date(2026, 0, 13, 0, 0), account: "Bank" }),
+  row({ id: "groceries", createdAt: new Date(2026, 0, 14, 9, 0), category: "Food" }),
+  row({ id: "lunch", createdAt: new Date(2026, 0, 15, 13, 0), category: "Food" }),
 ];
 
 const ids = (result: TransactionRow[]) => result.map((entry) => entry.id);
@@ -44,7 +46,11 @@ describe("filterTransactions", () => {
   });
 
   it("filters on a lower bound alone", () => {
-    expect(ids(filterTransactions(rows, { from: "2026-01-13" }))).toEqual(["after"]);
+    expect(ids(filterTransactions(rows, { from: "2026-01-13" }))).toEqual([
+      "after",
+      "groceries",
+      "lunch",
+    ]);
   });
 
   it("filters on an upper bound alone", () => {
@@ -55,9 +61,20 @@ describe("filterTransactions", () => {
     expect(ids(filterTransactions(rows, { account: "Bank" }))).toEqual(["after"]);
   });
 
+  it("matches a category by name", () => {
+    expect(ids(filterTransactions(rows, { category: "Food" }))).toEqual(["groceries", "lunch"]);
+  });
+
   it("applies the date range and the account together", () => {
     expect(
       filterTransactions(rows, { from: "2026-01-10", to: "2026-01-12", account: "Bank" }),
     ).toEqual([]);
+  });
+
+  it("combines the account and category filters", () => {
+    expect(ids(filterTransactions(rows, { account: "Cash", category: "Food" }))).toEqual([
+      "groceries",
+      "lunch",
+    ]);
   });
 });

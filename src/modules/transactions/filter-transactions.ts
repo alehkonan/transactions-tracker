@@ -8,6 +8,8 @@ export type TransactionsFilter = {
   to?: string;
   /** Account name, matching the `account` search param the filter select drives. */
   account?: string;
+  /** Category name, matching the `category` search param the filter select drives. */
+  category?: string;
 };
 
 const parseDateKey = (dateKey: string) => startOfDay(parse(dateKey, "yyyy-MM-dd", new Date()));
@@ -21,7 +23,7 @@ const parseDateKey = (dateKey: string) => startOfDay(parse(dateKey, "yyyy-MM-dd"
  */
 export function filterTransactions(
   rows: TransactionRow[],
-  { from, to, account }: TransactionsFilter,
+  { from, to, account, category }: TransactionsFilter,
 ): TransactionRow[] {
   const start = from ? parseDateKey(from) : undefined;
   // Exclusive upper bound at the next midnight, so the `to` day counts in full.
@@ -31,6 +33,7 @@ export function filterTransactions(
     if (start && row.createdAt < start) return false;
     if (end && row.createdAt >= end) return false;
     if (account != null && row.account !== account) return false;
+    if (category != null && row.category !== category) return false;
     return true;
   });
 }

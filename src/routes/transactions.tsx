@@ -12,6 +12,7 @@ import { DeleteSelectedTransactionsButton } from "~/modules/transactions/DeleteS
 import { filterTransactions } from "~/modules/transactions/filter-transactions";
 import { groupTransactionsByDay } from "~/modules/transactions/group-transactions-by-day";
 import { TransactionsAccountFilter } from "~/modules/transactions/TransactionsAccountFilter";
+import { TransactionsCategoryFilter } from "~/modules/transactions/TransactionsCategoryFilter";
 import { TransactionsDateRangeFilter } from "~/modules/transactions/TransactionsDateRangeFilter";
 import { TransactionsList } from "~/modules/transactions/TransactionsList";
 import { useTransactionRows } from "~/modules/transactions/useTransactionRows";
@@ -42,17 +43,24 @@ export const Route = createFileRoute("/transactions")({
     from: dateKeySchema,
     to: dateKeySchema,
     account: z.string().optional(),
+    category: z.string().optional(),
   }),
   component: () => {
-    const { from, to, account: accountFilter } = Route.useSearch();
+    const { from, to, account: accountFilter, category: categoryFilter } = Route.useSearch();
     const accounts = useAccounts();
     const categories = useCategories();
     const allTransactions = useTransactionRows();
     // The filters are the same ones the server used to run, over rows already in memory — so
     // picking a date range costs a re-render rather than a query.
     const transactions = useMemo(
-      () => filterTransactions(allTransactions, { from, to, account: accountFilter }),
-      [allTransactions, from, to, accountFilter],
+      () =>
+        filterTransactions(allTransactions, {
+          from,
+          to,
+          account: accountFilter,
+          category: categoryFilter,
+        }),
+      [allTransactions, from, to, accountFilter, categoryFilter],
     );
 
     const [selectedRows, setSelectedRows] = useState<TransactionRow[]>([]);
@@ -68,6 +76,7 @@ export const Route = createFileRoute("/transactions")({
           <div className="flex flex-wrap items-end gap-2">
             <TransactionsDateRangeFilter from={from} to={to} />
             <TransactionsAccountFilter accounts={accounts} selected={accountFilter} />
+            <TransactionsCategoryFilter categories={categories} selected={categoryFilter} />
           </div>
           <div className="flex flex-wrap gap-2">
             {selectedRows.length > 0 && (
