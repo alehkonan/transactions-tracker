@@ -6,7 +6,7 @@ import { Checkbox } from "~/components/Checkbox";
 import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { ApproxUsdTag } from "~/modules/transactions/ApproxUsdTag";
 import { DayHeader } from "~/modules/transactions/DayHeader";
-import { transactionTypeIcons } from "~/modules/transactions/TransactionTypeTag";
+import { transactionTypeIcons } from "~/modules/transactions/transaction-type-tag";
 import { formatMoney } from "~/utils/format-money";
 import type { CSSProperties, RefObject } from "react";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";

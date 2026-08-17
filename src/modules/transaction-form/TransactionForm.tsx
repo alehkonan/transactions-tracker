@@ -14,7 +14,7 @@ import { necessityLevelStyles } from "~/modules/transactions/NecessityLevelTag";
 import {
   transactionTypeIcons,
   transactionTypeStyles,
-} from "~/modules/transactions/TransactionTypeTag";
+} from "~/modules/transactions/transaction-type-tag";
 import { formatMoney } from "~/utils/format-money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
