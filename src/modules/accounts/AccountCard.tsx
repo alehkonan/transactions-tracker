@@ -28,6 +28,7 @@ type Props = {
 export function AccountCard({ account, activity, onClick }: Props) {
   const [isEditOpen, setEditOpen] = useState(false);
   const monthAmount = Number(activity?.monthToDateAmount ?? 0);
+  const typeLabel = account.status === "ARCHIVED" ? account.type.toLowerCase() : undefined;
 
   return (
     <>
@@ -52,8 +53,9 @@ export function AccountCard({ account, activity, onClick }: Props) {
               {account.name}
             </Title>
             <span className="text-text-muted text-xs">
-              <span className="capitalize">{account.type.toLowerCase()}</span>
-              {activity && ` · ${formatDistanceToNowStrict(activity.lastActivityAt)} ago`}
+              {typeLabel && <span className="capitalize">{typeLabel}</span>}
+              {activity &&
+                `${typeLabel ? " · " : ""}${formatDistanceToNowStrict(activity.lastActivityAt)} ago`}
             </span>
           </div>
           <AccountStatusChip status={account.status} />
