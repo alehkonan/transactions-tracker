@@ -32,7 +32,7 @@ export function DayHeader({ day, rows }: Props) {
   const hasIncome = Number(totalIncomeUsd) > 0;
 
   return (
-    <div className="flex items-baseline justify-between gap-4 text-xs">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
       <span className="text-text font-semibold">{formatDay(day)}</span>
       <span className="flex gap-4">
         <span className="text-expense">Spent: {formatMoney(totalSpentUsd, "USD")}</span>
