@@ -19,6 +19,8 @@ type Props<TData extends RowData> = {
   onSelectionChange?: (selectedRows: TData[]) => void;
   /** Clicking a row (outside the selection checkbox) invokes this instead of selecting it. */
   onRowClick?: (data: TData) => void;
+  /** Shown in place of the table when `data` is empty. */
+  emptyMessage?: ReactNode;
   /** Groups consecutive rows sharing a key; a bold divider is drawn where the key changes. */
   groupBy?: (data: TData) => string | number | undefined;
   /**
@@ -68,6 +70,7 @@ export function DataTable<TData extends RowData>({
   onRowClick,
   groupBy,
   renderGroupHeader,
+  emptyMessage,
 }: Props<TData>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -202,9 +205,7 @@ export function DataTable<TData extends RowData>({
                   )}
                   style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
-                  <td className="px-3 py-1" style={{ width: columnVirtualizer.getTotalSize() }}>
-                    {renderGroupHeader?.(item.groupKey)}
-                  </td>
+                  <td className="w-full px-3 py-1">{renderGroupHeader?.(item.groupKey)}</td>
                 </tr>
               );
             }
@@ -254,7 +255,7 @@ export function DataTable<TData extends RowData>({
       </table>
       {!data.length && (
         <div className="grid place-items-center p-6">
-          <p>No data</p>
+          <p>{emptyMessage ?? "No data"}</p>
         </div>
       )}
     </div>

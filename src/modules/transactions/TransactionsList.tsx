@@ -191,7 +191,7 @@ export function TransactionsList({ rowsByDay, onSelectionChange, onRowClick }: P
   if (items.length === 0) {
     return (
       <div className="border-border bg-surface grid place-items-center rounded-xl border p-6">
-        <p>No data</p>
+        <p>No transactions in this range. Clear the filters or add one.</p>
       </div>
     );
   }

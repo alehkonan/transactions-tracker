@@ -35,6 +35,7 @@ export function TransactionsTable({ rows, rowsByDay, onSelectionChange, onRowCli
       renderGroupHeader={(day) => (
         <DayHeader day={day as string} rows={rowsByDay.get(day as string) ?? []} />
       )}
+      emptyMessage="No transactions in this range. Clear the filters or add one."
     />
   );
 }

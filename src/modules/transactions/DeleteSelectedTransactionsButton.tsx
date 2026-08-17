@@ -24,7 +24,9 @@ export function DeleteSelectedTransactionsButton({ ids }: DeleteSelectedTransact
       renderTrigger={({ onOpen }) => (
         <Button variant="danger" disabled={isDeleting} onClick={onOpen}>
           <TrashIcon />
-          {isDeleting ? "Deleting…" : `Delete rows (${ids.length})`}
+          {isDeleting
+            ? "Deleting…"
+            : `Delete ${ids.length} transaction${ids.length === 1 ? "" : "s"}`}
         </Button>
       )}
     >
