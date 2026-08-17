@@ -5,9 +5,12 @@ import { z } from "zod";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { useAccounts } from "~/modules/accounts/useAccounts";
+import { useCategories } from "~/modules/categories/useCategories";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import { AveragePeriodToggle } from "~/modules/statistics/AveragePeriodToggle";
+import { CategoryBreakdownCard } from "~/modules/statistics/CategoryBreakdownCard";
 import { computeAvailableSpendingMonths } from "~/modules/statistics/compute-available-spending-months";
+import { computeCategorySpending } from "~/modules/statistics/compute-category-spending";
 import {
   averagePeriodSchema,
   computeDailyAverages,
@@ -40,6 +43,7 @@ export const Route = createFileRoute("/statistics")({
     const allTransactions = useSyncStore((state) => state.transactions);
     const usdRates = useSyncStore((state) => state.usdRates);
     const accounts = useAccounts();
+    const categories = useCategories();
 
     const transactions = useMemo(
       () => allTransactions.filter((transaction) => transaction.profileId === profileId),
@@ -57,6 +61,11 @@ export const Route = createFileRoute("/statistics")({
     const trend = useMemo(
       () => computeMonthlySpendingTrend({ transactions, accounts, usdRates, month }),
       [transactions, accounts, usdRates, month],
+    );
+    // The breakdown and the trend share the same month selector, so paging one pages the other.
+    const categorySpending = useMemo(
+      () => computeCategorySpending({ transactions, accounts, categories, usdRates, month }),
+      [transactions, accounts, categories, usdRates, month],
     );
 
     return (
@@ -101,6 +110,9 @@ export const Route = createFileRoute("/statistics")({
           </section>
           <section>
             <SpendingTrendCard months={months} month={month} trend={trend} />
+          </section>
+          <section>
+            <CategoryBreakdownCard spending={categorySpending} />
           </section>
         </div>
       </PageContainer>
