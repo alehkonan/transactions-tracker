@@ -314,14 +314,6 @@ that mixes types. `Check this device` stayed as it was.
   minus (`−€522.25`). Pick U+2212 everywhere in `format-money.ts`.
 - **The account group header's collapse control is a `<` chevron**, which reads as "back", not
   "collapse". Use a rotating `v`.
-- **The sync strip is permanent on mobile** — a full-width row saying "Synced" at all times. Show it
-  on change and on error; fade it when idle.
-- **Nested scroll areas**: `DataTable` is a fixed `h-[600px]` scroller inside a scrolling page, and
-  the phone list it hands over to is the same shape at `h-[75dvh]` — a bounded scroller is what a
-  virtualiser measures against. Window virtualisation would fix the gesture and is the real answer;
-  it was not worth blocking P1 on.
-- **The bottom nav has icons only** with no labels, while the desktop navbar has both. Five icons
-  with no text is a memory test; labels fit at 390px.
 - **The transaction dialog is a centred modal on mobile** (442px tall, floating at y=201). A bottom
   sheet is the phone idiom and survives the keyboard opening.
 
