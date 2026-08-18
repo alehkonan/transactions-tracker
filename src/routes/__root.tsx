@@ -62,7 +62,7 @@ export const Route = createRootRoute({
         {/* `text-text` is load-bearing rather than decorative: without it every element that
             doesn't name a color inherits the browser's default black, which only looks deliberate
             while the page behind it is white. */}
-        <body className="bg-background text-text min-h-dvh">
+        <body className="bg-background text-text min-h-dvh font-sans">
           <Toast.Provider>
             {showNavbar && (
               <header

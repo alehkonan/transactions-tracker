@@ -12,7 +12,7 @@ export function Title({ children, variant, className }: Props) {
     <p
       className={twMerge(
         "text-text",
-        variant === "page" && "text-3xl font-bold",
+        variant === "page" && "font-display text-3xl font-bold",
         variant === "card" && "text-xl font-semibold",
         variant === "section" && "text-sm font-bold",
         variant === "tooltip" && "text-xs font-bold",
