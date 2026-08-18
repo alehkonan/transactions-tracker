@@ -10,7 +10,7 @@ import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { DeleteTransactionButton } from "~/modules/transaction-form/DeleteTransactionButton";
 import { useTransactionForm } from "~/modules/transaction-form/useTransactionForm";
-import { necessityLevelStyles } from "~/modules/transactions/NecessityLevelTag";
+import { necessityLevelStyles } from "~/modules/transactions/necessity-level";
 import {
   transactionTypeIcons,
   transactionTypeStyles,
