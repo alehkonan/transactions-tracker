@@ -7,19 +7,21 @@ type Props = {
   className?: string;
 };
 
+const variantClasses = {
+  page: "font-display text-3xl font-bold",
+  card: "text-xl font-semibold",
+  section: "text-sm font-bold",
+  tooltip: "text-xs font-bold",
+};
+
+/**
+ * Semantic heading/text helper. Page titles are `<h1>`, dialog and section titles are `<h2>`,
+ * and tooltips/labels render as `<span>` so they can sit inside buttons without invalid markup.
+ */
 export function Title({ children, variant, className }: Props) {
-  return (
-    <p
-      className={twMerge(
-        "text-text",
-        variant === "page" && "font-display text-3xl font-bold",
-        variant === "card" && "text-xl font-semibold",
-        variant === "section" && "text-sm font-bold",
-        variant === "tooltip" && "text-xs font-bold",
-        className,
-      )}
-    >
-      {children}
-    </p>
-  );
+  const classes = twMerge("text-text", variantClasses[variant], className);
+
+  if (variant === "page") return <h1 className={classes}>{children}</h1>;
+  if (variant === "tooltip") return <span className={classes}>{children}</span>;
+  return <h2 className={classes}>{children}</h2>;
 }

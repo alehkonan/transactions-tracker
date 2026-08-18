@@ -2,7 +2,6 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { useState } from "react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Dialog } from "~/components/Dialog";
-import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
 import { AccountForm } from "./AccountForm";
 import { AccountStatusChip } from "./AccountStatusChip";
@@ -49,9 +48,7 @@ export function AccountCard({ account, activity, onClick }: Props) {
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-col">
-            <Title variant="tooltip" className="truncate">
-              {account.name}
-            </Title>
+            <span className="text-text truncate text-xs font-bold">{account.name}</span>
             <span className="text-text-muted text-xs">
               {typeLabel && <span className="capitalize">{typeLabel}</span>}
               {activity &&

@@ -1,4 +1,3 @@
-import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
 import type { ProfileSummary } from "~/modules/accounts/compute-balances";
 
@@ -15,7 +14,7 @@ export function ProfileCard({ profile, onSelect }: Props) {
       onClick={onSelect}
       className="bg-surface border-border flex flex-col gap-3 rounded-xl border p-4 text-left transition-shadow hover:shadow-md"
     >
-      <Title variant="card">{profile.name}</Title>
+      <span className="text-text text-xl font-semibold">{profile.name}</span>
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between text-sm">
           <span className="text-text-muted">Current balance</span>
