@@ -2,13 +2,15 @@
 export function formatMoney(amount: string | null, currency: string | null): string {
   if (amount == null || currency == null) return "";
   try {
-    return new Intl.NumberFormat(undefined, {
+    const formatted = new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
       currencyDisplay: "narrowSymbol",
     }).format(Number(amount));
+    // Intl uses a hyphen-minus for negatives; use the typographic minus (U+2212) everywhere.
+    return formatted.replace(/-/g, "\u2212");
   } catch {
     // `currency` isn't a well-formed ISO 4217 code (Intl.NumberFormat throws RangeError).
-    return `${amount} ${currency}`;
+    return `${amount} ${currency}`.replace(/-/g, "\u2212");
   }
 }

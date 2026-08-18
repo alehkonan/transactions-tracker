@@ -14,8 +14,8 @@ describe("formatMoney", () => {
     expect(formatMoney("12", "USD")).toBe("$12.00");
   });
 
-  it("formats negative amounts", () => {
-    expect(formatMoney("-5.25", "USD")).toBe("-$5.25");
+  it("formats negative amounts with a typographic minus", () => {
+    expect(formatMoney("-5.25", "USD")).toBe("\u2212$5.25");
   });
 
   it("returns an empty string when amount is null", () => {
