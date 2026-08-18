@@ -1,8 +1,7 @@
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { format } from "date-fns";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { twJoin } from "tailwind-merge";
-import { Checkbox } from "~/components/Checkbox";
 import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { ApproxUsdTag } from "~/modules/transactions/ApproxUsdTag";
 import { DayHeader } from "~/modules/transactions/DayHeader";
@@ -14,7 +13,6 @@ import type { TransactionRow } from "~/modules/transactions/to-transaction-rows"
 type Props = {
   /** Days in display order, each with its own rows — see `groupTransactionsByDay`. */
   rowsByDay: Map<string, TransactionRow[]>;
-  onSelectionChange?: (selectedRows: TransactionRow[]) => void;
   onRowClick?: (row: TransactionRow) => void;
 };
 
@@ -70,19 +68,6 @@ function measureReservedBelow(element: HTMLElement): number {
   return reserved;
 }
 
-/**
- * The height that makes `ref` fill exactly what is left of the viewport, in pixels: everything
- * between what sits above it and what is reserved below it.
- *
- * Measured rather than written as a `dvh` fraction, and measured at both ends rather than against
- * a constant. Above it is a filter row that can wrap to another line; below it are the page's own
- * bottom padding and the `pb-24` the shell reserves for the fixed navbar. Nothing here has to know
- * those numbers — it reads the space that is actually there, so the navbar can move without this
- * going stale.
- *
- * Sizing it exactly is also what stops the page itself from scrolling: the list scrolls, and the
- * thumb has one scroll region to find instead of two.
- */
 function useAvailableHeight(ref: RefObject<HTMLElement | null>): number | undefined {
   const [height, setHeight] = useState<number>();
 
@@ -131,8 +116,7 @@ function toListItems(rowsByDay: Map<string, TransactionRow[]>): ListItem[] {
  * of what anyone opens this screen to read. Same rows, same selection, different shape — and
  * virtualised the same way, since the row count is the same row count.
  */
-export function TransactionsList({ rowsByDay, onSelectionChange, onRowClick }: Props) {
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+export function TransactionsList({ rowsByDay, onRowClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const height = useAvailableHeight(containerRef);
 
@@ -168,26 +152,6 @@ export function TransactionsList({ rowsByDay, onSelectionChange, onRowClick }: P
     overscan: 8,
   });
 
-  // A row that is no longer in the list cannot stay selected — the same reset the table does when
-  // a filter changes the data under it.
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [rowsByDay]);
-
-  useEffect(() => {
-    if (!onSelectionChange) return;
-    onSelectionChange([...rowsByDay.values()].flat().filter((row) => selectedIds.has(row.id)));
-  }, [selectedIds, rowsByDay, onSelectionChange]);
-
-  const toggleSelected = (id: string, checked: boolean) => {
-    setSelectedIds((previous) => {
-      const next = new Set(previous);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  };
-
   if (items.length === 0) {
     return (
       <div className="border-border bg-surface grid place-items-center rounded-xl border p-6">
@@ -197,16 +161,8 @@ export function TransactionsList({ rowsByDay, onSelectionChange, onRowClick }: P
   }
 
   return (
-    // Full-bleed: `-mx-4` cancels `PageContainer`'s padding, since 390px has no width to spare for
-    // a gutter and a rounded card edge. Only the top and bottom borders survive — a box with no
-    // sides is a section rather than a card that has outgrown its page.
-    //
-    // `isolate` keeps the pinned header's `z-stack` from competing with the global z-index scale.
-    // The scroller is bounded so the virtualiser has a viewport to measure against; the page it
-    // sits on is what the thumb reaches for anyway on a screen this size.
     <div
       ref={containerRef}
-      // `75dvh` only until the first measurement lands, which is the same frame.
       style={{ height }}
       className="border-border bg-surface isolate -mx-4 h-[75dvh] overflow-auto border-y"
     >
@@ -240,52 +196,38 @@ export function TransactionsList({ rowsByDay, onSelectionChange, onRowClick }: P
           const TypeIcon = transactionTypeIcons[row.type];
 
           return (
-            <div
+            <button
               key={row.id}
               style={{ ...style, width: "100%" }}
+              type="button"
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
               className={twJoin(
-                "flex items-center gap-1 pl-1",
+                "min-h-11 min-w-0 px-3 py-1",
                 !item.isFirstOfDay && "border-border border-t",
               )}
             >
-              <span className="grid size-11 shrink-0 place-items-center">
-                {/* The box stays 24px and the target becomes 44: the pseudo-element belongs to
-                    the checkbox, so it takes the taps the box is too small to catch. */}
-                <Checkbox
-                  aria-label={`Select ${row.category} transaction for ${formatMoney(row.amount, row.currencyCode)}`}
-                  className="relative before:absolute before:-inset-2.5"
-                  checked={selectedIds.has(row.id)}
-                  onCheckedChange={(checked) => toggleSelected(row.id, checked)}
-                />
-              </span>
-              <button
-                type="button"
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className="min-h-11 min-w-0 flex-1 py-2 pr-3 text-left"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    <CategoryTag name={row.category} colorHex={row.categoryColorHex} />
-                    <span className="text-text-muted truncate text-xs">{row.account}</span>
-                  </span>
-                  <span
-                    className={twJoin(
-                      "flex shrink-0 items-center gap-1 font-mono text-sm tabular-nums",
-                      amountToneStyles[row.type],
-                    )}
-                  >
-                    {row.type === "TRANSFER" && <TypeIcon className="size-3" />}
-                    {formatMoney(row.amount, row.currencyCode)}
-                  </span>
-                </div>
-                <div className="text-text-muted mt-0.5 flex items-baseline justify-between gap-2 text-xs">
-                  <span className="truncate">{detailLine(row)}</span>
-                  {row.currencyCode !== "USD" && row.approxAmountUsd != null && (
-                    <ApproxUsdTag amountUsd={row.approxAmountUsd} />
+              <div className="text-text-muted flex items-baseline justify-between gap-2 text-xs">
+                <span className="truncate">{detailLine(row)}</span>
+                {row.currencyCode !== "USD" && row.approxAmountUsd !== null && (
+                  <ApproxUsdTag amountUsd={row.approxAmountUsd} />
+                )}
+              </div>
+              <div className="mt-1 flex items-baseline justify-between gap-2">
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  <CategoryTag name={row.category} colorHex={row.categoryColorHex} />
+                  <span className="text-text-muted truncate text-xs">{row.account}</span>
+                </span>
+                <span
+                  className={twJoin(
+                    "flex shrink-0 items-center gap-1 font-mono text-sm tabular-nums",
+                    amountToneStyles[row.type],
                   )}
-                </div>
-              </button>
-            </div>
+                >
+                  {row.type === "TRANSFER" && <TypeIcon className="size-3" />}
+                  {formatMoney(row.amount, row.currencyCode)}
+                </span>
+              </div>
+            </button>
           );
         })}
       </div>
