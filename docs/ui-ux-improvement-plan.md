@@ -408,8 +408,10 @@ direction, if you want it. Anything that changes the palette now has two themes 
 
 - Only Chromium. Safari on a real iPhone will differ, particularly `min-h-dvh` with the URL bar and
   the position of the fixed bottom nav.
-- Keyboard-only navigation and screen-reader flow were spot-checked (accessible names, target sizes)
-  but not walked end to end.
+- Keyboard-only navigation and screen-reader flow — _audited and fixed_. Semantic headings, visible
+  focus rings on buttons, explicit form labels, and unique accessible names for transaction
+  checkboxes are in place. A full end-to-end screen-reader walkthrough on a real assistive setup is
+  still recommended.
 - No performance profiling. The P1 pass did run against a 10,747-row profile — both the table and
   the new phone list keep ~20–30 rows in the DOM and scrolled smoothly at 150,000px deep — but
   "smooth to drive" is not a measurement.
