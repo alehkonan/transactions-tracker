@@ -18,18 +18,10 @@ import { useSyncStore } from "~/modules/sync/useSyncStore";
 import appCss from "~/styles.css?url";
 
 export const Route = createRootRoute({
-  // Routing only, and deliberately synchronous: both checks read cookies the browser already has,
-  // so a navigation costs no request and the app still opens with no network at all. The hints are
-  // forgeable, which buys nothing — every server function proves the caller for itself, so a faked
-  // hint renders an empty shell and 401s on the first call.
   beforeLoad: ({ location }) => {
-    // The login page is the one route that has to render for signed-out visitors.
     if (location.pathname === "/login") return;
-
     if (!hasLiveSessionHint()) throw redirect({ to: "/login" });
-
     if (location.pathname === "/profile") return;
-
     if (!hasSelectedProfileHint()) throw redirect({ to: "/profile" });
   },
   head: () => ({
@@ -59,9 +51,6 @@ export const Route = createRootRoute({
         <head>
           <HeadContent />
         </head>
-        {/* `text-text` is load-bearing rather than decorative: without it every element that
-            doesn't name a color inherits the browser's default black, which only looks deliberate
-            while the page behind it is white. */}
         <body className="bg-background text-text min-h-dvh font-sans">
           <Toast.Provider>
             {showNavbar && (
@@ -83,7 +72,7 @@ export const Route = createRootRoute({
             <div
               className={twJoin(
                 !isLogin && (showNavbar ? "pt-8 md:pt-0" : "pt-8 md:pt-14"),
-                showNavbar && "pb-24 sm:pb-0",
+                showNavbar && "pb-12 sm:pb-0",
               )}
             >
               {isLogin ? children : <SyncGate>{children}</SyncGate>}
