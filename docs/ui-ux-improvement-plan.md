@@ -331,7 +331,7 @@ uniform 2xl radii, gradient cards.
 currencies, who cares less about "did I overspend on groceries" than about **how long the money
 lasts**. That's the number the design should be built around.
 
-### Tokens
+### Tokens — _fixed_
 
 | Role               | Value                  | Why                                                                                    |
 | ------------------ | ---------------------- | -------------------------------------------------------------------------------------- |
@@ -346,7 +346,7 @@ Deliberately **not** the three looks that generative design keeps landing on (cr
 terracotta; near-black + acid accent; hairline broadsheet). Verdigris/ochre on warm paper is closer to
 ledger stock and stamped receipts, which is the subject's own world.
 
-### Type
+### Type — _fixed_
 
 - **Display** — one characterful grotesque used only at 32px+ for the runway figure and page titles.
   `Bricolage Grotesque` (variable, tight, slightly odd) earns its place; the body face carrying
@@ -356,7 +356,9 @@ ledger stock and stamped receipts, which is the subject's own world.
   uses `tabular-nums` and mono in places; make it a rule, self-hosted and digit-subset, since the app
   must work offline.
 
-### Signature element: the runway ribbon
+### Signature element: the runway ribbon — _skipped_
+
+The dashboard route was removed earlier, so the ribbon is not implemented. The palette and typography above are in place.
 
 One memorable thing, on the dashboard, that no other tracker has: a horizontal ribbon from today to
 the date the money runs out, segmented by month, with each account's contribution stacked into it and
