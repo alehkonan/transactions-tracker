@@ -1,27 +1,18 @@
-import { useRouter } from "@tanstack/react-router";
 import { use } from "react";
-import {
-  createTransactions,
-  updateTransaction,
-  type TransactionRow,
-} from "~/api/transaction.functions";
 import { DialogContext } from "~/components/Dialog";
+import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import {
   isOutgoing,
   negateIfPositive,
-  type NecessityLevel,
   type TransactionFormValues,
-  type TransactionType,
-} from "~/modules/transaction-form/transactionFormValues";
-
-type CreateTransactionInput = {
-  categoryId?: number;
-  necessityLevel?: NecessityLevel;
-  type: TransactionType;
-  accountId?: number;
-  amount: string;
-  comment?: string;
-};
+} from "~/modules/transaction-form/transaction-form-values";
+import {
+  createTransactions,
+  updateTransaction,
+  type TransactionInput,
+} from "~/modules/transactions/transaction-mutations";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Options = {
   /** When set, the form edits this existing row instead of creating a new one. */
@@ -31,45 +22,49 @@ type Options = {
 /** Persists the submitted form values (create or update) and closes the dialog. Throws on failure. */
 export function useTransactionFormSubmit({ transaction }: Options) {
   const { onClose } = use(DialogContext);
-  const router = useRouter();
 
   const submit = async (values: TransactionFormValues) => {
+    const profileId = readSelectedProfileId();
+    if (profileId == null) return;
+
     const shared = {
-      categoryId: values.categoryId ? Number(values.categoryId) : undefined,
-      necessityLevel: values.necessityLevel || undefined,
-      comment: values.comment || undefined,
-    };
+      createdAt: values.createdAt,
+      categoryId: values.categoryId || null,
+      necessityLevel: values.necessityLevel || "MEDIUM",
+      comment: values.comment || null,
+    } satisfies Partial<TransactionInput>;
 
     const originalIsNegative = transaction?.amount.trim().startsWith("-") ?? false;
     const negative = isOutgoing(values.type, Boolean(transaction), originalIsNegative);
 
     if (transaction) {
-      await updateTransaction({
-        data: {
-          id: transaction.id,
-          ...shared,
-          type: values.type,
-          accountId: Number(values.accountId),
-          amount: negative ? negateIfPositive(values.amount) : values.amount,
-        },
+      // The form works from the derived row; the stored one is what a mutation edits.
+      const stored = useSyncStore.getState().transactions.find((row) => row.id === transaction.id);
+      if (!stored) return;
+
+      await updateTransaction(stored, {
+        ...shared,
+        type: values.type,
+        accountId: values.accountId || null,
+        amount: negative ? negateIfPositive(values.amount) : values.amount,
       });
     } else {
       // A transfer moves money between two of the user's own accounts, so it's
       // recorded as two TRANSFER-typed rows (one per account) rather than
       // EXPENSE+INCOME, keeping it out of spending/income statistics.
-      const inputs: CreateTransactionInput[] =
+      const inputs: TransactionInput[] =
         values.type === "TRANSFER"
           ? [
               {
                 ...shared,
                 type: "TRANSFER",
-                accountId: Number(values.accountId),
+                accountId: values.accountId || null,
                 amount: negateIfPositive(values.amount),
               },
               {
                 ...shared,
                 type: "TRANSFER",
-                accountId: Number(values.toAccountId),
+                accountId: values.toAccountId || null,
                 amount: values.toAmount,
               },
             ]
@@ -77,15 +72,14 @@ export function useTransactionFormSubmit({ transaction }: Options) {
               {
                 ...shared,
                 type: values.type,
-                accountId: Number(values.accountId),
+                accountId: values.accountId || null,
                 amount: negative ? negateIfPositive(values.amount) : values.amount,
               },
             ];
 
-      await createTransactions({ data: inputs });
+      await createTransactions(profileId, inputs);
     }
 
-    await router.invalidate();
     onClose();
   };
 

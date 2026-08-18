@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { getRequestUrl } from "@tanstack/react-start/server";
 import { and, eq, lt } from "drizzle-orm";
-import { getDb } from "~/database/getDb.server";
+import { getDb } from "~/database/get-db.server";
 import { webauthnChallengesTable } from "~/database/tables";
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;

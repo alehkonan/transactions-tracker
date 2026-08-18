@@ -1,10 +1,12 @@
 import { twJoin } from "tailwind-merge";
 import { Card } from "~/components/Card";
 import { Title } from "~/components/Title";
-import { formatMoney } from "~/utils/formatMoney";
+import { formatMoney } from "~/utils/format-money";
 
 type Props = {
   title: string;
+  /** Two words on a phone, where the card is a third of the screen wide: "Spending / day". */
+  shortTitle: string;
   tone: "expense" | "income";
   perDayUsd: number;
   totalUsd: number;
@@ -12,24 +14,43 @@ type Props = {
   rangeLabel: string;
 };
 
-export function DailyAverageCard({ title, tone, perDayUsd, totalUsd, days, rangeLabel }: Props) {
+/**
+ * One figure from `computeDailyAverages`, with the period it was measured over.
+ *
+ * Below `sm` it is one of three cards abreast rather than a full-width block, so it keeps the
+ * headline number and drops the two lines under it — the chart is what that space is for.
+ */
+export function DailyAverageCard({
+  title,
+  shortTitle,
+  tone,
+  perDayUsd,
+  totalUsd,
+  days,
+  rangeLabel,
+}: Props) {
   return (
     <Card>
-      <Title variant="card">{title}</Title>
-      <hr className="border-border my-3" />
+      <Title variant="card" className="text-text-muted text-xs sm:hidden">
+        {shortTitle}
+      </Title>
+      <Title variant="card" className="hidden sm:block">
+        {title}
+      </Title>
+      <hr className="border-border my-1 sm:my-3" />
       <p
         className={twJoin(
-          "text-3xl font-bold",
-          tone === "expense" ? "text-expense" : "text-income",
+          "text-xl font-bold sm:text-3xl",
+          tone === "expense" ? "text-expense" : "text-gain",
         )}
       >
         {formatMoney(String(perDayUsd), "USD")}
-        <span className="text-text-muted text-base font-normal"> / day</span>
+        <span className="text-text-muted hidden text-base font-normal sm:inline"> / day</span>
       </p>
-      <p className="text-text-muted mt-1 text-sm">
+      <p className="text-text-muted mt-1 hidden text-sm sm:block">
         {formatMoney(String(totalUsd), "USD")} over the last {days} days
       </p>
-      <p className="text-text-muted text-xs">{rangeLabel}</p>
+      <p className="text-text-muted hidden text-xs sm:block">{rangeLabel}</p>
     </Card>
   );
 }

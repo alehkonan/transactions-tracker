@@ -2,9 +2,7 @@ import { PlusIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { CategoryForm } from "~/modules/categories/CategoryForm";
-import type { getColors } from "~/api/color.functions";
-
-type Color = Awaited<ReturnType<typeof getColors>>[number];
+import type { Color } from "~/modules/sync/sync-types";
 
 type Props = {
   /** The palette the new category picks its color from. */

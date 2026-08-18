@@ -39,10 +39,7 @@ For each group, in order:
    relevant hunks.
 2. Write a concise commit message (1–2 sentences, focused on _why_) matching this
    repo's existing style from `git log`.
-3. Commit via a heredoc, ending with:
-   ```
-   Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
-   ```
+3. Commit via a heredoc. Do not add `Co-Authored-By` trailers or any model- or provider-specific attribution unless the user explicitly requests it.
 4. Run `git status` to confirm the working tree before moving to the next group.
 
 ## Still follow the standing git safety rules

@@ -1,0 +1,11 @@
+# Project-local Codex defaults. This file is loaded only for trusted projects.
+approval_policy = "on-request"
+approvals_reviewer = "user"
+sandbox_mode = "workspace-write"
+model_reasoning_effort = "medium"
+
+[sandbox_workspace_write]
+# Keep network and temporary directories outside the routine workspace sandbox.
+network_access = false
+exclude_slash_tmp = true
+exclude_tmpdir_env_var = true

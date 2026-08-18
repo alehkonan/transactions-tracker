@@ -65,8 +65,11 @@ export function Select({
       : normalized;
   const labelFor = (v: string) => normalized.find((option) => option.value === v)?.label ?? v;
 
+  // An unset field arrives as `""` as often as `undefined` — react-hook-form's `useController`
+  // reports the empty string — and `??` lets that through, leaving the value matching no item at
+  // all, so the trigger renders blank instead of the placeholder.
   const withPlaceholder = (v: string | undefined) =>
-    v ?? (placeholder ? PLACEHOLDER_VALUE : undefined);
+    v || (placeholder ? PLACEHOLDER_VALUE : undefined);
 
   // Tracks the *reported* value (never the sentinel) when the caller doesn't control
   // this select itself, so uncontrolled usage still works like a normal form field.
@@ -103,7 +106,9 @@ export function Select({
           id={id}
           // Matches Button's `secondary` variant so filters/triggers sit flush next to buttons.
           className={twMerge(
-            "inline-flex h-9 items-center justify-between gap-1 rounded-2xl px-3",
+            // A minimum width so the trigger doesn't collapse around a short label, or resize
+            // under the pointer as the selection changes.
+            "inline-flex h-11 min-w-32 items-center justify-between gap-1 rounded-2xl px-3 sm:h-9",
             "transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow",
             "bg-surface text-text border-border disabled:bg-surface-muted border",
             "data-disabled:cursor-not-allowed",

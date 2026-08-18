@@ -2,21 +2,19 @@ import { useWatch, type Control } from "react-hook-form";
 import {
   isOutgoing,
   type TransactionFormValues,
-} from "~/modules/transaction-form/transactionFormValues";
-import type { getAccounts } from "~/api/account.functions";
-import type { TransactionRow } from "~/api/transaction.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
+} from "~/modules/transaction-form/transaction-form-values";
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Options = {
-  accounts: Account[];
+  accounts: AccountWithBalance[];
   control: Control<TransactionFormValues>;
   /** When set, the row being edited — its existing sign is kept regardless of the selected type. */
   transaction?: TransactionRow;
 };
 
 function projectBalance(
-  account: Account | undefined,
+  account: AccountWithBalance | undefined,
   amount: string,
   negative: boolean,
 ): number | undefined {
@@ -37,8 +35,8 @@ export function useAccountBalancePreview({ accounts, control, transaction }: Opt
   const originalIsNegative = transaction?.amount.trim().startsWith("-") ?? false;
   const negative = isOutgoing(type, Boolean(transaction), originalIsNegative);
 
-  const selectedAccount = accounts.find((account) => String(account.id) === accountId);
-  const selectedToAccount = accounts.find((account) => String(account.id) === toAccountId);
+  const selectedAccount = accounts.find((account) => account.id === accountId);
+  const selectedToAccount = accounts.find((account) => account.id === toAccountId);
 
   return {
     selectedAccount,

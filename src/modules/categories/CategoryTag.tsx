@@ -1,16 +1,13 @@
 import { twMerge } from "tailwind-merge";
 import { Dialog } from "~/components/Dialog";
 import { CategoryForm } from "~/modules/categories/CategoryForm";
-import type { getCategories } from "~/api/category.functions";
-import type { getColors } from "~/api/color.functions";
-
-type Category = Awaited<ReturnType<typeof getCategories>>[number];
-type Color = Awaited<ReturnType<typeof getColors>>[number];
+import type { CategoryRow } from "~/modules/categories/to-category-rows";
+import type { Color } from "~/modules/sync/sync-types";
 
 type Props =
   | {
       /** Editable: clicking the tag opens the dialog that renames, recolors or deletes the category. */
-      category: Category;
+      category: CategoryRow;
       colors: Color[];
       name?: undefined;
       colorHex?: undefined;
@@ -58,7 +55,9 @@ export function CategoryTag(props: Props) {
           type="button"
           aria-label={`Edit category ${props.category.name}`}
           onClick={onOpen}
-          className="max-w-full rounded-full transition-[box-shadow] hover:shadow"
+          // The pill keeps its size; the button around it grows to a thumb-sized target on a phone,
+          // since these chips are the only way to edit a category.
+          className="inline-flex min-h-11 max-w-full items-center rounded-full transition-[box-shadow] hover:shadow sm:min-h-0"
         >
           {tag}
         </button>

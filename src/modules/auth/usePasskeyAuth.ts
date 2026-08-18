@@ -8,6 +8,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { getSignInOptions, getSignUpOptions, signIn, signUp } from "~/api/auth.functions";
+import { resetLocalData } from "~/modules/sync/sync-engine";
 
 /**
  * A cancelled ceremony is the user closing the OS passkey sheet — expected, not an error worth
@@ -37,7 +38,9 @@ export function usePasskeyAuth() {
   const [isSupported, setIsSupported] = useState(true);
 
   const onSignedIn = useCallback(async () => {
-    // A full invalidate re-runs the root guard, which now finds the session and lets us through.
+    // Whatever is in IndexedDB belongs to whoever was signed in before — possibly somebody else on a
+    // shared browser. Dropping it means the app boots into a clean full pull for this account.
+    await resetLocalData();
     await navigate({ to: "/", replace: true });
   }, [navigate]);
 

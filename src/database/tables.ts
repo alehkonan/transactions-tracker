@@ -7,6 +7,7 @@ import {
   serial,
   text,
   timestamp,
+  uuid,
   varchar,
 } from "drizzle-orm/pg-core";
 import { money } from "./custom-types";
@@ -59,9 +60,12 @@ export const credentialsTable = pgTable(
 );
 
 /**
- * A logged-in session, addressed by two opaque random tokens rather than a signed payload — so
- * revoking a session is a single `DELETE` and no signing secret has to be kept in sync. Only the
- * SHA-256 hashes are stored: a database leak alone does not hand out usable cookies.
+ * A logged-in session, holding only the long-lived refresh token — the short-lived access token is
+ * a signed cookie that is never stored, so the common case resolves without reading this table at
+ * all (see `session.server.ts`). Revoking a session is still a single `DELETE`, it just takes
+ * effect when the access cookie next expires.
+ *
+ * Only the SHA-256 hash is stored: a database leak alone does not hand out usable cookies.
  */
 export const sessionsTable = pgTable(
   "sessions",
@@ -70,8 +74,6 @@ export const sessionsTable = pgTable(
     userId: integer("user_id")
       .notNull()
       .references(() => usersTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
-    accessTokenHash: text("access_token_hash").unique().notNull(),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }).notNull(),
     refreshTokenHash: text("refresh_token_hash").unique().notNull(),
     refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,10 +95,36 @@ export const webauthnChallengesTable = pgTable("webauthn_challenges", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
+/**
+ * The columns every replicated table carries, so a client can ask "what changed since X" and see
+ * deletions as well as edits (see `docs/offline-first-sync.md`).
+ *
+ * `updatedAt` is maintained by the mutations that write user-visible fields — postgres only applies
+ * the default on insert, so an `update` that forgets to bump it is invisible to a delta pull.
+ * `deletedAt` is the tombstone: the columns exist from here on, but nothing sets one until deletes
+ * become soft in the write-path phase.
+ */
+const syncColumns = {
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+};
+
+/**
+ * Synced tables are keyed by UUID rather than `serial`: a client that is offline has to be able to
+ * mint an id itself, and have it be the final one, instead of inserting under a temporary id and
+ * rewriting every foreign key that points at it once the server hands out the real one.
+ *
+ * The default is `gen_random_uuid()` (v4) for the rows this server still inserts on the client's
+ * behalf; ids minted on the client are v7, whose leading timestamp keeps inserts local in the
+ * btree. Nothing here depends on which of the two a given row got — ordering comes from
+ * `updatedAt`, with the id only breaking ties.
+ */
+const syncedId = () => uuid("id").primaryKey().defaultRandom();
+
 export const profilesTable = pgTable(
   "profiles",
   {
-    id: serial("id").primaryKey(),
+    id: syncedId(),
     name: text("name").notNull(),
     /**
      * The owning user — many profiles per user. Nullable only to carry the profiles that predate
@@ -107,8 +135,13 @@ export const profilesTable = pgTable(
       onUpdate: "cascade",
       onDelete: "cascade",
     }),
+    ...syncColumns,
   },
-  (table) => [index("profiles_user_id_idx").on(table.userId)],
+  // A profile's own scoping column is its owner, so this stands in for the plain `user_id` index:
+  // a composite serves an equality on its leading column just as well.
+  (table) => [
+    index("profiles_user_id_updated_at_id_idx").on(table.userId, table.updatedAt, table.id),
+  ],
 );
 
 export const colorsTable = pgTable("colors", {
@@ -116,48 +149,97 @@ export const colorsTable = pgTable("colors", {
   hex: varchar("hex", { length: 7 }).unique().notNull(),
 });
 
-export const categoriesTable = pgTable("categories", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  profileId: integer("profile_id").references(() => profilesTable.id, {
-    onUpdate: "cascade",
-    onDelete: "cascade",
-  }),
-  colorId: integer("color_id").references(() => colorsTable.id, {
-    onUpdate: "cascade",
-    onDelete: "set null",
-  }),
-});
+export const categoriesTable = pgTable(
+  "categories",
+  {
+    id: syncedId(),
+    name: text("name").notNull(),
+    profileId: uuid("profile_id").references(() => profilesTable.id, {
+      onUpdate: "cascade",
+      onDelete: "cascade",
+    }),
+    colorId: integer("color_id").references(() => colorsTable.id, {
+      onUpdate: "cascade",
+      onDelete: "set null",
+    }),
+    ...syncColumns,
+  },
+  (table) => [
+    index("categories_profile_id_updated_at_id_idx").on(table.profileId, table.updatedAt, table.id),
+  ],
+);
 
-export const accountsTable = pgTable("accounts", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  /** Opening amount the account started with, before any transaction. */
-  initialBalance: money("initial_balance").notNull().default("0"),
-  /** `initialBalance` plus the sum of the account's transactions. */
-  balance: money("balance").notNull().default("0"),
-  currencyCode: currencyCodeEnum("currency_code").notNull().default("USD"),
-  status: accountStatusEnum("status").notNull().default("ACTIVE"),
-  type: accountTypeEnum("type").notNull().default("CURRENT"),
-  profileId: integer("profile_id").references(() => profilesTable.id, {
-    onUpdate: "cascade",
-    onDelete: "cascade",
-  }),
-});
+export const accountsTable = pgTable(
+  "accounts",
+  {
+    id: syncedId(),
+    name: text("name").notNull(),
+    /** Opening amount the account started with, before any transaction. */
+    initialBalance: money("initial_balance").notNull().default("0"),
+    /**
+     * `initialBalance` plus the sum of the account's transactions.
+     *
+     * Server-side only — a denormalized cache that two offline devices would fight over, so it
+     * never rides along in a sync payload; clients derive it from the transactions they already
+     * hold. Writes that only move this column deliberately leave `updatedAt` alone, since a
+     * derived value changing is not a change any client needs to hear about.
+     */
+    balance: money("balance").notNull().default("0"),
+    currencyCode: currencyCodeEnum("currency_code").notNull().default("USD"),
+    status: accountStatusEnum("status").notNull().default("ACTIVE"),
+    type: accountTypeEnum("type").notNull().default("CURRENT"),
+    profileId: uuid("profile_id").references(() => profilesTable.id, {
+      onUpdate: "cascade",
+      onDelete: "cascade",
+    }),
+    ...syncColumns,
+  },
+  // Every read in the app is scoped to a profile — without the leading column here that scoping is
+  // a sequential scan of the whole table — and a delta pull walks the same rows in `updated_at`
+  // order, so one composite serves both.
+  (table) => [
+    index("accounts_profile_id_updated_at_id_idx").on(table.profileId, table.updatedAt, table.id),
+  ],
+);
 
-export const transactionsTable = pgTable("transactions", {
-  id: serial("id").primaryKey(),
-  type: transactionTypeEnum("type").notNull(),
-  necessityLevel: necessityLevelEnum("necessity_level").notNull().default("MEDIUM"),
-  amount: money("amount").notNull(),
-  comment: text("comment"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  accountId: integer("account_id").references(() => accountsTable.id, {
-    onUpdate: "cascade",
-    onDelete: "cascade",
-  }),
-  categoryId: integer("category_id").references(() => categoriesTable.id, {
-    onUpdate: "cascade",
-    onDelete: "set null",
-  }),
-});
+export const transactionsTable = pgTable(
+  "transactions",
+  {
+    id: syncedId(),
+    type: transactionTypeEnum("type").notNull(),
+    necessityLevel: necessityLevelEnum("necessity_level").notNull().default("MEDIUM"),
+    amount: money("amount").notNull(),
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    accountId: uuid("account_id").references(() => accountsTable.id, {
+      onUpdate: "cascade",
+      onDelete: "cascade",
+    }),
+    categoryId: uuid("category_id").references(() => categoriesTable.id, {
+      onUpdate: "cascade",
+      onDelete: "set null",
+    }),
+    /**
+     * Denormalized from the owning account. A transaction has no profile of its own, but reaching
+     * for one through `accounts` on every read turned each profile scope into a subquery or a join;
+     * carrying it here makes both the scope and the delta pull a single indexed scan.
+     *
+     * Every write has to set it to the account's profile — nothing in the database enforces that
+     * the two agree.
+     */
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profilesTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
+    ...syncColumns,
+  },
+  (table) => [
+    // Composite rather than two indexes: the join to `accounts` and the date-range filter always
+    // arrive together (see `getTransactions`), and this ordering also serves the `desc` sort.
+    index("transactions_account_id_created_at_idx").on(table.accountId, table.createdAt),
+    index("transactions_profile_id_updated_at_id_idx").on(
+      table.profileId,
+      table.updatedAt,
+      table.id,
+    ),
+  ],
+);

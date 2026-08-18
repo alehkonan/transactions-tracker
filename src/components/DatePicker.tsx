@@ -17,9 +17,11 @@ import { useEffect, useId, useImperativeHandle, useRef, type RefObject } from "r
 import { twJoin, twMerge } from "tailwind-merge";
 import { Button } from "./Button";
 
+// A calendar is a grid of small targets, so the phone sizes are the compromise the layout allows:
+// seven 36px columns still fit a 390px screen, where seven 44px ones would not.
 const navButtonClassName = twJoin(
   "border-border rounded-lg border",
-  "size-7 shrink-0 place-items-center",
+  "size-9 shrink-0 place-items-center sm:size-7",
   "disabled:opacity-40",
 );
 
@@ -36,7 +38,7 @@ const classNames: Partial<ClassNames> = {
   [UI.Weekday]: "text-text-muted pt-2 text-xs",
   [UI.Day]: "group text-sm py-1",
   [UI.DayButton]: twJoin(
-    "size-7 rounded-xl",
+    "size-9 rounded-xl sm:size-7",
     "hover:bg-surface-muted transition-colors",
     "disabled:pointer-events-none disabled:opacity-40",
     "group-data-outside:text-text-muted/50",
@@ -91,7 +93,7 @@ export function DatePicker({ label, onReset, actionsRef, ...props }: Props) {
             className={twJoin(
               "absolute top-1/2 right-2 -translate-y-1/2",
               "bg-surface-muted hover:bg-surface-active text-text-muted hover:text-text",
-              "grid size-5 place-items-center rounded-full transition-colors",
+              "grid size-6 place-items-center rounded-full transition-colors sm:size-5",
             )}
           >
             <XIcon className="size-3" />

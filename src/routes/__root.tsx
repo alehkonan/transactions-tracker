@@ -9,23 +9,20 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { twJoin } from "tailwind-merge";
-import { getSession } from "~/api/auth.functions";
-import { getSelectedProfileId } from "~/api/profile.functions";
 import { Navbar } from "~/components/Navbar";
 import { Toaster } from "~/components/Toaster";
+import { hasLiveSessionHint } from "~/modules/auth/session-hint";
+import { hasSelectedProfileHint } from "~/modules/profile/profile-cookie";
+import { SyncGate } from "~/modules/sync/SyncGate";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import appCss from "~/styles.css?url";
 
 export const Route = createRootRoute({
-  beforeLoad: async ({ location }) => {
-    // The login page is the one route that has to render for signed-out visitors.
+  beforeLoad: ({ location }) => {
     if (location.pathname === "/login") return;
-
-    if (!(await getSession())) throw redirect({ to: "/login" });
-
+    if (!hasLiveSessionHint()) throw redirect({ to: "/login" });
     if (location.pathname === "/profile") return;
-
-    const profileId = await getSelectedProfileId();
-    if (profileId === null) throw redirect({ to: "/profile" });
+    if (!hasSelectedProfileHint()) throw redirect({ to: "/profile" });
   },
   head: () => ({
     meta: [
@@ -39,15 +36,24 @@ export const Route = createRootRoute({
     const pathname = useRouterState({ select: (state) => state.location.pathname });
     // Full-screen routes that stand on their own, without the app's navigation chrome.
     const isStandalone = pathname === "/profile" || pathname === "/login";
+    // Every route reads from the replicated working set, so every route waits for it — except
+    // `/login`, which has to render for someone who has no data (and no session) yet.
+    const isLogin = pathname === "/login";
+    // Navigation that leads nowhere is worse than no navigation: until the working set is in, every
+    // destination is the same loading screen, so the navbar arrives with the app it navigates.
+    // `isHydrated` is false during SSR too, so the server paints the same chrome-less screen the
+    // client starts from and there is nothing to reconcile on hydration.
+    const isHydrated = useSyncStore((state) => state.isHydrated);
+    const showNavbar = !isStandalone && isHydrated;
 
     return (
       <html lang="en" suppressHydrationWarning>
         <head>
           <HeadContent />
         </head>
-        <body className="bg-background min-h-dvh">
+        <body className="bg-background text-text min-h-dvh font-sans">
           <Toast.Provider>
-            {!isStandalone && (
+            {showNavbar && (
               <header
                 className={twJoin(
                   "pointer-events-none",
@@ -59,7 +65,18 @@ export const Route = createRootRoute({
                 <Navbar />
               </header>
             )}
-            <div className={isStandalone ? undefined : "pb-24 sm:pb-0"}>{children}</div>
+            {/* Room for the two pieces of chrome that float over the page: the navbar, and the
+                sync indicator at the top (a full-width strip on a phone, a corner pill from `md`).
+                Written as one expression per edge, since two `md:pt-*` utilities would be settled
+                by stylesheet order rather than by what is meant. */}
+            <div
+              className={twJoin(
+                !isLogin && (showNavbar ? "pt-8 md:pt-0" : "pt-8 md:pt-14"),
+                showNavbar && "pb-12 sm:pb-0",
+              )}
+            >
+              {isLogin ? children : <SyncGate>{children}</SyncGate>}
+            </div>
             <Toaster />
           </Toast.Provider>
           <TanStackDevtools

@@ -2,11 +2,14 @@ import { createMiddleware } from "@tanstack/react-start";
 import { resolveSession } from "./session.server";
 
 /**
- * Injects the caller's session into the handler's `context` as `user`, or `null` when they are
- * not signed in. Never throws — use it for handlers that have to answer for anonymous callers
- * too, such as the login page's own server functions.
+ * Injects the caller's session into the handler's `context` as `user`, or `null` when they are not
+ * signed in. Never throws.
+ *
+ * Not exported: every remaining server function either requires a caller (`authMiddleware`, below)
+ * or is part of a ceremony that has no caller yet. Export it again if a handler needs to answer for
+ * anonymous and signed-in callers alike.
  */
-export const sessionMiddleware = createMiddleware().server(async ({ next }) => {
+const sessionMiddleware = createMiddleware().server(async ({ next }) => {
   return next({ context: { user: await resolveSession() } });
 });
 

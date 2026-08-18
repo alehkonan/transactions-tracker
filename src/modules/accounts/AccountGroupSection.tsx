@@ -1,24 +1,25 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Flip } from "gsap/Flip";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { twJoin } from "tailwind-merge";
 import { Chip } from "~/components/Chip";
 import { Title } from "~/components/Title";
 import { AccountCard } from "~/modules/accounts/AccountCard";
-import { formatMoney } from "~/utils/formatMoney";
-import type { getAccounts } from "~/api/account.functions";
+import { formatMoney } from "~/utils/format-money";
+import type { AccountActivity } from "~/modules/accounts/compute-account-activity";
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
 gsap.registerPlugin(useGSAP, Flip);
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
 
 type Props = {
   /** Stable key used to persist this group's collapsed state in localStorage. */
   id: string;
   title: string;
-  accounts: Account[];
+  accounts: AccountWithBalance[];
+  /** Last movement and month-to-date per account id — see `computeAccountActivity`. */
+  activityByAccount: Map<string, AccountActivity>;
   totalUsd?: string;
   /** Tint classes for the total chip, matching this group's `AccountCard` color (see `accountTypeStyles`/`accountStatusStyles` in `accountTypeTag`/`AccountStatusChip`). */
   totalChipClassName?: string;
@@ -55,6 +56,7 @@ export function AccountGroupSection({
   id,
   title,
   accounts,
+  activityByAccount,
   totalUsd,
   totalChipClassName,
   defaultCollapsed,
@@ -127,7 +129,7 @@ export function AccountGroupSection({
             </Chip>
           )}
         </div>
-        <ChevronRightIcon
+        <ChevronDownIcon
           className={twJoin(
             "text-text-muted size-4 shrink-0 transition-transform",
             !collapsed && "rotate-180",
@@ -175,7 +177,11 @@ export function AccountGroupSection({
                   : undefined,
               }}
             >
-              <AccountCard account={account} onClick={collapsed ? expand : undefined} />
+              <AccountCard
+                account={account}
+                activity={activityByAccount.get(account.id)}
+                onClick={collapsed ? expand : undefined}
+              />
             </div>
           );
         })}

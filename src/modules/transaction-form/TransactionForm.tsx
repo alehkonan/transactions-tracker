@@ -2,6 +2,7 @@ import { Toggle } from "@base-ui/react/toggle";
 import { ArrowDownIcon } from "lucide-react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
+import { DatePickerControl } from "~/components/DatePickerControl";
 import { InputControl } from "~/components/InputControl";
 import { SelectControl } from "~/components/SelectControl";
 import { TextareaControl } from "~/components/TextareaControl";
@@ -9,22 +10,19 @@ import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { DeleteTransactionButton } from "~/modules/transaction-form/DeleteTransactionButton";
 import { useTransactionForm } from "~/modules/transaction-form/useTransactionForm";
-import { necessityLevelStyles } from "~/modules/transactions/NecessityLevelTag";
+import { necessityLevelStyles } from "~/modules/transactions/necessity-level";
 import {
   transactionTypeIcons,
   transactionTypeStyles,
-} from "~/modules/transactions/TransactionTypeTag";
-import { formatMoney } from "~/utils/formatMoney";
-import type { getAccounts } from "~/api/account.functions";
-import type { getCategories } from "~/api/category.functions";
-import type { TransactionRow } from "~/api/transaction.functions";
-
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
-type Category = Awaited<ReturnType<typeof getCategories>>[number];
+} from "~/modules/transactions/transaction-type-tag";
+import { formatMoney } from "~/utils/format-money";
+import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
+import type { CategoryRow } from "~/modules/categories/to-category-rows";
+import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Props = {
-  accounts: Account[];
-  categories: Category[];
+  accounts: AccountWithBalance[];
+  categories: CategoryRow[];
   /** When set, the form edits this existing row instead of creating a new one. */
   transaction?: TransactionRow;
 };
@@ -40,7 +38,7 @@ const necessityOptions = necessityLevelEnum.enumValues.map((value) => ({
 }));
 
 type BalancePreviewProps = {
-  account: Account | undefined;
+  account: AccountWithBalance | undefined;
   projectedBalance: number | undefined;
 };
 
@@ -83,12 +81,12 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
   const activeAccountOptions = accounts
     .filter((account) => account.status === "ACTIVE")
     .map((account) => ({
-      value: String(account.id),
+      value: account.id,
       label: `${account.name} (${account.currencyCode})`,
     }));
 
   const categoryOptions = categories.map((category) => ({
-    value: String(category.id),
+    value: category.id,
     label: category.name,
   }));
 
@@ -108,7 +106,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               value={option.value}
               className={(toggleState) =>
                 twMerge(
-                  "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors",
+                  "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors sm:h-9",
                   toggleState.pressed
                     ? transactionTypeStyles[option.value]
                     : "text-text-muted hover:bg-surface-muted",
@@ -122,8 +120,19 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         })}
       </ToggleGroupControl>
 
+      <DatePickerControl
+        control={control}
+        name="createdAt"
+        label="Date"
+        // Money that has not moved yet isn't a transaction this app knows how to hold: it would
+        // count against balances and averages as though it had already been spent.
+        disabled={{ after: new Date() }}
+      />
+
       {type !== "TRANSFER" && (
-        <div className="grid grid-cols-2 gap-3">
+        // One per row on a phone: four necessity labels do not fit half of 390px, and shrinking
+        // them to fit only trades a clipped word for a truncated one.
+        <div className="grid gap-3 sm:grid-cols-2">
           <SelectControl
             control={control}
             name="categoryId"
@@ -137,7 +146,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             name="necessityLevel"
             label="Necessity"
             aria-label="Necessity"
-            className="border-border bg-surface flex h-9 items-center gap-1 rounded-lg border p-1"
+            className="border-border bg-surface flex h-11 items-center gap-1 rounded-lg border p-1 sm:h-9"
           >
             {necessityOptions.map((option) => (
               <Toggle
@@ -167,7 +176,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 <SelectControl
                   control={control}
                   name="accountId"
-                  label="Account"
+                  label="From account"
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
                   placeholder="Select account"
@@ -194,7 +203,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 <SelectControl
                   control={control}
                   name="toAccountId"
-                  label="Account"
+                  label="To account"
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
                   placeholder="Select account"

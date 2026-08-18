@@ -210,7 +210,7 @@ that takes `control`/`setValue`/etc. as a param, so field names stay typo-checke
 ## Schema validation (Zod)
 
 `@hookform/resolvers` is installed. This repo's server functions still dropped their own `zod` input-validation layer
-pending rework (see `CLAUDE.md`) — that's a server-side concern, separate from a form using a resolver client-side. To
+pending rework — that's a server-side concern, separate from a form using a resolver client-side. To
 validate a form against a schema:
 
 ```tsx

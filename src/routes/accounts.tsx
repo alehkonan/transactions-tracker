@@ -1,16 +1,18 @@
-import { createFileRoute, useLoaderData } from "@tanstack/react-router";
-import { getAccounts, getBalanceTotals } from "~/api/account.functions";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { PageContainer } from "~/components/PageContainer";
+import { Title } from "~/components/Title";
+import { accountTypeStyles } from "~/modules/accounts/account-type-tag";
 import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
 import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
-import { accountTypeStyles } from "~/modules/accounts/accountTypeTag";
+import { computeAccountActivity } from "~/modules/accounts/compute-account-activity";
+import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
-import { ReconcileBalancesButton } from "~/modules/accounts/ReconcileBalancesButton";
+import { useAccounts } from "~/modules/accounts/useAccounts";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
+import type { AccountWithBalance, BalanceTotals } from "~/modules/accounts/compute-balances";
 
-type Account = Awaited<ReturnType<typeof getAccounts>>[number];
-type BalanceTotals = Awaited<ReturnType<typeof getBalanceTotals>>;
-
-function getAccountGroups(accounts: Account[], totals: BalanceTotals) {
+function getAccountGroups(accounts: AccountWithBalance[], totals: BalanceTotals) {
   return [
     {
       id: "current",
@@ -44,18 +46,21 @@ function getAccountGroups(accounts: Account[], totals: BalanceTotals) {
 }
 
 export const Route = createFileRoute("/accounts")({
-  loader: async () => {
-    const [accounts, totals] = await Promise.all([getAccounts(), getBalanceTotals()]);
-    return { accounts, totals };
-  },
   component: () => {
-    const { accounts, totals } = useLoaderData({ from: "/accounts" });
-    const groups = getAccountGroups(accounts, totals);
+    const accounts = useAccounts();
+    const usdRates = useSyncStore((state) => state.usdRates);
+    const transactions = useSyncStore((state) => state.transactions);
+    const groups = useMemo(
+      () => getAccountGroups(accounts, computeBalanceTotals(accounts, usdRates)),
+      [accounts, usdRates],
+    );
+    // Keyed by account id, so the rows of other profiles in the store simply never get looked up.
+    const activityByAccount = useMemo(() => computeAccountActivity(transactions), [transactions]);
 
     return (
       <PageContainer>
-        <div className="flex items-center justify-end gap-2">
-          <ReconcileBalancesButton />
+        <div className="flex items-center justify-between gap-2">
+          <Title variant="page">Accounts</Title>
           <CreateAccountButton />
         </div>
         <div className="py-4" />
@@ -65,7 +70,13 @@ export const Route = createFileRoute("/accounts")({
           <div className="flex flex-col gap-6">
             {groups.map((group) => {
               if (!group.accounts.length) return null;
-              return <AccountGroupSection key={group.title} {...group} />;
+              return (
+                <AccountGroupSection
+                  key={group.title}
+                  {...group}
+                  activityByAccount={activityByAccount}
+                />
+              );
             })}
           </div>
         )}

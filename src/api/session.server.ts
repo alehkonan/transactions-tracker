@@ -1,8 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 import { and, eq, gt, lt, or } from "drizzle-orm";
-import { getDb } from "~/database/getDb.server";
+import { getDb } from "~/database/get-db.server";
 import { sessionsTable, usersTable } from "~/database/tables";
+import { encodeSessionHint, SESSION_HINT_COOKIE } from "~/modules/auth/session-hint";
+import { clearSelectedProfileCookies } from "./selected-profile.server";
+import { signCookieValue, verifyCookieValue } from "./signed-cookie.server";
 import type { SQL } from "drizzle-orm";
 
 const ACCESS_TOKEN_COOKIE = "access_token";
@@ -15,6 +18,21 @@ const REFRESH_TOKEN_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 export type SessionUser = {
   id: number;
   username: string;
+};
+
+/**
+ * What the signed access cookie carries. Everything needed to answer "who is calling" is in here,
+ * which is the point: resolving a session costs no query at all until the hour is up.
+ *
+ * `expiresAt` is inside the signature, so it is the browser's copy of the deadline but not the
+ * browser's to move — unlike the cookie's own `maxAge`, which is only a hint to the client.
+ */
+type AccessTokenPayload = {
+  sessionId: number;
+  userId: number;
+  username: string;
+  /** Epoch milliseconds. */
+  expiresAt: number;
 };
 
 /**
@@ -51,38 +69,81 @@ function setTokenCookie(name: string, token: string, maxAge: number): void {
   });
 }
 
-function clearSessionCookies(): void {
-  deleteCookie(ACCESS_TOKEN_COOKIE, { path: "/" });
-  deleteCookie(REFRESH_TOKEN_COOKIE, { path: "/" });
+/**
+ * Mirrors the session's deadline and the caller's own username into a cookie the client can actually
+ * read, so route guards can decide locally instead of asking the server, and the settings page can
+ * name the signed-in user without a request. Deliberately not `httpOnly`, and deliberately holding
+ * nothing that is not already on screen.
+ */
+function setSessionHintCookie(expiresAt: Date, username: string): void {
+  setCookie(SESSION_HINT_COOKIE, encodeSessionHint({ exp: expiresAt.getTime(), username }), {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: REFRESH_TOKEN_TTL_SECONDS,
+  });
 }
 
-/** Issues a fresh session for `userId` and writes both tokens to the response cookies. */
-export async function createSession(userId: number): Promise<void> {
-  const accessToken = generateToken();
-  const refreshToken = generateToken();
+/** Signs a fresh access cookie for an already-established session row. */
+function issueAccessToken(session: Omit<AccessTokenPayload, "expiresAt">): void {
+  const payload: AccessTokenPayload = {
+    ...session,
+    expiresAt: Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000,
+  };
+  setTokenCookie(ACCESS_TOKEN_COOKIE, signCookieValue(payload), ACCESS_TOKEN_TTL_SECONDS);
+}
 
-  await getDb()
+/**
+ * Clears everything the session put on the browser, including the selected profile: that cookie is
+ * scoped to a user, so leaving it behind would only ever be a stale claim.
+ */
+function clearSessionCookies(): void {
+  for (const name of [ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, SESSION_HINT_COOKIE]) {
+    deleteCookie(name, { path: "/" });
+  }
+  clearSelectedProfileCookies();
+}
+
+/**
+ * Issues a fresh session for `user` and writes the cookies to the response.
+ *
+ * The profile selection is dropped first. It is scoped to whoever chose it, and a browser that has
+ * just been signed into may well have been somebody else's a moment ago — leaving the hint behind
+ * would convince the root guard a profile is selected and land the new user on a profile-scoped
+ * page that resolves to nothing, with no route back to `/profile`. They pick again, which is one
+ * click and the only honest answer.
+ */
+export async function createSession(user: SessionUser): Promise<void> {
+  clearSelectedProfileCookies();
+
+  const refreshToken = generateToken();
+  const refreshTokenExpiresAt = expiresIn(REFRESH_TOKEN_TTL_SECONDS);
+
+  const [session] = await getDb()
     .insert(sessionsTable)
     .values({
-      userId,
-      accessTokenHash: hashToken(accessToken),
-      accessTokenExpiresAt: expiresIn(ACCESS_TOKEN_TTL_SECONDS),
+      userId: user.id,
       refreshTokenHash: hashToken(refreshToken),
-      refreshTokenExpiresAt: expiresIn(REFRESH_TOKEN_TTL_SECONDS),
-    });
+      refreshTokenExpiresAt,
+    })
+    .returning({ id: sessionsTable.id });
 
-  setTokenCookie(ACCESS_TOKEN_COOKIE, accessToken, ACCESS_TOKEN_TTL_SECONDS);
+  issueAccessToken({ sessionId: session.id, userId: user.id, username: user.username });
   setTokenCookie(REFRESH_TOKEN_COOKIE, refreshToken, REFRESH_TOKEN_TTL_SECONDS);
+  setSessionHintCookie(refreshTokenExpiresAt, user.username);
 }
 
-/** Deletes the current session (if any) and clears both cookies. */
+/** Deletes the current session (if any) and clears the cookies. */
 export async function destroySession(): Promise<void> {
+  const access = verifyCookieValue<AccessTokenPayload>(getCookie(ACCESS_TOKEN_COOKIE));
   const refreshToken = getCookie(REFRESH_TOKEN_COOKIE);
-  const accessToken = getCookie(ACCESS_TOKEN_COOKIE);
 
+  // Either cookie identifies the row on its own; an expired access token still names a session
+  // that should go, so the deadline is not checked here.
   const matchers: SQL[] = [];
+  if (access) matchers.push(eq(sessionsTable.id, access.sessionId));
   if (refreshToken) matchers.push(eq(sessionsTable.refreshTokenHash, hashToken(refreshToken)));
-  if (accessToken) matchers.push(eq(sessionsTable.accessTokenHash, hashToken(accessToken)));
   if (matchers.length > 0)
     await getDb()
       .delete(sessionsTable)
@@ -99,32 +160,30 @@ async function deleteExpiredSessions(): Promise<void> {
 /**
  * Resolves the caller's session from their cookies, returning `null` when they are not logged in.
  *
- * A live access token is the fast path. Once it expires (after an hour) the still-valid refresh
- * token silently mints a new one — the refresh token's own 24h expiry is left untouched, so a
- * session ends a hard 24 hours after sign-in rather than sliding forward indefinitely.
+ * A valid access cookie is the fast path and costs **no database query** — its signature is what
+ * makes the payload trustworthy. Once it expires (after an hour) the still-valid refresh token
+ * mints a new one, and that is the only branch that touches the database. The refresh token's own
+ * 24h expiry is left untouched, so a session ends a hard 24 hours after sign-in rather than
+ * sliding forward indefinitely.
+ *
+ * The cost of not reading the session row every time is that revoking a session takes effect when
+ * the access cookie next expires, rather than immediately.
  *
  * Only safe to call from a server function's `.handler(...)` or another `.server.ts` module.
  */
 export async function resolveSession(): Promise<SessionUser | null> {
-  const accessToken = getCookie(ACCESS_TOKEN_COOKIE);
-  if (accessToken) {
-    const [row] = await getDb()
-      .select({ id: usersTable.id, username: usersTable.username })
-      .from(sessionsTable)
-      .innerJoin(usersTable, eq(usersTable.id, sessionsTable.userId))
-      .where(
-        and(
-          eq(sessionsTable.accessTokenHash, hashToken(accessToken)),
-          gt(sessionsTable.accessTokenExpiresAt, new Date()),
-        ),
-      );
-    if (row) return row;
+  const access = verifyCookieValue<AccessTokenPayload>(getCookie(ACCESS_TOKEN_COOKIE));
+  if (access && access.expiresAt > Date.now()) {
+    return { id: access.userId, username: access.username };
   }
 
   const refreshToken = getCookie(REFRESH_TOKEN_COOKIE);
   if (!refreshToken) {
-    // An access token that resolved to nothing is stale or forged either way — stop resending it.
-    if (accessToken) clearSessionCookies();
+    // Nothing left to refresh from, so whatever the browser is still holding is stale or forged —
+    // stop resending it. The readable hint has to go with the tokens: the route guards believe it,
+    // and one that outlives them leaves the client bouncing between a guard that lets it into the
+    // app and a sync call that refuses to load any data for it.
+    if (access || getCookie(SESSION_HINT_COOKIE)) clearSessionCookies();
     return null;
   }
 
@@ -148,15 +207,11 @@ export async function resolveSession(): Promise<SessionUser | null> {
     return null;
   }
 
-  const rotatedAccessToken = generateToken();
-  await getDb()
-    .update(sessionsTable)
-    .set({
-      accessTokenHash: hashToken(rotatedAccessToken),
-      accessTokenExpiresAt: expiresIn(ACCESS_TOKEN_TTL_SECONDS),
-    })
-    .where(eq(sessionsTable.id, session.id));
-  setTokenCookie(ACCESS_TOKEN_COOKIE, rotatedAccessToken, ACCESS_TOKEN_TTL_SECONDS);
+  issueAccessToken({
+    sessionId: session.id,
+    userId: session.user.id,
+    username: session.user.username,
+  });
 
   return session.user;
 }

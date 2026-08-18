@@ -7,9 +7,8 @@ import {
 import { createServerFn } from "@tanstack/react-start";
 import { eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "~/database/getDb.server";
+import { getDb } from "~/database/get-db.server";
 import { credentialsTable, profilesTable, usersTable } from "~/database/tables";
-import { sessionMiddleware } from "./auth.middleware";
 import { loggerMiddleware } from "./logger.middleware";
 import { createSession, destroySession } from "./session.server";
 import {
@@ -89,14 +88,6 @@ function readChallenge(clientDataJSON: string): string | null {
 function badRequest(message: string): Response {
   return new Response(message, { status: 400 });
 }
-
-/**
- * Reads the caller's session for the root route's `beforeLoad` guard. Returns `null` rather than
- * throwing so the login page itself can render for anonymous visitors.
- */
-export const getSession = createServerFn()
-  .middleware([loggerMiddleware, sessionMiddleware])
-  .handler(({ context }) => context.user);
 
 /**
  * Step one of sign-up: reserves the username, mints a challenge, and returns the options for
@@ -207,7 +198,7 @@ export const signUp = createServerFn({ method: "POST" })
     });
 
     // Kept outside the transaction: the session row's foreign key needs the committed user.
-    await createSession(user.id);
+    await createSession(user);
 
     return user;
   });
@@ -289,9 +280,10 @@ export const signIn = createServerFn({ method: "POST" })
       .set({ counter: verification.authenticationInfo.newCounter, lastUsedAt: new Date() })
       .where(eq(credentialsTable.id, record.credential.id));
 
-    await createSession(record.user.id);
+    const user = { id: record.user.id, username: record.user.username };
+    await createSession(user);
 
-    return { id: record.user.id, username: record.user.username };
+    return user;
   });
 
 export const signOut = createServerFn({ method: "POST" })
