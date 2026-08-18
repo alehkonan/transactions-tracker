@@ -1,7 +1,7 @@
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Flip } from "gsap/Flip";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { twJoin } from "tailwind-merge";
 import { Chip } from "~/components/Chip";
@@ -129,7 +129,7 @@ export function AccountGroupSection({
             </Chip>
           )}
         </div>
-        <ChevronRightIcon
+        <ChevronDownIcon
           className={twJoin(
             "text-text-muted size-4 shrink-0 transition-transform",
             !collapsed && "rotate-180",
