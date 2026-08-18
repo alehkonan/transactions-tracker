@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { PageContainer } from "~/components/PageContainer";
+import { Title } from "~/components/Title";
 import { accountTypeStyles } from "~/modules/accounts/account-type-tag";
 import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
 import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
@@ -58,7 +59,8 @@ export const Route = createFileRoute("/accounts")({
 
     return (
       <PageContainer>
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <Title variant="page">Accounts</Title>
           <CreateAccountButton />
         </div>
         <div className="py-4" />

@@ -33,7 +33,7 @@ export function DayHeader({ day, rows }: Props) {
 
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
-      <span className="text-text font-semibold">{formatDay(day)}</span>
+      <h3 className="text-text font-semibold">{formatDay(day)}</h3>
       <span className="flex gap-4">
         <span className="text-expense">Spent: {formatMoney(totalSpentUsd, "USD")}</span>
         {hasIncome && (

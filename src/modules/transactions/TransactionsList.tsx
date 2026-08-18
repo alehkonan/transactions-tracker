@@ -252,7 +252,7 @@ export function TransactionsList({ rowsByDay, onSelectionChange, onRowClick }: P
                 {/* The box stays 24px and the target becomes 44: the pseudo-element belongs to
                     the checkbox, so it takes the taps the box is too small to catch. */}
                 <Checkbox
-                  aria-label="Select transaction"
+                  aria-label={`Select ${row.category} transaction for ${formatMoney(row.amount, row.currencyCode)}`}
                   className="relative before:absolute before:-inset-2.5"
                   checked={selectedIds.has(row.id)}
                   onCheckedChange={(checked) => toggleSelected(row.id, checked)}

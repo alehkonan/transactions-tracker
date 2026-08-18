@@ -1,5 +1,6 @@
+import { Field } from "@base-ui/react/field";
 import { PlusIcon } from "lucide-react";
-import { useContext, useState, useTransition } from "react";
+import { useContext, useId, useState, useTransition } from "react";
 import { Button } from "~/components/Button";
 import { Dialog, DialogContext } from "~/components/Dialog";
 import { createProfile } from "~/modules/profile/profile-mutations";
@@ -9,6 +10,7 @@ function CreateProfileForm() {
   const { onClose } = useContext(DialogContext);
   const [name, setName] = useState("");
   const [isCreating, startTransition] = useTransition();
+  const inputId = useId();
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -24,12 +26,18 @@ function CreateProfileForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 pt-3">
-      <input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder="Profile name"
-        className="border-border bg-surface text-text h-11 rounded-lg border px-2 sm:h-9"
-      />
+      <Field.Root className="flex flex-col gap-1">
+        <Field.Label htmlFor={inputId} className="text-text text-sm font-bold">
+          Profile name
+        </Field.Label>
+        <input
+          id={inputId}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Profile name"
+          className="border-border bg-surface text-text h-11 rounded-lg border px-2 sm:h-9"
+        />
+      </Field.Root>
       <div className="flex justify-end gap-2">
         <Button variant="secondary" type="button" onClick={onClose}>
           Cancel

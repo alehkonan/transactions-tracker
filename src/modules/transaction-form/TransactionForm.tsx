@@ -176,7 +176,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 <SelectControl
                   control={control}
                   name="accountId"
-                  label="Account"
+                  label="From account"
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
                   placeholder="Select account"
@@ -203,7 +203,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 <SelectControl
                   control={control}
                   name="toAccountId"
-                  label="Account"
+                  label="To account"
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
                   placeholder="Select account"
