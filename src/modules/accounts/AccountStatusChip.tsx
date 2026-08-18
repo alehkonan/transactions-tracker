@@ -9,7 +9,7 @@ type Props = {
 };
 
 export const accountStatusStyles: Record<AccountStatus, string> = {
-  ACTIVE: "bg-income/10 text-income border-income/20",
+  ACTIVE: "bg-accent/10 text-accent border-accent/20",
   ARCHIVED: "bg-text-muted/10 text-text-muted border-text-muted/20",
 };
 

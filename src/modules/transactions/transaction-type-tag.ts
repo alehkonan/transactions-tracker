@@ -5,10 +5,9 @@ import type { LucideIcon } from "lucide-react";
 type TransactionType = (typeof transactionTypeEnum.enumValues)[number];
 
 export const transactionTypeStyles: Record<TransactionType, string> = {
-  INCOME: "bg-income/10 text-income border-income/20 dark:bg-income/20 dark:border-income/40",
-  EXPENSE: "bg-expense/10 text-expense border-expense/20 dark:bg-expense/20 dark:border-expense/40",
-  TRANSFER:
-    "bg-transfer/10 text-transfer border-transfer/20 dark:bg-transfer/20 dark:border-transfer/40",
+  INCOME: "bg-gain/10 text-gain border-gain/20",
+  EXPENSE: "bg-spend/10 text-spend border-spend/20",
+  TRANSFER: "bg-graphite/10 text-graphite border-graphite/20",
 };
 
 export const transactionTypeIcons: Record<TransactionType, LucideIcon> = {

@@ -68,7 +68,7 @@ export function AccountCard({ account, activity, onClick }: Props) {
             <span
               className={twJoin(
                 "shrink-0 font-mono text-xs whitespace-nowrap",
-                monthAmount > 0 ? "text-income" : "text-expense",
+                monthAmount > 0 ? "text-gain" : "text-expense",
               )}
             >
               {monthAmount > 0 && "+"}

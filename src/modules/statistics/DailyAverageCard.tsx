@@ -41,7 +41,7 @@ export function DailyAverageCard({
       <p
         className={twJoin(
           "text-xl font-bold sm:text-3xl",
-          tone === "expense" ? "text-expense" : "text-income",
+          tone === "expense" ? "text-expense" : "text-gain",
         )}
       >
         {formatMoney(String(perDayUsd), "USD")}

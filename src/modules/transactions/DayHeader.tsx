@@ -37,7 +37,7 @@ export function DayHeader({ day, rows }: Props) {
       <span className="flex gap-4">
         <span className="text-expense">Spent: {formatMoney(totalSpentUsd, "USD")}</span>
         {hasIncome && (
-          <span className="text-income">Income: {formatMoney(totalIncomeUsd, "USD")}</span>
+          <span className="text-gain">Income: {formatMoney(totalIncomeUsd, "USD")}</span>
         )}
       </span>
     </div>

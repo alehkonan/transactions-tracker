@@ -28,7 +28,7 @@ const ROW_HEIGHT_ESTIMATE = 61;
 
 /** Income reads green and a transfer reads as movement; an expense is the default and stays quiet. */
 const amountToneStyles: Record<TransactionRow["type"], string> = {
-  INCOME: "text-income",
+  INCOME: "text-gain",
   EXPENSE: "text-text",
   TRANSFER: "text-transfer",
 };
