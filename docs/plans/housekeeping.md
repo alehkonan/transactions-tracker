@@ -9,12 +9,12 @@ access, generated migrations, semantic tokens) comes from there.
 SimpleWebAuthn stack are already installed and configured; the work is wiring them into the places
 the checklist names.
 
-| #   | Item                         | Lands as                                                      | Touches                                                               | Risk                        |
-| --- | ---------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------- |
-| 1   | E2E specs                    | `e2e/` — three specs + fixtures                               | `playwright.config.ts`                                                | low (test-only)             |
-| 2   | Session & passkey management | new schema columns, five server functions, two settings cards | `tables.ts`, `auth.functions.ts`, `session.server.ts`, `settings.tsx` | medium (additive migration) |
-| 3   | Shared tombstone table list  | one import-free module + invariant test                       | `synced-tables.ts` (new), `sync-types.ts`, `tombstone-gc.ts`          | very low                    |
-| 4   | Dark-mode theme file         | `src/styles/dark.css` + tokens replacing inline `dark:`       | `styles.css`, four component files                                    | low                         |
+| #   | Item                         | Lands as                                                        | Touches                                                               | Risk                        |
+| --- | ---------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------- |
+| 1   | E2E specs                    | `e2e/` — three sync specs + auth fixture/round-trip             | `playwright.config.ts`, CI/database setup                             | medium (test-only)          |
+| 2   | Session & passkey management | new schema columns, four required functions, two settings cards | `tables.ts`, `auth.functions.ts`, `session.server.ts`, `settings.tsx` | medium (additive migration) |
+| 3   | Shared tombstone table list  | one import-free module + invariant test                         | `synced-tables.ts` (new), `sync-types.ts`, `tombstone-gc.ts`          | very low                    |
+| 4   | Dark-mode theme file         | `src/styles/dark.css` + tokens replacing inline `dark:`         | `styles.css`, four component files                                    | low                         |
 
 Suggested order: **3 → 1 → 2 → 4**. Item 3 is half an hour and removes a footgun the other work
 could trip over; item 1 locks in today's boot/sync behavior before item 2 changes the auth surface.
@@ -23,10 +23,11 @@ could trip over; item 1 locks in today's boot/sync behavior before item 2 change
 
 ## 1. E2E specs for the paths unit tests cannot reach
 
-- [ ] `e2e/boot-gate.spec.ts` — first run, returning visit, offline reload, dead-session-with-live-hint
+- [ ] `e2e/boot-gate.spec.ts` — first run, returning visit, warm-tab offline behavior, dead-session-with-live-hint
 - [ ] `e2e/two-tab-sync.spec.ts` — a write in one tab appears in the other without a reload
 - [ ] `e2e/offline-write.spec.ts` — a write made offline queues, then pushes on reconnect
-- [ ] `e2e/fixtures/auth.ts` + `e2e/global-setup.ts`, and the `playwright.config.ts` additions
+- [ ] `e2e/fixtures/auth.ts` + `e2e/global-setup.ts`, the sign-up/sign-out/sign-in round-trip, and the `playwright.config.ts` additions
+- [ ] CI or a documented local-only database contract provisions Postgres and the required auth environment
 
 ### What exists today
 
@@ -37,12 +38,19 @@ could trip over; item 1 locks in today's boot/sync behavior before item 2 change
 the derivations, the import planner, the integrity digest. Nothing exercises IndexedDB,
 `BroadcastChannel`, Web Locks, the boot gate, or a real server-function round trip.
 
+This item deliberately does **not** test a cold offline document reload. The app has no service worker
+or cached document today; IndexedDB can keep a warm tab usable, but it cannot load the HTML and route
+chunks after a network-free reload. Cold-start offline behavior belongs to the PWA work in
+`docs/plans/offline-completeness.md` and should run against a production build once that work lands.
+
 The specs assert against three behaviors the architecture doc already describes precisely, so the
 assertions can be written from the doc rather than invented:
 
 - **The boot gate** (`SyncGate.tsx`): the app stays behind "Loading your data…" until the reference
   tables (`profiles`, `accounts`, `categories`) arrive; a populated IndexedDB hydrates in ~50ms
-  with no network; an unauthorized pull navigates to `/login`.
+  with no network; an unauthorized pull navigates to `/login`. The first-run assertion must observe
+  this transition before onboarding completes, rather than using a fixture that waits for the gate to
+  finish.
 - **Cross-tab visibility** (`sync-engine.ts`): a write is on disk before it is in memory, and
   `announceLocalWrite()` tells peers over `BroadcastChannel("transactions-tracker:sync")` to re-read
   (debounced 300ms) — "a queued write is visible to every tab the moment it is on disk".
@@ -55,6 +63,10 @@ assertions can be written from the doc rather than invented:
 Every route except `/login` sits behind passkey auth, so the first problem is performing the WebAuthn
 ceremony in a test browser. Playwright has no built-in WebAuthn API, but Chromium exposes a virtual
 authenticator over CDP that auto-approves `navigator.credentials.create()/get()` with no dialog:
+
+The login page also starts a background conditional-authentication request. The fixture must cancel or
+disable that request before registration and prove that a pending `getSignInOptions()` response cannot
+start a second ceremony after sign-up begins; otherwise the virtual authenticator can race registration.
 
 ```ts
 // e2e/fixtures/auth.ts
@@ -74,9 +86,10 @@ matters because `getSignInOptions` deliberately omits `allowCredentials` — wit
 credential on the virtual authenticator, sign-in resolves without an account chooser.
 
 **Trade-off to accept explicitly:** the virtual authenticator is CDP, so these specs are
-Chromium-only. Keep the firefox/webkit projects in the config (they simply run zero tests today) and
-gate the specs with `test.skip(({ browserName }) => browserName !== "chromium", "needs the CDP
-virtual authenticator")`. If cross-browser coverage is ever wanted, the documented escape hatch is
+Chromium-only. Keep the firefox/webkit projects available for future tests, but run these files only
+in the Chromium project (or guard the fixture itself), rather than relying on a test-body skip after a
+CDP-only fixture has started. Skipped tests are still reported by Playwright; they are not literally
+zero tests. If cross-browser coverage is ever wanted, the documented escape hatch is
 to mint the signed access cookie inside the test harness — it is stateless, HMAC-SHA256'd with
 `AUTH_SECRET`, and `resolveSession()` verifies it with no query — or a dev-only session-minting
 server function. Neither is built by this item; the three specs target IndexedDB/BroadcastChannel/
@@ -84,17 +97,18 @@ Web Locks behavior, and the passkey ceremony is not what they are about.
 
 ### Test database and isolation
 
-- The specs run against the dev Postgres (`docker compose up -d db`, `.env` from `.env.example`)
-  with migrations applied. Add `e2e/global-setup.ts` that runs `pnpm db:migrate` via `execSync`
-  (drizzle-kit migrate is idempotent — it no-ops when nothing is pending) and fails fast with
-  "start the database first: docker compose up -d db" when it cannot connect. Point `globalSetup`
-  at it from `playwright.config.ts`. The `webServer` starts before global-setup; Vite boots without
-  the database, so the order is fine.
+- The specs need a dedicated, disposable E2E database in CI, or this must be explicitly documented as
+  a local-only suite. Provision Postgres and the required auth/database variables before starting
+  Playwright; do not assume `globalSetup` can create a database that `webServer` needs. Add
+  `e2e/global-setup.ts` to wait for the database and run `pnpm db:migrate` via `execSync`
+  (drizzle-kit migrate is idempotent), failing fast with an actionable connection message. Point
+  `globalSetup` at it from `playwright.config.ts`.
 - **Isolation by construction, not by cleanup:** every spec signs up its own user with a unique
   username (`e2e-<spec>-${test.info().workerIndex}-${Date.now()}`). `fullyParallel: true` stays
-  safe because no spec reads another spec's rows. Do not truncate between tests — parallel workers
-  would race each other. Dev databases accumulate `e2e-*` users; an occasional manual
-  `delete from users where username like 'e2e-%'` (FK cascades do the rest) is enough.
+  safe because no spec reads another spec's rows. Do not truncate a shared database between tests —
+  parallel workers would race each other. If the local dev database is used, state explicitly that
+  `e2e-*` users accumulate and that cleanup is a separate, manually approved destructive operation.
+  Running the suite twice proves repeatability, not absence of leaked rows.
 - **Selectors:** accessible names only — the UI already exposes the ones needed (`aria-label="Add
 account"`, `aria-label="Add transaction"`, the sync indicator's `aria-label`). Prefer adding an
   `aria-label` over a `data-testid` where a name is missing. Assert what is on screen, never store
@@ -106,32 +120,38 @@ viewport-dependent (`md:hidden` on the strip text), so assert against its `aria-
 
 ### The fixtures (`e2e/fixtures/auth.ts`)
 
-Extend `test` with a `signedInPage` fixture that performs the full human onboarding once, through
-the UI:
+Extend `test` with two fixtures, keeping the boot transition observable:
 
-1. enable the virtual authenticator (above);
-2. on `/login`, fill "Username" and click **Create a passkey** — the ceremony auto-approves,
-   `signUp` runs, cookies land;
-3. the root guard's profile check redirects to `/profile` — create a profile via the
-   **Create profile** dialog and select it (the `selectProfile` call sets the profile cookies);
-4. on `/accounts`, click **Add account** and create one — a transaction cannot exist without an
-   account, and the transactions form needs one to pick.
+- `authenticatedPage` performs only the sign-up ceremony and returns after the authenticated
+  navigation starts. It enables the virtual authenticator, cancels/disables login autofill, fills
+  "Username" and clicks **Create a passkey** — the ceremony auto-approves, `signUp` runs, and cookies
+  land. The first-run spec attaches its loading-screen assertion before this fixture waits for the
+  post-sign-up navigation to settle.
+- `onboardedPage` builds on `authenticatedPage` and completes the human onboarding through the UI:
+  1. the root guard's profile check redirects to `/profile` — create a profile via the **Create
+     profile** dialog and select it (the `selectProfile` call sets the profile cookies);
+  2. on `/accounts`, click **Add account** and create one — a transaction cannot exist without an
+     account, and the transactions form needs one to pick.
 
-Return the page. A second helper, `contextWithStaleHints`, copies only the non-`httpOnly` cookies
-(`session_hint` and the profile hint) from an authenticated context into a fresh one — that is the
-forgeable-hint path the route guards knowingly trust.
+Add a focused auth test using the same virtual authenticator that signs out and signs back in. This
+validates the existing discoverable-credential path (`getSignInOptions` → `startAuthentication` →
+`signIn`) instead of validating registration only.
+
+A second helper, `contextWithStaleHints`, copies only the non-`httpOnly` cookies (`session_hint` and
+the profile hint) from an authenticated context into a fresh one — that is the forgeable-hint path the
+route guards knowingly trust.
 
 ### Spec 1 — the boot gate
 
-- **First run:** through `signedInPage`, assert the loading screen ("Loading your data…") is
-  eventually replaced by app chrome, and the created account is visible on `/`. This is
-  `isHydrated` flipping once the reference tables complete.
-- **Returning visit:** `page.reload()` — the account is visible again, from IndexedDB, without
-  waiting on the network.
-- **Offline reload:** `context.setOffline(true)` → `page.reload()` — the app still opens and shows
-  the data. The pull fails _behind_ the hydrated UI; the spec must assert the data is visible and
-  the "Could not load your data" screen never appears (that screen only renders when
-  `isHydrated` is false).
+- **First run:** begin with `authenticatedPage` while observing the loading screen, then complete
+  onboarding and assert the gate is eventually replaced by app chrome and the created account is
+  visible on `/`.
+- **Returning visit:** with `onboardedPage`, `page.reload()` — the account is visible again from
+  IndexedDB, without waiting on the network.
+- **Warm-tab offline:** with the app already loaded, `context.setOffline(true)` — the existing page
+  remains usable and shows the account. The pull fails _behind_ the hydrated UI; assert the data is
+  visible and the "Could not load your data" screen never appears. A cold offline reload is deferred
+  to the service-worker/PWA plan.
 - **Dead session, live hint:** a `contextWithStaleHints` context navigates to `/` — the guards let
   it in, the boot pull 401s, the store goes `unauthorized`, and `SyncGate` lands it on `/login`.
   This is the exact scenario the SyncGate comment names: "the server rejecting the pull is the
@@ -142,7 +162,7 @@ forgeable-hint path the route guards knowingly trust.
 One context, two pages (same cookies, same IndexedDB, same BroadcastChannel — exactly the sharing
 model the engine is written against):
 
-1. page A: full `signedInPage` setup; page B: `context.newPage()` → `/` — it hydrates from the
+1. page A: full `onboardedPage` setup; page B: `context.newPage()` → `/` — it hydrates from the
    IndexedDB A's pull populated, so it is fast;
 2. navigate both to `/transactions`;
 3. in A: **Add transaction** → fill the form (type, amount, the account) → save;
@@ -150,21 +170,22 @@ model the engine is written against):
    generous timeout (`toBeVisible({ timeout: 10_000 })`; the peer message is debounced 300ms, the
    push debounce is 1s).
 
-One direction, one write, deterministic. Optionally assert B's indicator settles on "Synced"
-afterwards (A's push and B's own pull both converge) — cheap, and it exercises the second
-half of the contract.
+One direction, one write, deterministic. Optionally assert B's indicator settles on the accessible name matching
+`Everything on this device is on the server` afterwards (A's push and B's own pull both converge) —
+cheap, and it exercises the second half of the contract.
 
 ### Spec 3 — an offline write that pushes on reconnect
 
-1. `signedInPage` setup, then wait for the indicator to read "Synced" — the baseline matters, or
-   the spec cannot tell a queued write from a slow first pull;
+1. `onboardedPage` setup, then wait for the indicator's accessible name to match
+   `Everything on this device is on the server` — the baseline matters, or the spec cannot tell a
+   queued write from a slow first pull;
 2. `context.setOffline(true)` — `navigator.onLine` flips and the engine records it;
 3. create a transaction through the UI; assert it renders immediately (local-first) and the
    indicator reports the queued state — `aria-label` containing "saved on this device, waiting for
    a connection". The 1s push debounce fires into offline failure and backs off (max 30s); the
    write must survive all of that;
 4. `context.setOffline(false)` — the `online` event resets the backoff and calls `syncNow`;
-   assert the indicator returns to "Synced" ("Everything on this device is on the server.");
+   assert the indicator's accessible name matches `Everything on this device is on the server`.
 5. prove the round trip: `page.reload()` — a fresh boot pulls from the server with an empty
    outbox, and the transaction is still there. This is the strongest claim the spec can make.
 
@@ -176,16 +197,19 @@ contract; everything else can layer on the fixtures above once they exist.
 
 ### Verification
 
-`docker compose up -d db && pnpm db:migrate && pnpm test:e2e`, run **twice in a row** — the second
-run proves no state leaked from the first. `pnpm typecheck` covers `e2e/` already (`tsconfig`
-includes `**/*.ts`); if `pnpm knip` flags the new entry files, add `e2e/**/*.ts` to its entry
-patterns.
+For local execution, document the required Postgres/auth environment and run
+`docker compose up -d db && pnpm db:migrate && pnpm test:e2e`. The global setup may repeat the
+idempotent migration, but it must not silently create or truncate a shared database. CI must provision
+an isolated database before the Playwright web server starts. Run the suite twice to check
+repeatability, while treating accumulated `e2e-*` rows as expected unless a disposable database is
+used. `pnpm typecheck` covers `e2e/` already (`tsconfig` includes `**/*.ts`); if `pnpm knip` flags the
+new entry files, add `e2e/**/*.ts` to its entry patterns.
 
 ---
 
 ## 2. Multi-device session management on `/settings`
 
-- [ ] Schema: `sessions.userAgent`, `sessions.lastUsedAt`, optionally `sessions.credentialId`
+- [ ] Schema: `sessions.userAgent`, `sessions.lastUsedAt`, and nullable-for-legacy `sessions.credentialId`
 - [ ] Server functions: `listSessions`, `revokeSession`, `listPasskeys`, `revokePasskey` (+ optional `signOutOtherSessions`)
 - [ ] UI: `SessionsCard` + `PasskeysCard` sections on `/settings`
 
@@ -206,15 +230,20 @@ In `src/database/tables.ts`, then `pnpm db:generate` followed by `pnpm db:migrat
 `drizzle-kit push`):
 
 - `sessions.userAgent text` — raw User-Agent captured at sign-in. Existing rows get `null`; the UI
-  renders "Unknown device".
-- `sessions.lastUsedAt timestamptz` — set by `resolveSession` on the refresh path (once an hour per
-  active device), so "last active" is honest without a write per request.
-- **Recommended:** `sessions.credentialId text` referencing `credentials(id)` (nullable). It lets
-  "revoke passkey" also delete the sessions that passkey opened, and lets the UI say "Chrome on
-  macOS · signed in with a passkey". `signIn` already knows the credential (`record.credential.id`);
-  `signUp` knows it from the attestation. Thread it through `createSession`.
+  renders "Unknown device". This is display metadata, not an authorization signal.
+- `sessions.lastUsedAt timestamptz` — set to `new Date()` when the session is created and updated by
+  `resolveSession` on the refresh path (once an hour per active device), so "last active" is honest
+  without a write per request. Existing rows remain `null` and must sort after dated rows.
+- **Required for this item:** `sessions.credentialId text` referencing `credentials(id)` (nullable
+  only for existing sessions created before this migration). It lets "revoke passkey" also delete the
+  sessions that passkey opened, and lets the UI say "Chrome on macOS · signed in with a passkey".
+  `signIn` already knows the credential (`record.credential.id`); `signUp` knows it from the
+  attestation. Thread it through `createSession` and explicitly define the foreign-key delete action
+  or delete dependent sessions first in the same transaction.
 
-The migration is purely additive; no backfill.
+The migration is purely additive; no backfill. Include the generated SQL migration and Drizzle
+metadata/journal changes in the deliverables. New sessions must always carry the credential that
+opened them; legacy `NULL` associations are displayed as unknown and cannot be retroactively inferred.
 
 ### Server functions
 
@@ -222,29 +251,36 @@ All in `src/api/auth.functions.ts` — the auth domain file, per the repo's plac
 composed `.middleware([loggerMiddleware, authMiddleware])`, GET reads and POST mutations, Zod
 validators on the inputs:
 
-- `listSessions` (GET) — the caller's sessions, newest `lastUsedAt` first:
+- `listSessions` (GET) — the caller's sessions, newest `lastUsedAt` first, with `NULLS LAST` and a
+  deterministic `createdAt` tie-breaker:
   `{ id, createdAt, lastUsedAt, userAgent, expiresAt, isCurrent }`. For `isCurrent`, export a small
   `getCurrentSessionId()` from `session.server.ts` (it already parses the access cookie in
   `destroySession`; same `verifyCookieValue` read, without checking the expiry — an expired access
   cookie still names the session the caller is on).
 - `revokeSession` (POST, `{ sessionId }`) — `delete ... where id = X and userId = context.user.id`;
   the ownership predicate belongs in the `WHERE`, not in a pre-check. Revoking the _current_
-  session should behave like sign-out: delegate to `destroySession()` in that branch, because
-  users will click it and anything else strands them on a page that resolves to nothing.
+  session should behave like sign-out: delegate to `destroySession()` in that branch, and have the
+  client reset local data and invalidate/navigate to `/login`, because anything else strands the user
+  on a page that resolves to nothing. The UI must explain that an already-issued access cookie can
+  remain accepted for up to an hour.
 - `listPasskeys` (GET) — `{ id, createdAt, lastUsedAt, deviceType, backedUp, isLast }`. No public
   keys over the wire.
 - `revokePasskey` (POST, `{ credentialId }`) — ownership-scoped delete with one hard guard:
   **refuse to remove the last remaining credential.** This app has no password fallback and no
   recovery path; losing every authenticator loses the account, and the UI must not be the thing
-  that causes it. If `credentialId` was added to `sessions`, delete those sessions in the same
-  transaction.
+  that causes it. The count/check/delete must be atomic: lock the user row (or use an equivalent
+  database-level guard) inside a transaction, count credentials, then delete the credential and its
+  associated sessions in that same transaction. If the revoked credential opened the current session,
+  the client must handle the resulting sign-out consistently; an already-issued access cookie may
+  still live until its normal expiry.
 - Optional: `signOutOtherSessions` (POST) — one click for "I left myself logged in on a shared
   machine".
 
 `createSession` grows an options argument — `createSession(user, { userAgent, credentialId })` —
-with the User-Agent read in the handler from the request (`@tanstack/react-start/server` already
-provides the request access this needs; `webauthn.server.ts`'s `getRequestUrl()` is the in-repo
-precedent, and `getWebRequest().headers.get("user-agent")` is the one that returns the headers).
+with the User-Agent read in the handler from the request. Verify the exact request-access API against
+the installed TanStack Start version (`webauthn.server.ts`'s `getRequestUrl()` is the in-repo
+precedent). The server must not accept a credential belonging to another user when associating it
+with a session; the known `signUp`/`signIn` records should be the source of that association.
 
 ### UI
 
@@ -260,7 +296,10 @@ does on this page.
 - `PasskeysCard.tsx` — one row per credential: device type, "Synced to your passkey provider" when
   `backedUp`, added / last-used dates, Revoke — disabled with an explanation when `isLast`.
 - A small hook (`useSessions.ts` / `usePasskeys.ts`, or one `useSessionManagement.ts`) that fetches
-  on mount and refetches after a revoke; loading and empty states.
+  on mount and refetches after a revoke; loading, empty, offline/error, retry, and unauthorized
+  states. TanStack Start may return a raw `Response` when `authMiddleware` rejects, so use the same
+  response-unwrapping approach as `usePasskeyAuth.ts` and navigate through the normal sign-out path
+  when the session has expired.
 - `describe-user-agent.ts` — hand-rolled UA → "Chrome on macOS" parsing with the raw string as
   fallback. No new dependency for this.
 - Wire both into `settings.tsx` as "Sessions" and "Passkeys" sections between User and Profile. No
@@ -268,27 +307,32 @@ does on this page.
 
 ### Verification
 
-`pnpm db:generate` produces one additive migration; `pnpm db:migrate` applies it; typecheck, unit
-tests and `pnpm knip` stay green (every new export consumed). Manual pass: sign in on two browsers,
-revoke the other one, and confirm its refresh fails — testable immediately by clearing that
-browser's `access_token` cookie, or by waiting out the hour. Lefthook runs the rest on push.
+`pnpm db:generate` produces one additive migration plus the expected Drizzle metadata/journal
+updates; `pnpm db:migrate` applies it; typecheck, unit tests and `pnpm knip` stay green (every new
+export consumed). Add server-side tests for ownership scoping, the last-credential guard including
+concurrent revocation, current-session behavior, legacy `NULL` associations, and `lastUsedAt` on
+creation/refresh. Manual pass: sign in on two browsers, revoke the other one, and confirm its refresh
+fails — testable immediately by clearing that browser's `access_token` cookie, or by waiting out the
+hour. Also verify that revoking the current session/passkey resets local state and returns to `/login`.
+Lefthook runs the rest on push.
 
 ---
 
 ## 3. One shared table list for the tombstone GC
 
-- [ ] `src/modules/sync/synced-tables.ts` — import-free, exports both orders and both day counts
-- [ ] `netlify/functions/tombstone-gc.ts` imports it; its local copies are gone
-- [ ] `synced-tables.test.ts` locks the invariants the comments currently only claim
-- [ ] `docs/architecture.md` updated where it says the list is "kept in step by hand"
+- [x] `src/modules/sync/synced-tables.ts` — import-free, exports both orders and both day counts
+- [x] `netlify/functions/tombstone-gc.ts` imports it; its local copies are gone
+- [x] `synced-tables.test.ts` locks the invariants the comments currently only claim
+- [x] `docs/architecture.md` updated where it says the list is "kept in step by hand"
 
 ### The constraint, stated precisely
 
-`SYNCED_TABLES` lives in `src/modules/sync/sync-types.ts` (parents-first: profiles, accounts,
-categories, transactions). `netlify/functions/tombstone-gc.ts` re-declares the same four names
-children-first as `SWEPT_TABLES`, plus its own `RETENTION_DAYS = 90`. `STALE_CURSOR_AFTER_DAYS =
-60` lives in sync-types and must stay well inside 90 — today that margin is enforced by comments
-alone.
+`src/modules/sync/synced-tables.ts` is the import-free source of truth for the four replicated tables
+(parents-first: profiles, accounts, categories, transactions), the child-first `SWEPT_TABLES` order,
+and both retention thresholds. `sync-types.ts` re-exports the values for existing app consumers, and
+the standalone GC imports the same module without importing the application graph. The 60-day stale
+cursor threshold must stay well inside the 90-day tombstone retention window — the invariant test
+protects that margin.
 
 The function cannot simply import `sync-types.ts`: it is deliberately standalone — raw SQL over its
 own postgres client, runnable by plain Node (`pnpm gc:tombstones`, Node's type stripping) and
@@ -296,7 +340,9 @@ bundleable by Netlify without dragging the app's server graph behind it. `sync-t
 `~/database/tables` under the `~` alias, which resolves only through the app's bundler and tsconfig
 paths — neither of which the standalone function shares.
 
-So the shared module's defining property is: **zero imports of any kind.**
+So the revised boundary is: the GC may import exactly one runtime-neutral constants module whose
+defining property is **zero imports of any kind**. It remains standalone from the application/server
+graph, but this deliberate shared source file must be treated as part of the Netlify bundle contract.
 
 ### Changes
 
@@ -306,9 +352,8 @@ So the shared module's defining property is: **zero imports of any kind.**
      over from the GC;
    - `STALE_CURSOR_AFTER_DAYS = 60` and `RETENTION_DAYS = 90`, co-located so the margin is one
      glance, with the "not measured by the same clock" rationale from both current homes.
-2. `sync-types.ts` re-exports them — `export { SYNCED_TABLES, STALE_CURSOR_AFTER_DAYS } from
-"./synced-tables"` — so the five existing import sites (`sync.functions.ts`, `idb.ts`,
-   `integrity.ts`, `mutations.ts`, `integrity.test.ts`) stay untouched, and `SyncedTable` keeps
+2. `sync-types.ts` re-exports them — `export { RETENTION_DAYS, SYNCED_TABLES, STALE_CURSOR_AFTER_DAYS }
+from "./synced-tables"` — so existing app import sites stay untouched, and `SyncedTable` keeps
    deriving from `SYNCED_TABLES` as before.
 3. `netlify/functions/tombstone-gc.ts` drops its local constants and imports instead:
 
@@ -322,20 +367,21 @@ So the shared module's defining property is: **zero imports of any kind.**
 
 4. New `src/modules/sync/synced-tables.test.ts`, same style as `integrity.test.ts`, turning the
    comments into red-or-green:
-   - `SWEPT_TABLES` and `SYNCED_TABLES` contain exactly the same names — the "kept in step by
-     hand" failure mode becomes a failing test the moment someone adds a synced table and forgets
-     the sweep;
+   - `SWEPT_TABLES` and `SYNCED_TABLES` contain exactly the same names — the duplicated-list failure
+     mode becomes a failing test the moment someone adds a synced table and forgets the sweep;
    - the sweep order is the reverse of the pull order (children before parents);
    - `RETENTION_DAYS - STALE_CURSOR_AFTER_DAYS >= 15` — the margin never silently converges
      (today it is 30; the floor is the author's call, but it must be positive and then some).
 
 ### Verification
 
-`pnpm test:unit` (new test green), `pnpm typecheck`, and the one that actually proves the
-constraint — `pnpm gc:tombstones` still runs standalone against the dev database
-(`docker compose up -d db` first). Update `docs/architecture.md`'s "Deletes, tombstones and
-retention" section and its constants table: the table list is no longer maintained by hand, and
-`RETENTION_DAYS`'s "Where" column now points at the shared module.
+`pnpm test:unit` (including the new test), `pnpm typecheck`, and a non-destructive standalone/bundle check
+that proves the GC still resolves the dependency-free module. `pnpm gc:tombstones` may be run as an
+explicitly approved smoke test against a disposable or approved dev database
+(`docker compose up -d db` first); it is destructive and must not be treated as a routine default
+verification step. Update `docs/architecture.md`'s "Deletes, tombstones and retention" prose to say
+the list is maintained by the shared import-free module, not by hand. There is no constants table in
+that section to update.
 
 ---
 
@@ -365,34 +411,38 @@ not raw color classes"):
 ### Changes
 
 1. **Move the dark block** into `src/styles/dark.css` (the `@media` `:root` overrides, plus the
-   `color-scheme: light dark` declaration, which can move with it). Import it from `styles.css`:
-   `@import "./styles/dark.css";` directly under `@import "tailwindcss";` — Tailwind v4's Vite
-   plugin resolves and inlines `@import` at build time, so utility generation and override order
-   are unchanged. This also tidies the doubled comment above today's `:root` block.
+   `color-scheme: light dark` declaration, which can move with it). Import it from `styles.css` using
+   Tailwind v4's supported import mechanism, but preserve the current effective cascade: the dark
+   `:root` overrides must be emitted after the light `@theme` variables. Do not assume that placing
+   the import immediately after `@import "tailwindcss"` preserves that order; inspect the generated
+   CSS or use an explicit layer/order that makes the dark values win. This also tidies the doubled
+   comment above today's `:root` block.
 2. **Necessity tokens.** In `@theme`, light values; in `dark.css`, their dark counterparts:
 
    ```
    --color-necessity-low / -muted / -border      (red family)
-   --color-necessity-medium / -muted / -border   (yellow)
-   --color-necessity-high / -muted / -border     (blue)
-   --color-necessity-essential / -muted / -border (violet)
+   --color-necessity-medium / -muted / -border   (yellow family)
+   --color-necessity-high / -muted / -border     (blue family)
+   --color-necessity-essential / -muted / -border (violet family)
    ```
 
-   `necessity-level.tsx` then maps each level to `bg-necessity-low-muted text-necessity-low
-border-necessity-low-border`-style classes — the raw palette and every `dark:` disappear from
-   the markup.
+   Each token must preserve the current light/dark contrast and opacity, including the dark
+   `bg-*-500/20` and `border-*-500/40` behavior. `necessity-level.tsx` then maps each level to
+   `bg-necessity-low-muted text-necessity-low border-necessity-low-border`-style classes — the raw
+   palette and every `dark:` disappear from the markup.
 
-3. **Warning tokens.** `--color-warning` and `--color-warning-muted` (amber family) in both themes;
-   `ProcessingStep`'s warning panel uses them for its text, tinted background and border.
+3. **Warning tokens.** Define the semantic values needed to preserve the current panel, for example
+   `--color-warning`, `--color-warning-muted`, and `--color-warning-border` (amber family) in both
+   themes. Map the existing text, `amber-500/10` background, and `amber-500/40` border deliberately;
+   do not make the dark text token silently change the panel's background/border contrast.
 4. **Errors.** `text-danger` already exists and already flips dark — it replaces
    `text-red-600 dark:text-red-400` in both import files.
-5. **AccountCard.** In the dark theme `--color-saving-muted` is already overridden to exactly
-   `--color-saving-muted-dark`'s value, so `dark:to-saving-muted-dark/50` renders identically to
-   plain `to-saving-muted` — drop the variant and delete the now-unused `-dark` token (AccountCard
-   is its only consumer). For `dark:to-archived-muted/30`, an opacity-only difference (20% → 30%):
-   either pick one opacity for both themes or, if the lift genuinely needs more contrast on dark
-   paper, make it a token decision — the point is that the choice lands in the theme file, not in
-   the component.
+5. **AccountCard.** The dark saving gradient is not equivalent to the light one: even if
+   `--color-saving-muted` and `--color-saving-muted-dark` resolve to the same color, `/50` changes
+   opacity. Decide whether to preserve the dark 50% opacity, use one opacity in both themes, or make
+   the intended alpha part of a semantic theme token. Make the same explicit decision for the
+   archived gradient's `/20` versus `/30` difference. The component should contain no theme-specific
+   opacity variant, and any retained distinction belongs in the theme tokens.
 
 ### Out of scope (deliberately)
 
@@ -404,9 +454,12 @@ control — real product work. This item delivers the theme file and de-inlines 
 ### Verification
 
 `pnpm build` compiles, but note that Tailwind v4 silently skips a class with no matching token —
-a missing token does not fail the build, it just does not style. So the real gate is a visual pass
+a missing token does not fail the build, it just does not style. Inspect the generated CSS or computed
+styles to prove that dark overrides win over light `@theme` declarations. Then perform a visual pass
 in both schemes (DevTools emulation, or `colorScheme: "dark"` in a Playwright context — free once
-item 1's fixtures exist), plus the grep above proving the markup is clean.
+item 1's fixtures exist), checking necessity badges, warning background/border/text, error text, and
+both AccountCard gradients. Finally, grep for `dark:` and raw palette classes in the affected
+components to prove the markup is clean.
 
 ---
 
@@ -415,13 +468,16 @@ item 1's fixtures exist), plus the grep above proving the markup is clean.
 Four items, no new dependencies, no changes to the offline-first flow:
 
 - **Item 3** is the smallest and goes first: one import-free module, one invariant test, and the
-  hand-maintained table list stops being a thing a new synced table can silently miss.
-- **Item 1** turns an already-configured Playwright setup into three real specs, Chromium-only via
-  the CDP virtual authenticator, isolated by unique-per-test users against the dev database. It
-  also builds the `signedInPage` fixture every future spec inherits.
-- **Item 2** is the only schema-touching item: three additive columns, five server functions
-  following the existing middleware/validator conventions, two settings cards — and the honest
-  UI copy about the hour a revocation takes to bite.
+  duplicated table list stops being a thing a new synced table can silently miss.
+- **Item 1** turns an already-configured Playwright setup into three real sync specs, Chromium-only
+  via the CDP virtual authenticator, with separate authentication and onboarding fixtures. It covers
+  warm-tab offline behavior, not cold offline reloads, and requires either an isolated CI database or
+  an explicit local-only database contract. It also adds a sign-up/sign-out/sign-in round trip for
+  future auth coverage.
+- **Item 2** is the only schema-touching item: three additive columns, four required server functions
+  following the existing middleware/validator conventions, two settings cards — and the honest UI
+  copy about the hour a revocation takes to bite. The last-passkey guard and current-session behavior
+  are enforced server-side and transactionally, not only by the UI.
 - **Item 4** finishes a token system that is already 90% there: one dark.css, tokens for the last
   raw-color holdouts, and zero `dark:` variants left in markup.
 
@@ -439,14 +495,15 @@ is noted where it belongs above, as a documented decision rather than an acciden
 - **Session revocation is up to an hour late.** The access cookie is stateless and verified without
   a query; deleting the session row takes effect when it next expires. Unchanged by item 2 — which
   surfaces the latency in the UI instead — and the accepted cost of a query-free auth path.
-- **The tombstone GC's table list is shared, no longer hand-maintained.** The standalone function
-  (raw SQL, no Drizzle) now imports one import-free module from `src/modules/sync/`, and a unit
-  test fails if the sweep list and `SYNCED_TABLES` drift apart.
+- **The tombstone GC's table list is shared rather than duplicated manually.** The standalone
+  function (raw SQL, no Drizzle) now imports one import-free module from `src/modules/sync/`, and a
+  unit test fails if the sweep list and `SYNCED_TABLES` drift apart.
 - **E2E covers three sync-critical paths, Chromium-only.** Playwright runs the boot gate, a
-  two-tab sync, and an offline write end to end; Firefox/WebKit need the documented session-minting
-  escape hatch if cross-browser coverage is ever wanted.
-- **Passkeys only, single credential flow.** No password fallback and no recovery path — losing
-  every registered authenticator means losing access. Item 2's `revokePasskey` refuses to remove
-  the last credential, so the settings page cannot be the cause of it.
+  two-tab sync, and a warm-tab offline write end to end; cold offline reload remains part of the
+  separate PWA plan. Firefox/WebKit need the documented session-minting escape hatch if cross-browser
+  coverage is ever wanted.
+- **Passkeys only, no recovery path.** No password fallback or recovery path exists — losing every
+  registered authenticator means losing access. Item 2's transactional `revokePasskey` refuses to
+  remove the last credential, so the settings page cannot be the cause of it.
 - **Currency rates are USD-quoted and refreshed once a UTC day**, cached client-side; an unknown
   currency falls back to 1:1 rather than dropping the amount. Unchanged.
