@@ -7,7 +7,7 @@ import type {
   transactionsTable,
 } from "~/database/tables";
 
-export { RETENTION_DAYS, STALE_CURSOR_AFTER_DAYS, SYNCED_TABLES } from "./synced-tables";
+export { STALE_CURSOR_AFTER_DAYS, SYNCED_TABLES } from "./synced-tables";
 
 /**
  * The shape of the replicated data, shared by the server function that sends it, the IndexedDB
