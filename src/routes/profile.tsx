@@ -45,7 +45,7 @@ export const Route = createFileRoute("/profile")({
               <ProfileCard
                 key={profile.id}
                 profile={profile}
-                onSelect={() => handleSelect(profile.id)}
+                onOpen={() => handleSelect(profile.id)}
               />
             ))}
           </div>
