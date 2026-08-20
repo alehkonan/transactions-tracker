@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 import postgres from "postgres";
+import { RETENTION_DAYS, SWEPT_TABLES } from "../../src/modules/sync/synced-tables.ts";
 
 /**
  * Tombstone garbage collection: the deletions that have been replicated for long enough that no
@@ -20,30 +21,11 @@ import postgres from "postgres";
  *
  * Deliberately standalone — it talks to postgres directly rather than through `getDb()` and the
  * Drizzle schema, so it is a file Node can run on its own and a function Netlify can bundle without
- * dragging the app's server graph in behind it. The price is the table names below, which are the
- * one thing here that has to be kept in step with `SYNCED_TABLES` by hand.
+ * server graph in behind it. The table order and retention constants come from one dependency-free
+ * module shared with the sync client.
  */
 
 export const config = { schedule: "@daily" };
-
-/**
- * How long a tombstone is kept.
- *
- * Must stay well above `STALE_CURSOR_AFTER_DAYS` in `src/modules/sync/sync-types.ts`, which is the
- * point at which a client gives up on its cursor and re-pulls from nothing: the gap between the two
- * is the whole safety margin. Spelled out again here rather than imported, because this file is
- * deliberately standalone — see above.
- */
-const RETENTION_DAYS = 90;
-
-/**
- * The synced tables, children before parents.
- *
- * Order matters only to keep the work predictable: `profiles` and `accounts` cascade on delete, so
- * sweeping a parent first would take its children with it and leave the later statements with
- * nothing to do. Doing it the other way round means each table's count reports its own tombstones.
- */
-const SWEPT_TABLES = ["transactions", "categories", "accounts", "profiles"] as const;
 
 type SweepResult = Record<string, number>;
 

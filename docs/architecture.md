@@ -278,10 +278,11 @@ checks.
 
 It is deliberately standalone: raw SQL over its own postgres client, no `getDb()` and no Drizzle
 schema, so Node can execute the file as-is and Netlify can bundle it without dragging the app's
-server graph in behind it. The price is the table list, which **has to be kept in step with
-`SYNCED_TABLES` by hand**. There is no index on `deleted_at`: a daily sweep off the request path can
-afford a sequential scan of tables this size, and four partial indexes would tax every write to save
-a job nobody is waiting for.
+server graph in behind it. It imports only the dependency-free `src/modules/sync/synced-tables.ts`
+module, which provides the parent-first sync order, child-first sweep order and the 60/90-day
+retention constants. An invariant test keeps the two table lists in step. There is no index on
+`deleted_at`: a daily sweep off the request path can afford a sequential scan of tables this size,
+and four partial indexes would tax every write to save a job nobody is waiting for.
 
 **A retention window is a deadline for clients too.** Once a tombstone is gone, a device that never
 saw it pulls every edit and none of the deletions, and — since a pull only ever adds — holds the
