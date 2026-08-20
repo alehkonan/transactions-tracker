@@ -89,8 +89,9 @@ src/
 └── styles.css    # Tailwind theme tokens and the z-index scale
 ```
 
-See `CLAUDE.md` for conventions (file naming, design tokens, the z-index scale) and
-[`docs/architecture.md`](docs/architecture.md) for how the sync works.
+See [`docs/architecture.md`](docs/architecture.md) for the directory layout and where things belong.
+
+The design tokens and the z-index scale live in `src/styles.css`.
 
 ## Roadmap
 
