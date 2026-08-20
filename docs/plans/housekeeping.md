@@ -23,20 +23,21 @@ could trip over; item 1 locks in today's boot/sync behavior before item 2 change
 
 ## 1. E2E specs for the paths unit tests cannot reach
 
-- [ ] `e2e/boot-gate.spec.ts` — first run, returning visit, warm-tab offline behavior, dead-session-with-live-hint
-- [ ] `e2e/two-tab-sync.spec.ts` — a write in one tab appears in the other without a reload
-- [ ] `e2e/offline-write.spec.ts` — a write made offline queues, then pushes on reconnect
-- [ ] `e2e/fixtures/auth.ts` + `e2e/global-setup.ts`, the sign-up/sign-out/sign-in round-trip, and the `playwright.config.ts` additions
-- [ ] CI or a documented local-only database contract provisions Postgres and the required auth environment
+- [x] `e2e/boot-gate.spec.ts` — first run, returning visit, warm-tab offline behavior, dead-session-with-live-hint
+- [x] `e2e/two-tab-sync.spec.ts` — a write in one tab appears in the other without a reload
+- [x] `e2e/offline-write.spec.ts` — a write made offline queues, then pushes on reconnect
+- [x] `e2e/fixtures/auth.ts` + `e2e/global-setup.ts`, the sign-up/sign-out/sign-in round-trip, and the `playwright.config.ts` additions
+- [x] documented local-only database contract in `e2e/README.md`; CI can substitute a disposable database
 
 ### What exists today
 
-`playwright.config.ts` is fully configured — `testDir: "./e2e"` (the directory does not exist yet),
-`baseURL: http://localhost:5454`, a `webServer` running `pnpm dev` with `reuseExistingServer:
-!process.env.CI`, three browser projects (chromium / firefox / webkit), `trace: "on-first-retry"`.
-`pnpm test:e2e` is wired in `package.json`. The 77 unit tests (10 files) cover pure functions only:
-the derivations, the import planner, the integrity digest. Nothing exercises IndexedDB,
-`BroadcastChannel`, Web Locks, the boot gate, or a real server-function round trip.
+`playwright.config.ts` now points at the implemented `e2e/` suite, with `baseURL:
+http://localhost:5454`, a `webServer` running `pnpm dev` with `reuseExistingServer: !process.env.CI`,
+three browser projects (Chromium / Firefox / WebKit), `globalSetup` for migrations, and
+`trace: "on-first-retry"`. The four current specs use the Chromium CDP virtual authenticator; the
+other projects skip them through the fixture guard. `pnpm test:e2e` is wired in `package.json`.
+The 80 unit tests (11 files) continue to cover pure functions; the E2E suite now covers IndexedDB,
+`BroadcastChannel`, Web Locks, the boot gate, and real server-function round trips.
 
 This item deliberately does **not** test a cold offline document reload. The app has no service worker
 or cached document today; IndexedDB can keep a warm tab usable, but it cannot load the HTML and route
@@ -352,9 +353,9 @@ graph, but this deliberate shared source file must be treated as part of the Net
      over from the GC;
    - `STALE_CURSOR_AFTER_DAYS = 60` and `RETENTION_DAYS = 90`, co-located so the margin is one
      glance, with the "not measured by the same clock" rationale from both current homes.
-2. `sync-types.ts` re-exports them — `export { RETENTION_DAYS, SYNCED_TABLES, STALE_CURSOR_AFTER_DAYS }
+2. `sync-types.ts` re-exports the app-facing values — `export { SYNCED_TABLES, STALE_CURSOR_AFTER_DAYS }
 from "./synced-tables"` — so existing app import sites stay untouched, and `SyncedTable` keeps
-   deriving from `SYNCED_TABLES` as before.
+   deriving from `SYNCED_TABLES` as before. The standalone GC imports `RETENTION_DAYS` directly.
 3. `netlify/functions/tombstone-gc.ts` drops its local constants and imports instead:
 
    ```ts
