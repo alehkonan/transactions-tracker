@@ -11,6 +11,11 @@ statistics and imports — and the queued changes push themselves when the netwo
 **Read [`docs/architecture.md`](docs/architecture.md) for the applied solution** — the pull/push
 protocol, the sync engine, tombstones and retention, integrity checking, and the auth path.
 
+Database access is server-only and the current request handlers enforce ownership before syncing or
+mutating data. A staged PostgreSQL Row-Level Security rollout is documented in
+[`docs/plans/rls.md`](docs/plans/rls.md); RLS is not enabled by the default setup until its data,
+transaction-context, and database-role prerequisites are complete.
+
 ## Features
 
 - **Profiles** — separate books under one account, each with its own accounts, categories and
@@ -107,3 +112,6 @@ to verify the result — and closes with the limitations that still stand in its
   statistics, import mapping, attachments.
 - [`housekeeping.md`](docs/plans/housekeeping.md) — e2e specs, session and passkey management, a
   shared tombstone table list, a dark-mode theme file.
+- [`rls.md`](docs/plans/rls.md) — PostgreSQL row-level security for user-owned profiles, accounts,
+  categories, and transactions, including data cleanup, transaction-scoped auth context, roles, and
+  isolation tests.
