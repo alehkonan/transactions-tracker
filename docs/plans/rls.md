@@ -82,6 +82,33 @@ owns the tables, it can bypass ordinary RLS. The preferred production arrangemen
 Do not put a secret in source control or hardcode credentials. Add deployment variables only after the
 role names and provider support are confirmed.
 
+### Supabase built-in roles vs custom roles
+
+Supabase's built-in roles have specific meanings for the Supabase Data API/PostgREST surface:
+
+- `anon` is unauthenticated API/PostgREST access.
+- `authenticated` is authenticated API/PostgREST access.
+- `service_role` bypasses RLS and must remain server-side.
+- `postgres` and internal Supabase administration roles are for migrations and administration only.
+
+This application uses direct `postgres-js`, custom WebAuthn, signed cookies, and server functions. It
+does not use Supabase Auth JWTs or PostgREST, so `authenticated` does not automatically represent the
+current application user. Keep the transaction-local `app.user_id` context described below. The browser
+needs no database role because it never connects directly to PostgreSQL.
+
+Use custom roles with responsibilities that match this application's access paths:
+
+- **`transactions_runtime`** — `LOGIN`, `NOSUPERUSER`, `NOCREATEDB`, `NOCREATEROLE`, no `BYPASSRLS`,
+  not the table owner, and granted only the DML needed by normal request handlers.
+- **`transactions_migrator`** — owns and alters the schema and runs migrations; never serves requests.
+- **`transactions_maintenance`** — performs cross-user tombstone garbage collection with tightly
+  controlled `BYPASSRLS` or owner privileges, using server-only credentials.
+
+Never use `service_role` for normal `getDb()` requests: doing so defeats RLS. See Supabase's official
+[Row Level Security documentation](https://supabase.com/docs/guides/database/postgres/row-level-security)
+and [roles documentation](https://supabase.com/docs/guides/database/roles) when confirming provider
+behavior and deployment privileges.
+
 ---
 
 ## 2. Make ownership and relationship invariants explicit
@@ -193,6 +220,34 @@ RLS policies are PostgreSQL security objects and are not expected to be fully re
 current Drizzle table definitions. Add them in a reviewed SQL migration after the schema/data
 migration. Do not rely on `drizzle-kit generate` to infer policy changes.
 
+### Grants and policy targets
+
+Supabase documents grants and RLS as separate checks: a role needs table privileges before a policy can
+allow the operation. If the Supabase Data API is exposed, revoke unwanted privileges on protected tables
+from `anon` and `authenticated`. Grant only the required `SELECT`/`INSERT`/`UPDATE`/`DELETE` privileges
+to `transactions_runtime`.
+
+Policies must use an explicit `TO transactions_runtime` target rather than an implicit or `public`
+target. Define separate policies for `SELECT`, `INSERT`, `UPDATE`, and `DELETE`; do not combine these
+operations into one broad policy.
+
+The following is an illustrative SQL snippet, not ready-to-run migration SQL. Confirm table names,
+provider role availability, and the exact required privileges before adapting it:
+
+```sql
+-- Illustrative only: do not run this snippet without reviewing the deployment plan.
+REVOKE ALL PRIVILEGES ON TABLE profiles, accounts, categories, transactions
+FROM anon, authenticated;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON TABLE profiles, accounts, categories, transactions
+TO transactions_runtime;
+
+-- Each policy should explicitly target the custom runtime role, for example:
+-- CREATE POLICY profiles_owner_select ON profiles
+--   FOR SELECT TO transactions_runtime USING (...);
+```
+
 ### Context function
 
 Create a small, read-only helper such as `public.current_app_user_id()` that reads
@@ -227,13 +282,25 @@ The policy rules are:
 5. Do not filter tombstones in RLS. The sync protocol needs an owner to receive deletion rows.
 6. Do not add a policy that treats `NULL user_id` or `NULL profile_id` as public/shared data.
 
-Use explicit policy names, for example:
+Use explicit policy names for each operation, for example:
 
 ```text
-profiles_owner_select_write
-accounts_owner_select_write
-categories_owner_select_write
-transactions_owner_select_write
+profiles_owner_select
+profiles_owner_insert
+profiles_owner_update
+profiles_owner_delete
+accounts_owner_select
+accounts_owner_insert
+accounts_owner_update
+accounts_owner_delete
+categories_owner_select
+categories_owner_insert
+categories_owner_update
+categories_owner_delete
+transactions_owner_select
+transactions_owner_insert
+transactions_owner_update
+transactions_owner_delete
 ```
 
 Before production rollout, verify the behavior of `INSERT ... ON CONFLICT DO UPDATE`: a guessed UUID
@@ -258,6 +325,9 @@ owner/superuser, and application-level authorization remains the effective bound
       user's `app.user_id`.
 - [ ] Ensure backups, local Docker setup, staging, and production use the same role semantics.
 - [ ] Document which role may run `pnpm db:migrate` and `pnpm gc:tombstones`.
+- [ ] Verify the built-in `anon`, `authenticated`, and `service_role` roles are not accidentally granted
+      access to protected tables or used for normal runtime requests.
+- [ ] Verify `transactions_runtime` is not the table owner and has no `BYPASSRLS`.
 - [ ] Confirm connection pooling does not retain one request's `app.user_id` for the next request.
 
 Do not solve maintenance access by allowing the runtime request role to set an unrestricted
@@ -356,7 +426,8 @@ reintroduce rows that the application cannot safely scope.
 - [ ] No unowned user-data rows remain, or they are explicitly excluded from the application.
 - [ ] Ownership columns and transaction relationships are enforced by the schema/policies.
 - [ ] Every protected request query sets a transaction-local authenticated user context.
-- [ ] Runtime access uses a role that cannot bypass RLS.
+- [ ] Runtime access uses `transactions_runtime`, which is not the table owner and has no `BYPASSRLS`.
+- [ ] The built-in `anon`, `authenticated`, and `service_role` roles are not accidentally granted protected-table access or used for normal runtime requests.
 - [ ] Auth, migrations, and tombstone GC continue to work through their separate administrative paths.
 - [ ] Cross-user isolation and same-profile relationship tests pass.
 - [ ] The offline-first sync contract remains unchanged and the architecture documentation reflects any
