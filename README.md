@@ -106,6 +106,9 @@ to verify the result — and closes with the limitations that still stand in its
 
 - [`offline-completeness.md`](docs/plans/offline-completeness.md) — a PWA service worker and
   installability, storage persistence, Background Sync for the outbox.
+- [`performance-optimizations.md`](docs/plans/performance-optimizations.md) — first-visit and
+  mobile performance improvements for the login entry experience, including asset caching, root
+  routing, and reducing the eager JavaScript graph.
 - [`sync-robustness.md`](docs/plans/sync-robustness.md) — field-level conflict reporting, a weekly
   background integrity check, a leaner initial pull, mutation-id recognition for retried pushes.
 - [`product-features.md`](docs/plans/product-features.md) — budgets, recurring transactions, richer
