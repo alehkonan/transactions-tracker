@@ -21,7 +21,7 @@ export function UploadStep() {
       <p className="text-text-muted text-sm">
         Required columns: <span className="font-mono">{IMPORT_HEADERS.join(", ")}</span>
       </p>
-      {uploadError && <p className="text-sm text-red-600 dark:text-red-400">{uploadError}</p>}
+      {uploadError && <p className="text-danger text-sm">{uploadError}</p>}
       <footer className="flex justify-center">
         <Button variant="primary" disabled={!rows} onClick={actions.startImport}>
           Next

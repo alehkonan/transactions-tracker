@@ -40,10 +40,10 @@ export function AccountCard({ account, activity, onClick }: Props) {
           // through this one.
           "from-surface bg-surface flex min-h-28 w-full flex-col justify-between gap-3 rounded-2xl bg-linear-to-br p-3 text-left shadow-sm",
           account.status === "ARCHIVED"
-            ? "to-archived-muted/20 dark:to-archived-muted/30"
+            ? "to-archived-muted"
             : account.type === "CURRENT"
               ? "to-accent-muted"
-              : "to-saving-muted dark:to-saving-muted-dark/50",
+              : "to-saving-muted",
         )}
       >
         <div className="flex items-start justify-between gap-2">

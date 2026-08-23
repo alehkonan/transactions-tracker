@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./styles/dark.css" layer(dark-theme);
 
 @theme {
   /*
@@ -55,10 +56,31 @@
   --color-expense: var(--color-spend);
   --color-transfer: var(--color-graphite);
 
-  /* AccountCard gradient end colors */
+  /* necessity level tags */
+  --color-necessity-low: oklch(0.505 0.213 27.518);
+  --color-necessity-low-muted: oklch(0.936 0.032 17.717);
+  --color-necessity-low-border: oklch(0.885 0.062 18.334);
+
+  --color-necessity-medium: oklch(0.554 0.135 66.442);
+  --color-necessity-medium-muted: oklch(0.973 0.071 103.193);
+  --color-necessity-medium-border: oklch(0.945 0.129 101.54);
+
+  --color-necessity-high: oklch(0.488 0.243 264.376);
+  --color-necessity-high-muted: oklch(0.932 0.032 255.585);
+  --color-necessity-high-border: oklch(0.882 0.059 254.128);
+
+  --color-necessity-essential: oklch(0.491 0.27 292.581);
+  --color-necessity-essential-muted: oklch(0.943 0.029 294.588);
+  --color-necessity-essential-border: oklch(0.894 0.057 293.283);
+
+  /* import feedback */
+  --color-warning: oklch(0.555 0.163 48.998);
+  --color-warning-muted: color-mix(in oklab, oklch(0.769 0.188 70.08) 10%, transparent);
+  --color-warning-border: color-mix(in oklab, oklch(0.769 0.188 70.08) 40%, transparent);
+
+  /* AccountCard gradient end colors include their intentional theme-specific alpha. */
   --color-saving-muted: oklch(0.86 0.1 70);
-  --color-saving-muted-dark: oklch(0.45 0.1 70);
-  --color-archived-muted: var(--color-text-muted);
+  --color-archived-muted: color-mix(in oklab, var(--color-text-muted) 20%, transparent);
 
   /* typography: system-only stacks */
   --font-sans:
@@ -84,64 +106,6 @@
   --z-index-dialog: 31; /* modal Dialog popup, above its own backdrop */
   --z-index-dropdown: 40; /* floating popups anchored to a trigger: Select, Menu, Popover — above `dialog` since triggers can live inside a Dialog */
   --z-index-toast: 50; /* Toaster — must outrank everything, including open dialogs */
-}
-
-/*
- * The same tokens after dark. Overriding the custom properties is what themes the app: every
- * utility reads them through `var()`, so nothing else has to know.
- *
- * The scale inverts rather than mirrors. `surface` is lighter than `background` in both themes
- * (a card lifts off the page), but `-hover`/`-active` step *up* in lightness here and down in the
- * light theme.
- */
-/* Both themes are supported, so the browser paints its own furniture — form controls, scrollbars,
-   the native month/year dropdowns inside DatePicker — to match the one in use. */
-:root {
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-ink: oklch(0.94 0.02 250);
-    --color-paper: oklch(0.19 0.015 90);
-
-    --color-accent: oklch(0.72 0.12 195);
-    --color-accent-hover: oklch(0.78 0.11 195);
-    --color-accent-active: oklch(0.84 0.1 195);
-    --color-accent-muted: oklch(0.32 0.08 195);
-
-    --color-hold: oklch(0.8 0.12 70);
-    --color-hold-hover: oklch(0.86 0.11 70);
-    --color-hold-active: oklch(0.9 0.1 70);
-    --color-hold-muted: oklch(0.35 0.08 70);
-
-    --color-spend: oklch(0.7 0.16 25);
-    --color-spend-hover: oklch(0.76 0.15 25);
-    --color-spend-active: oklch(0.82 0.14 25);
-    --color-spend-muted: oklch(0.32 0.08 25);
-
-    --color-graphite: oklch(0.72 0.01 250);
-    --color-graphite-hover: oklch(0.78 0.012 250);
-    --color-graphite-active: oklch(0.84 0.014 250);
-    --color-graphite-muted: oklch(0.32 0.02 250);
-
-    --color-gain: oklch(0.75 0.16 145);
-    --color-gain-hover: oklch(0.81 0.15 145);
-    --color-gain-active: oklch(0.87 0.14 145);
-    --color-gain-muted: oklch(0.32 0.08 145);
-
-    --color-text-muted: oklch(0.72 0.01 250);
-
-    --color-surface: oklch(0.23 0.012 90);
-    --color-surface-hover: oklch(0.28 0.014 90);
-    --color-surface-active: oklch(0.33 0.016 90);
-    --color-surface-muted: oklch(0.21 0.01 90);
-
-    --color-border: oklch(0.3 0.01 90);
-
-    --color-saving-muted: oklch(0.35 0.08 70);
-    --color-saving-muted-dark: oklch(0.35 0.08 70);
-  }
 }
 
 .popover {
