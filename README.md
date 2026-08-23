@@ -5,15 +5,19 @@ categorized transactions, spending statistics, and CSV import/export.
 
 It is **offline-first**. The whole working set is replicated to the browser, every read is served
 from memory and every write lands locally first; PostgreSQL is a sync backend rather than a database
-the UI talks to. A warm tab keeps working with no connection at all — reads, writes, filters,
+a warm tab keeps working with no connection at all — reads, writes, filters,
 statistics and imports — and the queued changes push themselves when the network comes back.
+
+**Conflict handling is intentionally simple:** when two devices edit the same existing row, the last
+write accepted by the server replaces the whole row; there is no field-level merge. New transactions
+use client-generated UUIDs, so concurrent new transactions do not conflict and are both added.
 
 **Read [`docs/architecture.md`](docs/architecture.md) for the applied solution** — the pull/push
 protocol, the sync engine, tombstones and retention, integrity checking, and the auth path.
 
 Database access is server-only and the current request handlers enforce ownership before syncing or
-mutating data. A staged PostgreSQL Row-Level Security rollout is documented in
-[`docs/plans/rls.md`](docs/plans/rls.md); RLS is not enabled by the default setup until its data,
+mutating data. A staged PostgreSQL Row-Level Security rollout is documented in the
+[`docs/plans/`](docs/plans/) directory; RLS is not enabled by the default setup until its data,
 transaction-context, and database-role prerequisites are complete.
 
 ## Features
@@ -100,21 +104,5 @@ The design tokens and the z-index scale live in `src/styles.css`.
 
 ## Roadmap
 
-Planned work and known limitations live in [`docs/plans/`](docs/plans/), one document per area.
-Each is an execution plan — the current state, the design decisions, the files to touch, and how
-to verify the result — and closes with the limitations that still stand in its area.
-
-- [`offline-completeness.md`](docs/plans/offline-completeness.md) — a PWA service worker and
-  installability, storage persistence, Background Sync for the outbox.
-- [`performance-optimizations.md`](docs/plans/performance-optimizations.md) — first-visit and
-  mobile performance improvements for the login entry experience, including asset caching, root
-  routing, and reducing the eager JavaScript graph.
-- [`sync-robustness.md`](docs/plans/sync-robustness.md) — field-level conflict reporting, a weekly
-  background integrity check, a leaner initial pull, mutation-id recognition for retried pushes.
-- [`product-features.md`](docs/plans/product-features.md) — budgets, recurring transactions, richer
-  statistics, import mapping, attachments.
-- [`housekeeping.md`](docs/plans/housekeeping.md) — e2e specs, session and passkey management, a
-  shared tombstone table list, a dark-mode theme file.
-- [`rls.md`](docs/plans/rls.md) — PostgreSQL row-level security for user-owned profiles, accounts,
-  categories, and transactions, including data cleanup, transaction-scoped auth context, roles, and
-  isolation tests.
+Current plans live in [`docs/plans/`](docs/plans/). That directory is the single source of truth for
+planned work and implementation details.

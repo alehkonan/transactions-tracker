@@ -50,8 +50,8 @@ server surface, on top of both.
   app-shell precache pattern clean here: **one cached document can stand in for any navigation**,
   and the route guards, which read hint cookies synchronously in `beforeLoad`, keep working with
   no server in the path at all.
-- Playwright is configured (`webServer` on port 5454), and the housekeeping plan's `signedInPage`
-  fixture is the test surface this spec rides on.
+- Playwright is configured (`webServer` on port 5454), and the `onboardedPage` fixture from
+  `e2e/fixtures/auth.ts` is the test surface this spec rides on.
 
 ### Design decisions
 
@@ -166,13 +166,13 @@ hash.
 
 ### The spec
 
-`e2e/offline-cold-start.spec.ts`, riding the housekeeping plan's `signedInPage` fixture — but
+`e2e/offline-cold-start.spec.ts`, riding the `onboardedPage` fixture from `e2e/fixtures/auth.ts` — but
 against the **production build**, because the SW only registers when `import.meta.env.PROD`. Add a
 dedicated Playwright project (`pwa`) with its own `webServer` — `pnpm build && pnpm preview
 --port 5455` (the `preview` block in `vite.config.ts` already pins the port; give this one its
 own) — so the dev-server project is untouched.
 
-1. Through `signedInPage`: sign in, sync, create an account — one online visit, which is exactly
+1. Through `onboardedPage`: sign in, sync, create an account — one online visit, which is exactly
    what install requires.
 2. `context.setOffline(true)`, then **`page.reload()`** — a reload within the context is the
    honest cold-start simulation: a fresh document load, fresh script evaluation, everything from
@@ -287,8 +287,8 @@ Two constraints shape the design:
 
 - **POST**, validated with the same Zod schemas `sync.functions.ts` defines inline today. Extract
   `mutationSchema` and the payload schemas into `src/api/sync-schemas.ts`, imported by both the
-  server function and the route — the same move as the tombstone GC's shared constant
-  (housekeeping item 3), for the same reason: two entry points must not be able to disagree about
+  server function and the route — the same move as the shared tombstone constants module
+  (`src/modules/sync/synced-tables.ts`), for the same reason: two entry points must not be able to disagree about
   what a mutation is.
 - **Auth**: resolve the session the way every server function does. If route-handler middleware
   composes as the skill shows (`server: { middleware: [authMiddleware], handlers: … }`), use it;
