@@ -63,7 +63,7 @@ const transactionPayloadSchema = z.object({
  * A whole-row mutation. Keeping this in one module prevents the page RPC and the service-worker
  * endpoint from accepting different write protocols.
  */
-export const mutationSchema = z.union([
+const mutationSchema = z.union([
   z.object({ ...mutationBaseSchema, op: z.literal("delete"), table: z.enum(SYNCED_TABLES) }),
   z.discriminatedUnion("table", [
     z.object({
