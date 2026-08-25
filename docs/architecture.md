@@ -17,10 +17,11 @@ boot ─→ IndexedDB ─→ Zustand store (full working set) ─→ every read,
                           └──── sync engine ───┘ ─→ PostgreSQL
 ```
 
-There are **three data endpoints in the entire server surface** — `pullChanges`, `pushChanges` and
-`checkIntegrity` (which moves no rows at all), all in `src/api/sync.functions.ts`. Everything else
-under `src/api/` is auth, or `selectProfile`, which is not a data endpoint but the one thing only a
-server can do: sign a cookie.
+There are **three logical data operations in the server surface** — `pullChanges`, `pushChanges` and
+`checkIntegrity` (which moves no rows at all). `pushChanges` also has a plain `/api/push` HTTP route
+for the service worker; both entry points share the schemas and `applyMutations` path. Everything
+else under `src/api/` is auth, or `selectProfile`, which is not a data endpoint but the one thing only
+a server can do: sign a cookie.
 
 ---
 
@@ -403,7 +404,9 @@ Production runs Postgres 17 and local dev runs 18, so the id default is `gen_ran
 client-minted v7.
 
 Input validation lives next to the server function, as a Zod schema passed to `.validator(...)` in
-the same `src/api/*.functions.ts` file. There is no shared schema module.
+the same `src/api/*.functions.ts` file. The push mutation schema is the exception: it lives in
+`src/api/sync-schemas.ts` because the page RPC and the service worker's `/api/push` route must accept
+exactly the same protocol.
 
 ---
 

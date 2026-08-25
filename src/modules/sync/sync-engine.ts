@@ -76,6 +76,10 @@ const REFERENCE_TABLES: SyncedTable[] = ["profiles", "accounts", "categories"];
 /** The fallback mutex, for browsers with no Web Locks — one tab's work, serialized as before. */
 let queue: Promise<unknown> = Promise.resolve();
 
+type AsyncLockManager = {
+  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
+};
+
 /**
  * Runs sync work with nothing else syncing anywhere in this browser.
  *
@@ -84,7 +88,10 @@ let queue: Promise<unknown> = Promise.resolve();
  * single-tab promise chain: still correct for the common case, just not across tabs.
  */
 function runExclusive<T>(work: () => Promise<T>): Promise<T> {
-  const locks = typeof navigator !== "undefined" && "locks" in navigator ? navigator.locks : null;
+  const locks =
+    typeof navigator !== "undefined" && "locks" in navigator
+      ? (navigator.locks as unknown as AsyncLockManager)
+      : null;
   if (locks) return locks.request(SYNC_LOCK, work);
 
   const next = queue.then(work, work);
@@ -547,6 +554,9 @@ export function bootSync(): Promise<void> {
     }
 
     await syncNow();
+    // Best-effort eviction protection. The browser decides whether to grant this idempotent request;
+    // when granted, it covers both IndexedDB and the service worker's Cache Storage.
+    void navigator.storage?.persist?.().catch(() => {});
   })();
 
   return bootPromise;

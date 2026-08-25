@@ -13,3 +13,13 @@ command = "pnpm db:migrate && vite build"
 # on every preview build.
 [context.deploy-preview]
 command = "pnpm db:migrate && vite build"
+
+[[headers]]
+for = "/sw.js"
+[headers.values]
+Cache-Control = "no-cache"
+
+[[headers]]
+for = "/assets/*"
+[headers.values]
+Cache-Control = "public, immutable, max-age=31536000"

@@ -29,12 +29,12 @@ server surface, on top of both.
 
 ## 1. PWA service worker and web app manifest
 
-- [ ] `public/sw.js` — network-first navigations, cache-first hashed assets, never cache POSTs
-- [ ] Precache list stamped into the SW at build time (small local Vite plugin)
-- [ ] `public/manifest.webmanifest` + icons (192 / 512 / maskable) — no `public/` exists today
-- [ ] `__root.tsx` `head()`: manifest + icon links; SW registration, production only
-- [ ] `netlify.toml`: `Cache-Control: no-cache` for `/sw.js`
-- [ ] `e2e/offline-cold-start.spec.ts`, against the production build via `vite preview`
+- [x] `public/sw.js` — network-first navigations, cache-first hashed assets, never cache POSTs
+- [x] Precache list stamped into the SW at build time (small local Vite plugin)
+- [x] `public/manifest.webmanifest` + icons (192 / 512 / maskable)
+- [x] `__root.tsx` `head()`: manifest + icon links; SW registration, production only
+- [x] `netlify.toml`: `Cache-Control: no-cache` for `/sw.js`
+- [x] `e2e/offline-cold-start.spec.ts`, against the production build via `vite preview`
 
 ### What exists today
 
@@ -202,8 +202,8 @@ code (it lives in `vite.config.ts`, already typechecked). Check the context opti
 
 ## 2. `navigator.storage.persist()` on first successful sync
 
-- [ ] One guarded call at the end of `bootSync`, after `syncNow()`
-- [ ] Optional: the persisted state surfaced on `/settings`
+- [x] One guarded call at the end of `bootSync`, after `syncNow()`
+- [x] The persisted state surfaced on `/settings`
 
 ### What exists today
 
@@ -251,10 +251,10 @@ is no store, schema, or API change to test.
 
 ## 3. Background Sync for the outbox
 
-- [ ] `src/routes/api/push.ts` — a plain POST route the service worker can call
-- [ ] The mutation Zod schemas extracted to `src/api/sync-schemas.ts`, shared by both entry points
-- [ ] SW: `sync` handler that drains the outbox idempotently
-- [ ] Registration in `mutations.ts` after each queued write, feature-detected
+- [x] `src/routes/api/push.ts` — a plain POST route the service worker can call
+- [x] The mutation Zod schemas extracted to `src/api/sync-schemas.ts`, shared by both entry points
+- [x] SW: `sync` handler that drains the outbox idempotently
+- [x] Registration in `mutations.ts` after each queued write, feature-detected
 
 ### What exists today
 

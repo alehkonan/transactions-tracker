@@ -4,6 +4,7 @@ import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
+import { offlineServiceWorker } from "./vite-plugins/offline-service-worker";
 
 export default defineConfig({
   resolve: {
@@ -31,6 +32,7 @@ export default defineConfig({
       injectSource: { enabled: false },
     }),
     netlify(),
+    offlineServiceWorker(),
     viteReact(),
     tailwindcss(),
   ],

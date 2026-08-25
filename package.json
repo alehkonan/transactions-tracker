@@ -15,6 +15,7 @@
     "knip": "knip",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:pwa": "playwright test --project=pwa e2e/offline-cold-start.spec.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "gc:tombstones": "node --env-file=.env netlify/functions/tombstone-gc.ts"
