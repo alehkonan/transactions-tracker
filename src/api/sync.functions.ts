@@ -1,13 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, count, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import {
-  accountStatusEnum,
-  accountTypeEnum,
-  currencyCodeEnum,
-  necessityLevelEnum,
-  transactionTypeEnum,
-} from "~/database/enums";
 import { getDb } from "~/database/get-db.server";
 import {
   accountsTable,
@@ -16,27 +9,22 @@ import {
   profilesTable,
   transactionsTable,
 } from "~/database/tables";
-import { PUSH_BATCH_LIMIT, SYNCED_TABLES } from "~/modules/sync/sync-types";
 import { applyMutations } from "./apply-mutations.server";
 import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
-import type { TouchedIds } from "./apply-mutations.server";
+import { readCanonicalRows, readColors } from "./push.server";
+import { pushChangesSchema } from "./sync-schemas";
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import type {
-  AccountPayload,
-  CategoryPayload,
   IntegrityResult,
-  ProfilePayload,
   PullChangesResult,
   PushChangesResult,
   SyncCursor,
   SyncCursors,
-  SyncedRows,
   SyncedTable,
   TableIntegrity,
-  TransactionPayload,
 } from "~/modules/sync/sync-types";
 
 /**
@@ -394,123 +382,6 @@ export const checkIntegrity = createServerFn()
   });
 
 /**
- * A client-minted id. Every synced row is keyed by one, which is what lets a device offline create a
- * record — and the records pointing at it — without a temporary id and a round of FK rewriting.
- */
-const rowIdSchema = z.uuid();
-
-const mutationBaseSchema = {
-  mutationId: z.uuid(),
-  rowId: rowIdSchema,
-  /** Epoch milliseconds, compared for equality against the stored row's — see `Mutation`. */
-  baseUpdatedAt: z.number().int().nullable(),
-};
-
-const profilePayloadSchema = z.object({
-  name: z.string().trim().min(1),
-}) satisfies z.ZodType<ProfilePayload>;
-
-const accountPayloadSchema = z.object({
-  name: z.string().trim().min(1),
-  initialBalance: z.string().trim(),
-  currencyCode: z.enum(currencyCodeEnum.enumValues),
-  status: z.enum(accountStatusEnum.enumValues),
-  type: z.enum(accountTypeEnum.enumValues),
-  profileId: rowIdSchema,
-}) satisfies z.ZodType<AccountPayload>;
-
-const categoryPayloadSchema = z.object({
-  name: z.string().trim().min(1),
-  colorId: z.number().int().nullable(),
-  colorHex: z
-    .string()
-    .regex(/^#[0-9a-f]{6}$/i)
-    .optional(),
-  profileId: rowIdSchema,
-}) satisfies z.ZodType<CategoryPayload>;
-
-const transactionPayloadSchema = z.object({
-  type: z.enum(transactionTypeEnum.enumValues),
-  necessityLevel: z.enum(necessityLevelEnum.enumValues),
-  amount: z.string(),
-  comment: z.string().nullable(),
-  createdAt: z.date(),
-  accountId: rowIdSchema.nullable(),
-  categoryId: rowIdSchema.nullable(),
-  profileId: rowIdSchema,
-}) satisfies z.ZodType<TransactionPayload>;
-
-/**
- * A mutation is a whole row rather than a diff. The client already holds the row it is changing, and
- * sending all of it is what makes applying one idempotent — the same entry replayed after a push
- * that failed halfway lands on exactly the same state, which is why the outbox needs no dedup table.
- */
-const mutationSchema = z.union([
-  z.object({ ...mutationBaseSchema, op: z.literal("delete"), table: z.enum(SYNCED_TABLES) }),
-  z.discriminatedUnion("table", [
-    z.object({
-      ...mutationBaseSchema,
-      op: z.literal("upsert"),
-      table: z.literal("profiles"),
-      payload: profilePayloadSchema,
-    }),
-    z.object({
-      ...mutationBaseSchema,
-      op: z.literal("upsert"),
-      table: z.literal("accounts"),
-      payload: accountPayloadSchema,
-    }),
-    z.object({
-      ...mutationBaseSchema,
-      op: z.literal("upsert"),
-      table: z.literal("categories"),
-      payload: categoryPayloadSchema,
-    }),
-    z.object({
-      ...mutationBaseSchema,
-      op: z.literal("upsert"),
-      table: z.literal("transactions"),
-      payload: transactionPayloadSchema,
-    }),
-  ]),
-]);
-
-const pushChangesSchema = z.object({
-  mutations: z.array(mutationSchema).max(PUSH_BATCH_LIMIT),
-});
-
-/** Reads back exactly the rows a batch wrote, as the server now holds them. */
-async function readCanonicalRows(touched: TouchedIds): Promise<SyncedRows> {
-  const db = getDb();
-  const ids = {
-    profiles: [...touched.profiles],
-    accounts: [...touched.accounts],
-    categories: [...touched.categories],
-    transactions: [...touched.transactions],
-  };
-
-  const [profiles, accounts, categories, transactions] = await Promise.all([
-    ids.profiles.length === 0
-      ? []
-      : db.select().from(profilesTable).where(inArray(profilesTable.id, ids.profiles)),
-    ids.accounts.length === 0
-      ? []
-      : db
-          .select(accountSyncColumns)
-          .from(accountsTable)
-          .where(inArray(accountsTable.id, ids.accounts)),
-    ids.categories.length === 0
-      ? []
-      : db.select().from(categoriesTable).where(inArray(categoriesTable.id, ids.categories)),
-    ids.transactions.length === 0
-      ? []
-      : db.select().from(transactionsTable).where(inArray(transactionsTable.id, ids.transactions)),
-  ]);
-
-  return { profiles, accounts, categories, transactions };
-}
-
-/**
  * The client's outbox, applied.
  *
  * Atomic per batch and applied in outbox order, so a batch that creates an account and then files a
@@ -537,10 +408,10 @@ export const pushChanges = createServerFn({ method: "POST" })
     const [canonicalRows, colors] = await Promise.all([
       touched == null
         ? { profiles: [], accounts: [], categories: [], transactions: [] }
-        : readCanonicalRows(touched),
+        : readCanonicalRows(db, touched),
       // A push can mint palette entries (see `resolveColorIds`), and the categories that reference
       // them are in this very response — so the palette rides along rather than waiting for a pull.
-      db.select().from(colorsTable).orderBy(asc(colorsTable.id)),
+      readColors(db),
     ]);
 
     return {
