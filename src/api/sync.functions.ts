@@ -9,11 +9,10 @@ import {
   profilesTable,
   transactionsTable,
 } from "~/database/tables";
-import { applyMutations } from "./apply-mutations.server";
 import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
 import { loggerMiddleware } from "./logger.middleware";
-import { readCanonicalRows, readColors } from "./push.server";
+import { executePush } from "./push-execution.server";
 import { pushChangesSchema } from "./sync-schemas";
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
@@ -397,30 +396,6 @@ export const checkIntegrity = createServerFn()
 export const pushChanges = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
   .validator(pushChangesSchema)
-  .handler(async ({ data, context }): Promise<PushChangesResult> => {
-    const db = getDb();
-
-    const { conflicts, touched } =
-      data.mutations.length === 0
-        ? { conflicts: [], touched: null }
-        : await db.transaction((tx) => applyMutations(tx, context.user.id, data.mutations));
-
-    const [canonicalRows, colors] = await Promise.all([
-      touched == null
-        ? { profiles: [], accounts: [], categories: [], transactions: [] }
-        : readCanonicalRows(db, touched),
-      // A push can mint palette entries (see `resolveColorIds`), and the categories that reference
-      // them are in this very response — so the palette rides along rather than waiting for a pull.
-      readColors(db),
-    ]);
-
-    return {
-      // Every mutation the server resolved, which is the whole batch: it is one transaction, so
-      // either all of them landed or the call threw. A mutation whose guard matched nothing — an
-      // edit to a row deleted elsewhere — counts as resolved too, since retrying it never would.
-      applied: data.mutations.map((mutation) => mutation.mutationId),
-      canonicalRows,
-      conflicts,
-      colors,
-    };
-  });
+  .handler(
+    ({ data, context }): Promise<PushChangesResult> => executePush(context.user.id, data.mutations),
+  );

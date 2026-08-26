@@ -1,10 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { applyMutations } from "~/api/apply-mutations.server";
-import { readCanonicalRows, readColors } from "~/api/push.server";
+import { executePush } from "~/api/push-execution.server";
 import { resolveSession } from "~/api/session.server";
 import { pushChangesSchema } from "~/api/sync-schemas";
-import { getDb } from "~/database/get-db.server";
 
 /**
  * Plain HTTP twin of the page's `pushChanges` RPC. The service worker cannot invoke a server
@@ -29,25 +27,7 @@ export const Route = createFileRoute("/api/push")({
           return Response.json({ error: z.treeifyError(parsed.error) }, { status: 400 });
         }
 
-        const db = getDb();
-        const { conflicts, touched } =
-          parsed.data.mutations.length === 0
-            ? { conflicts: [], touched: null }
-            : await db.transaction((tx) => applyMutations(tx, user.id, parsed.data.mutations));
-
-        const [canonicalRows, colors] = await Promise.all([
-          touched == null
-            ? { profiles: [], accounts: [], categories: [], transactions: [] }
-            : readCanonicalRows(db, touched),
-          readColors(db),
-        ]);
-
-        return Response.json({
-          applied: parsed.data.mutations.map((mutation) => mutation.mutationId),
-          canonicalRows,
-          conflicts,
-          colors,
-        });
+        return Response.json(await executePush(user.id, parsed.data.mutations));
       },
     },
   },
