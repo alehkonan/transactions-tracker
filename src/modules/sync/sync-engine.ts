@@ -8,7 +8,8 @@ import {
   writeLocalRows,
 } from "./idb";
 import { compareIntegrity, isCursorStale, localIntegrity } from "./integrity";
-import { dropOutboxEntries, readOutboxBatch } from "./outbox";
+import { outboxStorage } from "./outbox";
+import { drainOutbox, type OutboxDeliveryResult } from "./outbox-acceptance";
 import { PUSH_BATCH_LIMIT } from "./sync-types";
 import {
   applyServerRows,
@@ -21,6 +22,7 @@ import {
 import type { IntegrityDivergence } from "./integrity";
 import type {
   IntegrityResult,
+  Mutation,
   PullChangesResult,
   PushChangesResult,
   SyncedTable,
@@ -275,38 +277,31 @@ async function pullUntilCaughtUp(): Promise<void> {
  * after the server confirms them, which is what makes retrying safe rather than merely likely to
  * work — every mutation carries a whole row, so applying one twice lands on the same state.
  */
-async function drainOutbox(): Promise<void> {
-  for (;;) {
-    // Read inside the lock, so a batch another tab has already pushed is never pushed again.
-    const batch = await readOutboxBatch(PUSH_BATCH_LIMIT);
-    if (batch.length === 0) return;
-
+async function sendPagePush(
+  mutations: readonly Mutation[],
+): Promise<OutboxDeliveryResult<PushChangesResult>> {
+  try {
     const result: PushChangesResult | Response = await pushChanges({
-      data: { mutations: batch.map(({ seq: _seq, ...mutation }) => mutation) },
+      data: { mutations: [...mutations] },
     });
-    if (!isSyncResult(result)) throw result;
+    if (!(result instanceof Response)) return { kind: "accepted", result };
+    if (result.status === 401) return { kind: "unauthorized", error: result };
+    return { kind: "retryable", error: result };
+  } catch (error) {
+    return { kind: "retryable", error };
+  }
+}
 
-    const applied = new Set(result.applied);
-    const confirmed = batch.filter((entry) => applied.has(entry.mutationId));
-    // The server resolves every mutation it is handed, so this only fires if the two ends have
-    // drifted — and if they have, retrying the same batch forever against the database is worse
-    // than saying so.
-    if (confirmed.length === 0) throw new Error("The server confirmed none of the pushed changes.");
+async function applyAcceptedPageBatch(result: PushChangesResult): Promise<void> {
+  await refreshOutboxState();
 
-    await dropOutboxEntries(confirmed.map((entry) => entry.seq));
-    await refreshOutboxState();
+  // Only now that the entries are gone do the server's copies outrank the local ones.
+  await writeLocalRows(result.canonicalRows, result.colors);
+  applyServerRows(result.canonicalRows, result.colors);
+  announce({ type: "changed" });
 
-    // Only now that the entries are gone do the server's copies outrank the local ones.
-    await writeLocalRows(result.canonicalRows, result.colors);
-    applyServerRows(result.canonicalRows, result.colors);
-    announce({ type: "changed" });
-
-    if (result.conflicts.length > 0) {
-      useSyncStore.setState((state) => ({ conflicts: [...state.conflicts, ...result.conflicts] }));
-    }
-
-    // A short batch means the queue is empty; anything appended since gets its own debounced push.
-    if (batch.length < PUSH_BATCH_LIMIT) return;
+  if (result.conflicts.length > 0) {
+    useSyncStore.setState((state) => ({ conflicts: [...state.conflicts, ...result.conflicts] }));
   }
 }
 
@@ -327,7 +322,17 @@ export function pushNow(): Promise<void> {
   return runExclusive(async () => {
     useSyncStore.setState({ isPushing: true });
     try {
-      await drainOutbox();
+      const outcome = await drainOutbox({
+        storage: outboxStorage,
+        batchLimit: PUSH_BATCH_LIMIT,
+        toPayload: ({ seq: _seq, ...mutation }) => mutation,
+        send: sendPagePush,
+        onAccepted: applyAcceptedPageBatch,
+      });
+      if (outcome.kind === "unauthorized")
+        throw outcome.error ?? new Error("The session is no longer authorized.");
+      if (outcome.kind === "retryable") throw outcome.error;
+
       failedPushes = 0;
       useSyncStore.setState({ isPushing: false });
     } catch (error) {

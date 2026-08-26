@@ -1,4 +1,5 @@
 import { OUTBOX_STORE, openDatabase } from "./idb";
+import type { OutboxStorage } from "./outbox-acceptance";
 import type { Mutation, SyncedTable } from "./sync-types";
 
 /**
@@ -31,7 +32,7 @@ export async function readOutboxBatch(limit: number): Promise<OutboxEntry[]> {
 }
 
 /** Forgets entries the server has confirmed. */
-export async function dropOutboxEntries(seqs: number[]): Promise<void> {
+export async function dropOutboxEntries(seqs: readonly number[]): Promise<void> {
   if (seqs.length === 0) return;
 
   const database = await openDatabase();
@@ -63,6 +64,11 @@ export type OutboxState = {
    * it back. The local copy wins until its own write is confirmed.
    */
   rowKeys: Set<string>;
+};
+
+export const outboxStorage: OutboxStorage<OutboxEntry> = {
+  readBatch: readOutboxBatch,
+  dropEntries: dropOutboxEntries,
 };
 
 export async function readOutboxState(): Promise<OutboxState> {

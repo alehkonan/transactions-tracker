@@ -10,6 +10,10 @@ const DATABASE_NAME = __DATABASE_NAME__;
 const DATABASE_VERSION = __DATABASE_VERSION__;
 const OUTBOX_STORE = "outbox";
 const PUSH_BATCH_LIMIT = 500;
+const SYNC_LOCK = "transactions-tracker:sync";
+
+/* __OUTBOX_ACCEPTANCE_KERNEL__ */
+const drainOutboxKernel = __outboxAcceptanceKernel.drainOutbox;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)));
@@ -77,57 +81,80 @@ function openDatabase() {
   });
 }
 
-function readBatch(database) {
+function readBatch(database, limit) {
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(OUTBOX_STORE, "readonly");
-    const request = transaction.objectStore(OUTBOX_STORE).getAll(null, PUSH_BATCH_LIMIT);
+    const request = transaction.objectStore(OUTBOX_STORE).getAll(null, limit);
     request.addEventListener("success", () => resolve(request.result));
     request.addEventListener("error", () => reject(request.error));
   });
 }
 
-function dropEntries(database, entries) {
-  if (entries.length === 0) return Promise.resolve();
+function dropEntries(database, seqs) {
+  if (seqs.length === 0) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(OUTBOX_STORE, "readwrite");
     const store = transaction.objectStore(OUTBOX_STORE);
-    for (const entry of entries) store.delete(entry.seq);
+    for (const seq of seqs) store.delete(seq);
     transaction.addEventListener("complete", () => resolve());
     transaction.addEventListener("error", () => reject(transaction.error));
     transaction.addEventListener("abort", () => reject(transaction.error));
   });
 }
 
+async function sendWorkerPush(mutations) {
+  let response;
+  try {
+    response = await fetch("/api/push", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mutations }),
+    });
+  } catch (error) {
+    return { kind: "retryable", error };
+  }
+
+  // A session may expire while the tab is closed. Keep the outbox: a later sign-in will send it.
+  if (response.status === 401) return { kind: "unauthorized" };
+  if (!response.ok)
+    return { kind: "retryable", error: new Error(`Push failed with status ${response.status}.`) };
+
+  let result;
+  try {
+    result = await response.json();
+  } catch (error) {
+    return { kind: "retryable", error };
+  }
+  if (!result || !Array.isArray(result.applied)) {
+    return { kind: "retryable", error: new Error("The server returned an invalid push receipt.") };
+  }
+
+  return { kind: "accepted", result };
+}
+
+function withExclusive(work) {
+  const locks = typeof navigator !== "undefined" && "locks" in navigator ? navigator.locks : null;
+  return locks ? locks.request(SYNC_LOCK, work) : work();
+}
+
 async function drainOutbox() {
   const database = await openDatabase();
   try {
-    for (;;) {
-      const batch = await readBatch(database);
-      if (batch.length === 0) return;
+    const outcome = await drainOutboxKernel({
+      storage: {
+        readBatch: (limit) => readBatch(database, limit),
+        dropEntries: (seqs) => dropEntries(database, seqs),
+      },
+      batchLimit: PUSH_BATCH_LIMIT,
+      toPayload: ({ seq: _seq, ...mutation }) => mutation,
+      send: sendWorkerPush,
+      withExclusive,
+    });
 
-      const response = await fetch("/api/push", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mutations: batch.map(({ seq: _seq, ...mutation }) => mutation),
-        }),
-      });
-
-      // A session may expire while the tab is closed. Keep the outbox: a later sign-in will send it.
-      if (response.status === 401) return;
-      if (!response.ok) throw new Error(`Push failed with status ${response.status}.`);
-
-      const result = await response.json();
-      const applied = new Set(result.applied);
-      const confirmed = batch.filter((entry) => applied.has(entry.mutationId));
-      if (confirmed.length === 0)
-        throw new Error("The server confirmed none of the pushed changes.");
-
-      await dropEntries(database, confirmed);
-      if (batch.length < PUSH_BATCH_LIMIT) return;
-    }
+    // An expired session leaves the entries in place for a later authenticated trigger.
+    if (outcome.kind === "retryable") throw outcome.error;
   } finally {
     database.close();
   }
