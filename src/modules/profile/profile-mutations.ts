@@ -18,7 +18,14 @@ export async function createProfile(name: string): Promise<string> {
   const row = newRow({ ...payload, userId: null });
 
   await commit([{ op: "upsert", table: "profiles", row, payload }]);
-  await pushNow();
+  const outcome = await pushNow();
+  if (outcome.kind !== "completed") {
+    if (outcome.kind === "unauthorized") throw new Error("The session is no longer authorized.");
+    if (outcome.kind === "didNotConverge")
+      throw new Error(`Sync did not converge after ${outcome.pages} pages.`);
+    if (outcome.kind === "blocked") throw new Error("There are changes still waiting to be sent.");
+    throw outcome.error instanceof Error ? outcome.error : new Error("Could not save the profile.");
+  }
 
   return row.id;
 }

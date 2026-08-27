@@ -6,9 +6,13 @@ export type SequencedEntry = {
   mutationId: string;
 };
 
-export type OutboxStorage<Entry extends SequencedEntry> = {
+export type OutboxStorage<
+  Entry extends SequencedEntry,
+  Result extends { applied: readonly string[] },
+> = {
   readBatch(limit: number): Promise<readonly Entry[]>;
   dropEntries(seqs: readonly number[]): Promise<void>;
+  settleEntries?(seqs: readonly number[], result: Result): Promise<void>;
 };
 
 export type OutboxDeliveryResult<Result extends { applied: readonly string[] }> =
@@ -26,7 +30,7 @@ type OutboxAcceptanceOptions<
   Payload,
   Result extends { applied: readonly string[] },
 > = {
-  storage: OutboxStorage<Entry>;
+  storage: OutboxStorage<Entry, Result>;
   batchLimit: number;
   toPayload(entry: Entry): Payload;
   send(payloads: readonly Payload[]): Promise<OutboxDeliveryResult<Result>>;
@@ -91,7 +95,12 @@ export async function drainOutbox<
         };
       }
 
-      await options.storage.dropEntries(confirmed.map((entry) => entry.seq));
+      const confirmedSeqs = confirmed.map((entry) => entry.seq);
+      if (options.storage.settleEntries) {
+        await options.storage.settleEntries(confirmedSeqs, delivery.result);
+      } else {
+        await options.storage.dropEntries(confirmedSeqs);
+      }
       acceptedCount += confirmed.length;
       await options.onAccepted?.(delivery.result, confirmed);
 

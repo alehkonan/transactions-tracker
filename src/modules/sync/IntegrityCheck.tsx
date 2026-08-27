@@ -32,7 +32,18 @@ export function IntegrityCheck() {
   const redownload = async () => {
     setState({ phase: "repairing" });
     try {
-      await resyncFromScratch();
+      const outcome = await resyncFromScratch();
+      if (outcome.kind !== "completed") {
+        if (outcome.kind === "blocked") {
+          throw new Error("Send the waiting changes before re-downloading everything.");
+        }
+        if (outcome.kind === "didNotConverge") {
+          throw new Error(`Sync did not converge after ${outcome.pages} pages.`);
+        }
+        throw outcome.error instanceof Error
+          ? outcome.error
+          : new Error("Could not re-download the data.");
+      }
       // The gate is up by now — the working set was dropped — so this only matters if the pull was
       // quick enough that the page never went away.
       setState({ phase: "checked", report: { outcome: "matched" } });

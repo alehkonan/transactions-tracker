@@ -5,11 +5,20 @@ import {
   readLocalCursors,
   readLocalSnapshot,
   writeLocalPage,
-  writeLocalRows,
 } from "./idb";
-import { compareIntegrity, isCursorStale, localIntegrity } from "./integrity";
-import { outboxStorage } from "./outbox";
-import { drainOutbox, type OutboxDeliveryResult } from "./outbox-acceptance";
+import { compareIntegrity, localIntegrity } from "./integrity";
+import { outboxStorage, readOutboxState } from "./outbox";
+import {
+  drainOutbox,
+  type OutboxDeliveryResult,
+  type OutboxDrainOutcome,
+} from "./outbox-acceptance";
+import {
+  runSync,
+  type PullDeliveryResult,
+  type SyncRunOutcome,
+  type SyncRunPage,
+} from "./sync-run";
 import { PUSH_BATCH_LIMIT } from "./sync-types";
 import {
   applyServerRows,
@@ -25,7 +34,7 @@ import type {
   Mutation,
   PullChangesResult,
   PushChangesResult,
-  SyncedTable,
+  SyncCursors,
 } from "./sync-types";
 
 /**
@@ -54,22 +63,6 @@ const STALENESS_CHECK_MS = 60_000;
 /** How long a write waits for its neighbours before it goes out. */
 const PUSH_DEBOUNCE_MS = 1000;
 const MAX_PUSH_BACKOFF_MS = 30_000;
-
-/**
- * A run of pages is bounded so a cursor that somehow stops advancing shows up as an error instead
- * of an endless loop against the database.
- */
-const MAX_PAGES_PER_PULL = 200;
-
-/**
- * The tables the app cannot render anything meaningful without: which accounts and categories exist,
- * and which profiles they belong to. All three are small enough to arrive in one page.
- *
- * `transactions` is deliberately not one of them. It is the only table big enough to need paging, so
- * waiting for the last page before showing anything means staring at a spinner for the sake of rows
- * that are already on their way — the app opens on the reference data and the transactions fill in.
- */
-const REFERENCE_TABLES: SyncedTable[] = ["profiles", "accounts", "categories"];
 
 /* -------------------------------------------------------------------------- */
 /* The mutex                                                                   */
@@ -166,12 +159,6 @@ function isSyncResult<T>(value: T | Response): value is T {
   return typeof value === "object" && value != null && !(value instanceof Response);
 }
 
-/** A 401 is a dead session, which needs a redirect — not a retry like every other sync failure. */
-function isUnauthorized(error: unknown): boolean {
-  if (error instanceof Response) return error.status === 401;
-  return error instanceof Error && error.message.includes("Unauthorized");
-}
-
 function toMessage(error: unknown): string {
   if (error instanceof Response) return `The server rejected the request (${error.status}).`;
   if (error instanceof Error) return error.message;
@@ -190,62 +177,62 @@ async function dropLocalCopy(): Promise<void> {
   clearWorkingSet();
 }
 
-async function pullUntilCaughtUp(): Promise<void> {
+async function pullPage(
+  cursors: SyncCursors | undefined,
+  withCounts: boolean,
+): Promise<PullDeliveryResult> {
+  try {
+    const result: PullChangesResult | Response = await pullChanges({
+      data: { cursors, withCounts },
+    });
+    if (!(result instanceof Response)) return { kind: "accepted", result };
+    if (result.status === 401) return { kind: "unauthorized", error: result };
+    return { kind: "retryable", error: result };
+  } catch (error) {
+    return { kind: "retryable", error };
+  }
+}
+
+async function commitPulledPage(result: PullChangesResult): Promise<void> {
+  await writeLocalPage({
+    rows: result.rows,
+    cursors: result.nextCursors,
+    colors: result.colors,
+    usdRates: result.usdRates,
+  });
+}
+
+async function applyPulledPage(page: SyncRunPage): Promise<void> {
+  const { result } = page;
+  applyServerRows(result.rows, result.colors);
+  useSyncStore.setState((state) => ({
+    pending: result.pending,
+    syncedRows: state.syncedRows + result.rows.transactions.length,
+    syncTotalRows: result.transactionBacklog ?? state.syncTotalRows,
+    usdRates: result.usdRates ?? state.usdRates,
+    // Opened as soon as the reference tables are complete, so a first run spends one page behind
+    // the loading screen instead of the whole backlog.
+    isHydrated: state.isHydrated || page.referenceTablesReady,
+  }));
+}
+
+async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
   useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
 
-  try {
-    // From disk, not from the store: another tab may have pulled while this one sat idle, and its
-    // cursor is the one that says what this browser already holds.
-    let cursors = await readLocalCursors();
-    let changedRows = 0;
+  const outcome = await runSync(mode, {
+    remote: { pull: pullPage },
+    replica: {
+      readCursors: readLocalCursors,
+      hasQueuedWrites: async () => (await readOutboxState()).count > 0,
+      clearCachedRows: dropLocalCopy,
+      commitPulledPage: commitPulledPage,
+    },
+    push: { drain: drainPageOutbox },
+    onPage: applyPulledPage,
+  });
 
-    // A copy older than the tombstone retention window cannot be caught up by a delta pull: the
-    // deletions it missed have been swept, so it would collect every edit and none of the removals,
-    // and — since a pull only ever adds — hold the deleted rows forever with nothing looking wrong.
-    // Skipped while writes are queued, because those exist nowhere else and a re-pull will not
-    // bring them back; the next attempt, after the push lands, does the wipe instead.
-    if (isCursorStale(cursors) && useSyncStore.getState().outboxCount === 0) {
-      await dropLocalCopy();
-      cursors = undefined;
-    }
-
-    for (let page = 0; ; page++) {
-      if (page >= MAX_PAGES_PER_PULL) throw new Error("Sync did not converge — too many pages.");
-
-      // The backlog size is only worth a `count(*)` once — it describes the whole run.
-      const result: PullChangesResult | Response = await pullChanges({
-        data: { cursors, withCounts: page === 0 },
-      });
-      if (!isSyncResult(result)) throw result;
-
-      cursors = result.nextCursors;
-
-      // Persisted before it is applied: a store that is ahead of IndexedDB would silently lose the
-      // difference on the next reload.
-      await writeLocalPage({
-        rows: result.rows,
-        cursors: result.nextCursors,
-        colors: result.colors,
-        usdRates: result.usdRates,
-      });
-
-      const { rows } = result;
-      changedRows += Object.values(rows).reduce((total, table) => total + table.length, 0);
-      applyServerRows(rows, result.colors);
-      useSyncStore.setState((state) => ({
-        pending: result.pending,
-        syncedRows: state.syncedRows + rows.transactions.length,
-        syncTotalRows: result.transactionBacklog ?? state.syncTotalRows,
-        usdRates: result.usdRates ?? state.usdRates,
-        // Opened as soon as the reference tables are complete, so a first run spends one page behind
-        // the loading screen instead of the whole backlog.
-        isHydrated:
-          state.isHydrated || REFERENCE_TABLES.every((table) => !result.pending.includes(table)),
-      }));
-
-      if (result.pending.length === 0) break;
-    }
-
+  if (outcome.kind === "completed") {
+    if (outcome.pushed > 0) failedPushes = 0;
     useSyncStore.setState({
       status: "idle",
       isHydrated: true,
@@ -253,15 +240,28 @@ async function pullUntilCaughtUp(): Promise<void> {
       syncTotalRows: null,
       lastSyncedAt: Date.now(),
     });
-    // A delta pull that found nothing is the common case, and telling the other tabs to re-read a
-    // database that has not moved would rebuild their working set every five minutes for nothing.
-    if (changedRows > 0) announce({ type: "changed" });
-  } catch (error) {
-    useSyncStore.setState({
-      status: isUnauthorized(error) ? "unauthorized" : "error",
-      error: toMessage(error),
-    });
+    if (outcome.changedRows > 0) announce({ type: "changed" });
+    return outcome;
   }
+
+  if (outcome.kind === "unauthorized") {
+    useSyncStore.setState({ status: "unauthorized", error: toMessage(outcome.error) });
+  } else if (outcome.kind === "retryable") {
+    useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
+    if (outcome.phase === "push") {
+      failedPushes++;
+      schedulePush(Math.min(MAX_PUSH_BACKOFF_MS, PUSH_DEBOUNCE_MS * 2 ** failedPushes));
+    }
+  } else if (outcome.kind === "didNotConverge") {
+    useSyncStore.setState({
+      status: "error",
+      error: `Sync did not converge after ${outcome.pages} pages.`,
+    });
+  } else {
+    useSyncStore.setState({ status: "idle", error: null });
+  }
+
+  return outcome;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -294,14 +294,26 @@ async function sendPagePush(
 
 async function applyAcceptedPageBatch(result: PushChangesResult): Promise<void> {
   await refreshOutboxState();
-
-  // Only now that the entries are gone do the server's copies outrank the local ones.
-  await writeLocalRows(result.canonicalRows, result.colors);
   applyServerRows(result.canonicalRows, result.colors);
   announce({ type: "changed" });
 
   if (result.conflicts.length > 0) {
     useSyncStore.setState((state) => ({ conflicts: [...state.conflicts, ...result.conflicts] }));
+  }
+}
+
+async function drainPageOutbox(): Promise<OutboxDrainOutcome> {
+  useSyncStore.setState({ isPushing: true });
+  try {
+    return await drainOutbox({
+      storage: outboxStorage,
+      batchLimit: PUSH_BATCH_LIMIT,
+      toPayload: ({ seq: _seq, ...mutation }) => mutation,
+      send: sendPagePush,
+      onAccepted: applyAcceptedPageBatch,
+    });
+  } finally {
+    useSyncStore.setState({ isPushing: false });
   }
 }
 
@@ -315,43 +327,10 @@ let failedPushes = 0;
  * the pull cursor past them, so without it the next boot re-downloads everything this device just
  * created. Doing it here puts that behind the sync indicator instead of on the loading path.
  */
-export function pushNow(): Promise<void> {
+export function pushNow(): Promise<SyncRunOutcome> {
   clearTimeout(pushTimer);
   pushTimer = undefined;
-
-  return runExclusive(async () => {
-    useSyncStore.setState({ isPushing: true });
-    try {
-      const outcome = await drainOutbox({
-        storage: outboxStorage,
-        batchLimit: PUSH_BATCH_LIMIT,
-        toPayload: ({ seq: _seq, ...mutation }) => mutation,
-        send: sendPagePush,
-        onAccepted: applyAcceptedPageBatch,
-      });
-      if (outcome.kind === "unauthorized")
-        throw outcome.error ?? new Error("The session is no longer authorized.");
-      if (outcome.kind === "retryable") throw outcome.error;
-
-      failedPushes = 0;
-      useSyncStore.setState({ isPushing: false });
-    } catch (error) {
-      failedPushes++;
-      useSyncStore.setState({
-        isPushing: false,
-        status: isUnauthorized(error) ? "unauthorized" : useSyncStore.getState().status,
-        error: toMessage(error),
-      });
-      // Usually just offline. The entries are on disk, so the retry costs nothing but patience —
-      // and the `online` event below cuts the wait short the moment there is a connection again.
-      if (!isUnauthorized(error)) {
-        schedulePush(Math.min(MAX_PUSH_BACKOFF_MS, PUSH_DEBOUNCE_MS * 2 ** failedPushes));
-      }
-      return;
-    }
-
-    await pullUntilCaughtUp();
-  });
+  return runExclusive(() => runPageSync("normal"));
 }
 
 /**
@@ -423,15 +402,8 @@ export function verifyIntegrity(): Promise<IntegrityReport> {
  * assumptions failed, so it does not try to patch the difference. Refuses while writes are queued —
  * they are the one thing here that a re-pull could not bring back.
  */
-export function resyncFromScratch(): Promise<void> {
-  return runExclusive(async () => {
-    if (useSyncStore.getState().outboxCount > 0) {
-      throw new Error("There are changes still waiting to be sent. Send them first.");
-    }
-
-    await dropLocalCopy();
-    await pullUntilCaughtUp();
-  });
+export function resyncFromScratch(): Promise<SyncRunOutcome> {
+  return runExclusive(() => runPageSync("resync"));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -439,9 +411,8 @@ export function resyncFromScratch(): Promise<void> {
 /* -------------------------------------------------------------------------- */
 
 /** Brings this browser up to date: sends what is queued if anything is, otherwise just pulls. */
-export function syncNow(): Promise<void> {
-  if (useSyncStore.getState().outboxCount > 0) return pushNow();
-  return runExclusive(pullUntilCaughtUp);
+export function syncNow(): Promise<SyncRunOutcome> {
+  return runExclusive(() => runPageSync("normal"));
 }
 
 /**
@@ -450,16 +421,15 @@ export function syncNow(): Promise<void> {
  * The check is against `lastSyncedAt`, which every tab updates from its own pulls, so a tab coming
  * back to the foreground next to one that has been syncing all along does nothing.
  */
-function syncIfStale(): Promise<void> {
+async function syncIfStale(): Promise<void> {
   const { status, isOnline, lastSyncedAt, outboxCount } = useSyncStore.getState();
 
   // A dead session is not something a timer can fix; the gate is already sending the user to login.
-  if (status === "unauthorized" || !isOnline) return Promise.resolve();
-  if (outboxCount === 0 && lastSyncedAt != null && Date.now() - lastSyncedAt < STALE_AFTER_MS) {
-    return Promise.resolve();
-  }
+  if (status === "unauthorized" || !isOnline) return;
+  if (outboxCount === 0 && lastSyncedAt != null && Date.now() - lastSyncedAt < STALE_AFTER_MS)
+    return;
 
-  return syncNow();
+  await syncNow();
 }
 
 /** Peer messages arrive per page of a pull; one re-read after the run is enough. */
@@ -537,7 +507,7 @@ export function startSyncTriggers(): () => void {
 /* Boot and teardown                                                           */
 /* -------------------------------------------------------------------------- */
 
-let bootPromise: Promise<void> | undefined;
+let bootPromise: Promise<SyncRunOutcome> | undefined;
 
 /**
  * Brings the store up, in the order that gets to interactive soonest:
@@ -546,8 +516,8 @@ let bootPromise: Promise<void> | undefined;
  * 2. push whatever the last session left unsent, then pull. A first run has nothing to show, so it
  *    stays behind the loading screen until the pull finishes (see `SyncGate`).
  */
-export function bootSync(): Promise<void> {
-  bootPromise ??= (async () => {
+export function bootSync(): Promise<SyncRunOutcome> {
+  bootPromise ??= (async (): Promise<SyncRunOutcome> => {
     try {
       // Writes can outlive the session that made them — the browser was closed, or offline, before
       // the debounce fired. `hydrateFromLocal` reads the outbox with the rows, so the first pull
@@ -558,10 +528,11 @@ export function bootSync(): Promise<void> {
       console.warn("Could not read the local database:", error);
     }
 
-    await syncNow();
+    const outcome = await syncNow();
     // Best-effort eviction protection. The browser decides whether to grant this idempotent request;
     // when granted, it covers both IndexedDB and the service worker's Cache Storage.
     void navigator.storage?.persist?.().catch(() => {});
+    return outcome;
   })();
 
   return bootPromise;

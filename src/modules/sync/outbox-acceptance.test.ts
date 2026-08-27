@@ -100,6 +100,33 @@ describe("drainOutbox", () => {
     expect(accepted).toEqual(["one"]);
   });
 
+  it("settles accepted entries through the atomic storage adapter", async () => {
+    const testStorage = createStorage([entries[0]]);
+    const settlements: Array<{ seqs: number[]; marker: string }> = [];
+    const accepted: string[] = [];
+
+    const outcome = await drainOutbox<Entry, string, Result>({
+      storage: {
+        ...testStorage.storage,
+        settleEntries: async (seqs, result) => {
+          settlements.push({ seqs: [...seqs], marker: result.marker });
+          await testStorage.storage.dropEntries(seqs);
+        },
+      },
+      batchLimit: 2,
+      toPayload: (entry) => entry.value,
+      send: async () => ({ kind: "accepted", result: { applied: ["one"], marker: "atomic" } }),
+      onAccepted: async (_result, batch) => {
+        accepted.push(...batch.map((entry) => entry.mutationId));
+      },
+    });
+
+    expect(outcome).toEqual({ kind: "drained", accepted: 1 });
+    expect(settlements).toEqual([{ seqs: [1], marker: "atomic" }]);
+    expect(accepted).toEqual(["one"]);
+    expect(testStorage.entries).toEqual([]);
+  });
+
   it("rejects a storage adapter that violates sequence ordering", async () => {
     const testStorage = createStorage([
       { seq: 2, mutationId: "two", value: "b" },

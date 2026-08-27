@@ -214,7 +214,9 @@ imported category draws untinted.
 ## The sync engine
 
 `src/modules/sync/sync-engine.ts` is **the only module that calls a sync endpoint**, and it holds a
-**Web Lock** while it does.
+**Web Lock** while it does. `src/modules/sync/sync-run.ts` owns the ordering and recovery policy for
+one run — push-first selection, paginated pulls, stale cursors and convergence — and returns explicit
+outcomes. The engine translates those outcomes into Zustand state and browser behavior.
 
 **The mutex is a Web Lock, not a promise chain.** A promise chain serializes one document's work and
 knows nothing about any other, and a second tab is not exotic here — it is what happens when someone
@@ -418,7 +420,7 @@ src/
 ├── components/   # shared presentational primitives and app chrome
 ├── database/     # Drizzle schema, migrations, getDb()
 ├── modules/      # self-contained domain UI/logic, grouped by feature
-│   └── sync/     # idb.ts, useSyncStore.ts, sync-engine.ts, mutations.ts, outbox.ts, integrity.ts
+│   └── sync/     # idb.ts, useSyncStore.ts, sync-engine.ts, sync-run.ts, mutations.ts, outbox.ts, integrity.ts
 ├── routes/       # file-based routes; __root.tsx is the SSR shell
 ├── utils/        # generic helpers with no server/DB dependency
 └── styles.css    # Tailwind theme tokens and the z-index scale

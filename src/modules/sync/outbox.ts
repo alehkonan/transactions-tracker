@@ -1,6 +1,6 @@
-import { OUTBOX_STORE, openDatabase } from "./idb";
+import { OUTBOX_STORE, openDatabase, settleAcceptedPush } from "./idb";
 import type { OutboxStorage } from "./outbox-acceptance";
-import type { Mutation, SyncedTable } from "./sync-types";
+import type { Mutation, PushChangesResult, SyncedTable } from "./sync-types";
 
 /**
  * The queue of writes that have been made locally but not yet accepted by the server.
@@ -24,7 +24,7 @@ function promisify<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 /** The oldest `limit` entries — one push's worth, in the order they were made. */
-export async function readOutboxBatch(limit: number): Promise<OutboxEntry[]> {
+async function readOutboxBatch(limit: number): Promise<OutboxEntry[]> {
   const database = await openDatabase();
   const store = database.transaction(OUTBOX_STORE, "readonly").objectStore(OUTBOX_STORE);
 
@@ -32,7 +32,7 @@ export async function readOutboxBatch(limit: number): Promise<OutboxEntry[]> {
 }
 
 /** Forgets entries the server has confirmed. */
-export async function dropOutboxEntries(seqs: readonly number[]): Promise<void> {
+async function dropOutboxEntries(seqs: readonly number[]): Promise<void> {
   if (seqs.length === 0) return;
 
   const database = await openDatabase();
@@ -66,9 +66,10 @@ export type OutboxState = {
   rowKeys: Set<string>;
 };
 
-export const outboxStorage: OutboxStorage<OutboxEntry> = {
+export const outboxStorage: OutboxStorage<OutboxEntry, PushChangesResult> = {
   readBatch: readOutboxBatch,
   dropEntries: dropOutboxEntries,
+  settleEntries: (seqs, result) => settleAcceptedPush(seqs, result.canonicalRows, result.colors),
 };
 
 export async function readOutboxState(): Promise<OutboxState> {
