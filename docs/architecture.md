@@ -17,10 +17,11 @@ boot ─→ IndexedDB ─→ Zustand store (full working set) ─→ every read,
                           └──── sync engine ───┘ ─→ PostgreSQL
 ```
 
-There are **three data endpoints in the entire server surface** — `pullChanges`, `pushChanges` and
-`checkIntegrity` (which moves no rows at all), all in `src/api/sync.functions.ts`. Everything else
-under `src/api/` is auth, or `selectProfile`, which is not a data endpoint but the one thing only a
-server can do: sign a cookie.
+There are **three logical data operations in the server surface** — `pullChanges`, `pushChanges` and
+`checkIntegrity` (which moves no rows at all). `pushChanges` also has a plain `/api/push` HTTP route
+for the service worker; both entry points share the schemas and `applyMutations` path. Everything
+else under `src/api/` is auth, or `selectProfile`, which is not a data endpoint but the one thing only
+a server can do: sign a cookie.
 
 ---
 
@@ -213,7 +214,9 @@ imported category draws untinted.
 ## The sync engine
 
 `src/modules/sync/sync-engine.ts` is **the only module that calls a sync endpoint**, and it holds a
-**Web Lock** while it does.
+**Web Lock** while it does. `src/modules/sync/sync-run.ts` owns the ordering and recovery policy for
+one run — push-first selection, paginated pulls, stale cursors and convergence — and returns explicit
+outcomes. The engine translates those outcomes into Zustand state and browser behavior.
 
 **The mutex is a Web Lock, not a promise chain.** A promise chain serializes one document's work and
 knows nothing about any other, and a second tab is not exotic here — it is what happens when someone
@@ -278,10 +281,11 @@ checks.
 
 It is deliberately standalone: raw SQL over its own postgres client, no `getDb()` and no Drizzle
 schema, so Node can execute the file as-is and Netlify can bundle it without dragging the app's
-server graph in behind it. The price is the table list, which **has to be kept in step with
-`SYNCED_TABLES` by hand**. There is no index on `deleted_at`: a daily sweep off the request path can
-afford a sequential scan of tables this size, and four partial indexes would tax every write to save
-a job nobody is waiting for.
+server graph in behind it. It imports only the dependency-free `src/modules/sync/synced-tables.ts`
+module, which provides the parent-first sync order, child-first sweep order and the 60/90-day
+retention constants. An invariant test keeps the two table lists in step. There is no index on
+`deleted_at`: a daily sweep off the request path can afford a sequential scan of tables this size,
+and four partial indexes would tax every write to save a job nobody is waiting for.
 
 **A retention window is a deadline for clients too.** Once a tombstone is gone, a device that never
 saw it pulls every edit and none of the deletions, and — since a pull only ever adds — holds the
@@ -402,7 +406,9 @@ Production runs Postgres 17 and local dev runs 18, so the id default is `gen_ran
 client-minted v7.
 
 Input validation lives next to the server function, as a Zod schema passed to `.validator(...)` in
-the same `src/api/*.functions.ts` file. There is no shared schema module.
+the same `src/api/*.functions.ts` file. The push mutation schema is the exception: it lives in
+`src/api/sync-schemas.ts` because the page RPC and the service worker's `/api/push` route must accept
+exactly the same protocol.
 
 ---
 
@@ -414,7 +420,7 @@ src/
 ├── components/   # shared presentational primitives and app chrome
 ├── database/     # Drizzle schema, migrations, getDb()
 ├── modules/      # self-contained domain UI/logic, grouped by feature
-│   └── sync/     # idb.ts, useSyncStore.ts, sync-engine.ts, mutations.ts, outbox.ts, integrity.ts
+│   └── sync/     # idb.ts, useSyncStore.ts, sync-engine.ts, sync-run.ts, mutations.ts, outbox.ts, integrity.ts
 ├── routes/       # file-based routes; __root.tsx is the SSR shell
 ├── utils/        # generic helpers with no server/DB dependency
 └── styles.css    # Tailwind theme tokens and the z-index scale

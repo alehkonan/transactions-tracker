@@ -10,6 +10,7 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { twJoin } from "tailwind-merge";
 import { Navbar } from "~/components/Navbar";
+import { ServiceWorkerRegistration } from "~/components/ServiceWorkerRegistration";
 import { Toaster } from "~/components/Toaster";
 import { hasLiveSessionHint } from "~/modules/auth/session-hint";
 import { hasSelectedProfileHint } from "~/modules/profile/profile-cookie";
@@ -30,7 +31,12 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Transactions tracker" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", href: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { rel: "icon", href: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
   }),
   shellComponent: ({ children }) => {
     const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -53,6 +59,7 @@ export const Route = createRootRoute({
         </head>
         <body className="bg-background text-text min-h-dvh font-sans">
           <Toast.Provider>
+            <ServiceWorkerRegistration />
             {showNavbar && (
               <header
                 className={twJoin(

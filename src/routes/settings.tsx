@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { readSessionHint } from "~/modules/auth/session-hint";
@@ -13,7 +14,15 @@ import { ExportTransactionsButton } from "~/modules/transactions/ExportTransacti
 
 export const Route = createFileRoute("/settings")({
   component: () => {
+    const [isStoragePersisted, setIsStoragePersisted] = useState<boolean | null>(null);
     const categories = useCategories();
+
+    useEffect(() => {
+      void navigator.storage
+        ?.persisted?.()
+        .then(setIsStoragePersisted)
+        .catch(() => {});
+    }, []);
     const colors = useSyncStore((state) => state.colors);
     const profiles = useSyncStore((state) => state.profiles);
     const profileId = readSelectedProfileId();
@@ -61,6 +70,13 @@ export const Route = createFileRoute("/settings")({
         </div>
         <hr className="border-border my-3" />
         <Title variant="section">Local data</Title>
+        {isStoragePersisted != null && (
+          <p className="text-text-muted mb-2 text-sm">
+            {isStoragePersisted
+              ? "Local data is protected from automatic cleanup."
+              : "This browser may clear local data after a period of no use."}
+          </p>
+        )}
         <IntegrityCheck />
       </PageContainer>
     );

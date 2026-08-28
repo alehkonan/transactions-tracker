@@ -38,6 +38,15 @@ function formatTimestamp(date: Date): string {
   );
 }
 
+async function responseMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.clone().text()).trim();
+    return body || response.statusText || "request failed";
+  } catch {
+    return response.statusText || "request failed";
+  }
+}
+
 /**
  * Logs every server function call: method, name, response status (when known), and how long it
  * took.
@@ -52,22 +61,47 @@ export const loggerMiddleware = createMiddleware().server(
   async ({ next, request, pathname, serverFnMeta }) => {
     const startedAt = performance.now();
     const startedAtDate = new Date();
-    const result = await next();
-    if (typeof window !== "undefined") return result;
-
-    const durationMs = performance.now() - startedAt;
     const methodColor = METHOD_COLORS[request.method] ?? "\x1b[37m";
     const label = serverFnMeta?.name ?? pathname;
-    const status = result.response?.status;
 
-    console.log(
-      `${DIM}${formatTimestamp(startedAtDate)}${RESET} ` +
-        `${methodColor}${BOLD}${request.method.padEnd(6)}${RESET}` +
-        `${DIM}${label}${RESET} ` +
-        (status != null ? `${colorForStatus(status)}${status}${RESET} ` : "") +
-        `${colorForDuration(durationMs)}${durationMs.toFixed(1)}ms${RESET}`,
-    );
+    try {
+      const result = await next();
+      if (typeof window !== "undefined") return result;
 
-    return result;
+      const durationMs = performance.now() - startedAt;
+      const status = result.response?.status;
+
+      console.log(
+        `${DIM}${formatTimestamp(startedAtDate)}${RESET} ` +
+          `${methodColor}${BOLD}${request.method.padEnd(6)}${RESET}` +
+          `${DIM}${label}${RESET} ` +
+          (status != null ? `${colorForStatus(status)}${status}${RESET} ` : "") +
+          `${colorForDuration(durationMs)}${durationMs.toFixed(1)}ms${RESET}`,
+      );
+
+      return result;
+    } catch (error) {
+      if (typeof window !== "undefined") throw error;
+
+      const durationMs = performance.now() - startedAt;
+      const status = error instanceof Response ? error.status : undefined;
+      const errorLabel =
+        error instanceof Response
+          ? await responseMessage(error)
+          : error instanceof Error
+            ? error.message
+            : "request failed";
+
+      console.error(
+        `${DIM}${formatTimestamp(startedAtDate)}${RESET} ` +
+          `${methodColor}${BOLD}${request.method.padEnd(6)}${RESET}` +
+          `${DIM}${label}${RESET} ` +
+          (status != null ? `${colorForStatus(status)}${status}${RESET} ` : "") +
+          `${colorForDuration(durationMs)}${durationMs.toFixed(1)}ms${RESET} ` +
+          `${errorLabel}`,
+      );
+
+      throw error;
+    }
   },
 );

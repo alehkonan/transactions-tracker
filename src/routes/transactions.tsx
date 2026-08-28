@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PlusIcon } from "lucide-react";
+import { ListFilterIcon, PlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { PageContainer } from "~/components/PageContainer";
+import { Title } from "~/components/Title";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useCategories } from "~/modules/categories/useCategories";
 import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
@@ -52,19 +53,30 @@ export const Route = createFileRoute("/transactions")({
 
     return (
       <PageContainer>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-wrap items-end gap-2">
-            <TransactionsDateRangeFilter from={from} to={to} />
-            <TransactionsAccountFilter accounts={accounts} selected={accountFilter} />
-            <TransactionsCategoryFilter categories={categories} selected={categoryFilter} />
-          </div>
+        <div className="flex items-center justify-between gap-2">
+          <Title variant="page">Transactions</Title>
           <div className="flex flex-wrap gap-2">
+            <Dialog
+              title="Filters"
+              renderTrigger={({ onOpen }) => (
+                <Button variant="secondary" aria-label="Transaction filters" onClick={onOpen}>
+                  <ListFilterIcon />
+                  <span className="hidden sm:block">Filters</span>
+                </Button>
+              )}
+            >
+              <div className="mt-3 flex flex-wrap gap-2">
+                <TransactionsDateRangeFilter from={from} to={to} />
+                <TransactionsAccountFilter accounts={accounts} selected={accountFilter} />
+                <TransactionsCategoryFilter categories={categories} selected={categoryFilter} />
+              </div>
+            </Dialog>
             <Dialog
               title="Add transaction"
               renderTrigger={({ onOpen }) => (
                 <Button variant="primary" aria-label="Add transaction" onClick={onOpen}>
                   <PlusIcon />
-                  <span className="hidden sm:block">Add</span>
+                  <span className="hidden sm:block">Add transaction</span>
                 </Button>
               )}
             >

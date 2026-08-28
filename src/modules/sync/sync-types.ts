@@ -1,3 +1,4 @@
+import { SYNCED_TABLES } from "./synced-tables";
 import type {
   accountsTable,
   categoriesTable,
@@ -5,6 +6,8 @@ import type {
   profilesTable,
   transactionsTable,
 } from "~/database/tables";
+
+export { STALE_CURSOR_AFTER_DAYS, SYNCED_TABLES } from "./synced-tables";
 
 /**
  * The shape of the replicated data, shared by the server function that sends it, the IndexedDB
@@ -30,8 +33,6 @@ export type SyncedTransaction = typeof transactionsTable.$inferSelect;
 
 /** The fixed palette a category can be tinted with — global, tiny, and pulled in full. */
 export type Color = typeof colorsTable.$inferSelect;
-
-export const SYNCED_TABLES = ["profiles", "accounts", "categories", "transactions"] as const;
 
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
@@ -122,8 +123,6 @@ export type IntegrityResult = Record<SyncedTable, TableIntegrity>;
  * keep rows the server has deleted, forever. A month of slack costs a full re-pull that a device
  * dormant for two months was going to pay for anyway.
  */
-export const STALE_CURSOR_AFTER_DAYS = 60;
-
 /**
  * The write path.
  *

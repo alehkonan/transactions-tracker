@@ -125,17 +125,57 @@ export async function readLocalCursors(): Promise<SyncCursors | undefined> {
  * Writes rows into their stores: an ordinary row is upserted by id, and a tombstone deletes its row
  * outright, since the cursor — not the tombstone — is what remembers that the deletion was seen.
  */
-function putRows(transaction: IDBTransaction, rows: Partial<SyncedRows>): void {
+type SequencedMutation = Mutation & { seq: number };
+
+export function filterQueuedServerRows(
+  rows: Partial<SyncedRows>,
+  protectedRowKeys: ReadonlySet<string>,
+): Partial<SyncedRows> {
+  return Object.fromEntries(
+    SYNCED_TABLES.map((table) => [
+      table,
+      ((rows[table] as SyncedRow[] | undefined) ?? []).filter(
+        (row) => !protectedRowKeys.has(`${table}:${row.id}`),
+      ),
+    ]),
+  ) as Partial<SyncedRows>;
+}
+
+function putRows(
+  transaction: IDBTransaction,
+  rows: Partial<SyncedRows>,
+  protectedRowKeys = new Set<string>(),
+): void {
+  const unprotectedRows = filterQueuedServerRows(rows, protectedRowKeys);
   for (const table of SYNCED_TABLES) {
-    const incoming = rows[table] as SyncedRow[] | undefined;
+    const incoming = unprotectedRows[table] as SyncedRow[] | undefined;
     if (!incoming?.length) continue;
 
     const store = transaction.objectStore(table);
     for (const row of incoming) {
+      if (protectedRowKeys.has(`${table}:${row.id}`)) continue;
       if (row.deletedAt) store.delete(row.id);
       else store.put(row);
     }
   }
+}
+
+/** Reads pending writes in the same transaction before applying server rows. */
+function putServerRows(
+  transaction: IDBTransaction,
+  rows: Partial<SyncedRows>,
+  settledSeqs = new Set<number>(),
+): void {
+  const request = transaction.objectStore(OUTBOX_STORE).getAll();
+  request.addEventListener("success", () => {
+    const protectedRowKeys = new Set(
+      (request.result as SequencedMutation[])
+        .filter((entry) => !settledSeqs.has(entry.seq))
+        .map((entry) => `${entry.table}:${entry.rowId}`),
+    );
+    putRows(transaction, rows, protectedRowKeys);
+  });
+  request.addEventListener("error", () => transaction.abort());
 }
 
 type PulledPage = {
@@ -153,9 +193,12 @@ type PulledPage = {
  */
 export async function writeLocalPage(page: PulledPage): Promise<void> {
   const database = await openDatabase();
-  const transaction = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
+  const transaction = database.transaction(
+    [...SYNCED_TABLES, META_STORE, OUTBOX_STORE],
+    "readwrite",
+  );
 
-  putRows(transaction, page.rows);
+  putServerRows(transaction, page.rows);
 
   const meta = transaction.objectStore(META_STORE);
   meta.put(page.cursors, "cursors");
@@ -188,16 +231,22 @@ export async function writeLocalMutations(
   await whenComplete(transaction);
 }
 
-/** Applies rows the server handed back, with the palette they may have added to. */
-export async function writeLocalRows(
+/** Settles accepted page writes and canonical rows in one IndexedDB transaction. */
+export async function settleAcceptedPush(
+  seqs: readonly number[],
   rows: Partial<SyncedRows>,
-  colors: Color[] | undefined,
+  colors: Color[],
 ): Promise<void> {
   const database = await openDatabase();
-  const transaction = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
+  const transaction = database.transaction(
+    [...SYNCED_TABLES, META_STORE, OUTBOX_STORE],
+    "readwrite",
+  );
+  const outbox = transaction.objectStore(OUTBOX_STORE);
+  for (const seq of seqs) outbox.delete(seq);
 
-  putRows(transaction, rows);
-  if (colors) transaction.objectStore(META_STORE).put(colors, "colors");
+  putServerRows(transaction, rows, new Set(seqs));
+  transaction.objectStore(META_STORE).put(colors, "colors");
 
   await whenComplete(transaction);
 }

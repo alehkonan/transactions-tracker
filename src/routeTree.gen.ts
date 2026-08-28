@@ -17,6 +17,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as TransactionsRouteImport } from './routes/transactions'
 import { Route as TransactionsImportRouteImport } from './routes/transactions-import'
+import { Route as ApiPushRouteImport } from './routes/api/push'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -58,6 +59,11 @@ const TransactionsImportRoute = TransactionsImportRouteImport.update({
   path: '/transactions-import',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPushRoute = ApiPushRouteImport.update({
+  id: '/api/push',
+  path: '/api/push',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/statistics': typeof StatisticsRoute
   '/transactions': typeof TransactionsRoute
   '/transactions-import': typeof TransactionsImportRoute
+  '/api/push': typeof ApiPushRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/statistics': typeof StatisticsRoute
   '/transactions': typeof TransactionsRoute
   '/transactions-import': typeof TransactionsImportRoute
+  '/api/push': typeof ApiPushRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/statistics': typeof StatisticsRoute
   '/transactions': typeof TransactionsRoute
   '/transactions-import': typeof TransactionsImportRoute
+  '/api/push': typeof ApiPushRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/statistics'
     | '/transactions'
     | '/transactions-import'
+    | '/api/push'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/statistics'
     | '/transactions'
     | '/transactions-import'
+    | '/api/push'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/statistics'
     | '/transactions'
     | '/transactions-import'
+    | '/api/push'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +144,7 @@ export interface RootRouteChildren {
   StatisticsRoute: typeof StatisticsRoute
   TransactionsRoute: typeof TransactionsRoute
   TransactionsImportRoute: typeof TransactionsImportRoute
+  ApiPushRoute: typeof ApiPushRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransactionsImportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/push': {
+      id: '/api/push'
+      path: '/api/push'
+      fullPath: '/api/push'
+      preLoaderRoute: typeof ApiPushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -204,6 +224,7 @@ const rootRouteChildren: RootRouteChildren = {
   StatisticsRoute: StatisticsRoute,
   TransactionsRoute: TransactionsRoute,
   TransactionsImportRoute: TransactionsImportRoute,
+  ApiPushRoute: ApiPushRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

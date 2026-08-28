@@ -1,6 +1,8 @@
 import { commit, newRow } from "~/modules/sync/mutations";
 import { pushNow } from "~/modules/sync/sync-engine";
-import type { ProfilePayload } from "~/modules/sync/sync-types";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
+import type { LocalChange } from "~/modules/sync/mutations";
+import type { ProfilePayload, SyncedProfile } from "~/modules/sync/sync-types";
 
 /**
  * Creates a profile and waits for it to reach the server.
@@ -16,7 +18,49 @@ export async function createProfile(name: string): Promise<string> {
   const row = newRow({ ...payload, userId: null });
 
   await commit([{ op: "upsert", table: "profiles", row, payload }]);
-  await pushNow();
+  const outcome = await pushNow();
+  if (outcome.kind !== "completed") {
+    if (outcome.kind === "unauthorized") throw new Error("The session is no longer authorized.");
+    if (outcome.kind === "didNotConverge")
+      throw new Error(`Sync did not converge after ${outcome.pages} pages.`);
+    if (outcome.kind === "blocked") throw new Error("There are changes still waiting to be sent.");
+    throw outcome.error instanceof Error ? outcome.error : new Error("Could not save the profile.");
+  }
 
   return row.id;
+}
+
+function findProfile(id: string): SyncedProfile | undefined {
+  return useSyncStore.getState().profiles.find((profile) => profile.id === id);
+}
+
+export function updateProfile(id: string, name: string): Promise<void> {
+  const profile = findProfile(id);
+  if (!profile) return Promise.resolve();
+
+  const payload: ProfilePayload = { name };
+  return commit([{ op: "upsert", table: "profiles", row: { ...profile, ...payload }, payload }]);
+}
+
+/**
+ * Removes a profile and drops its children locally in one IndexedDB transaction. The server mirrors
+ * the cascade with tombstones so other devices learn about every deleted child through their pulls.
+ */
+export function deleteProfile(id: string): Promise<void> {
+  const state = useSyncStore.getState();
+  const profile = state.profiles.find((candidate) => candidate.id === id);
+  if (!profile) return Promise.resolve();
+
+  const changes: LocalChange[] = [{ op: "delete", table: "profiles", row: profile }];
+  const accounts = state.accounts.filter((account) => account.profileId === id);
+  const categories = state.categories.filter((category) => category.profileId === id);
+  const transactions = state.transactions.filter((transaction) => transaction.profileId === id);
+
+  if (accounts.length > 0) changes.push({ op: "cascade", table: "accounts", rows: accounts });
+  if (categories.length > 0) changes.push({ op: "cascade", table: "categories", rows: categories });
+  if (transactions.length > 0) {
+    changes.push({ op: "cascade", table: "transactions", rows: transactions });
+  }
+
+  return commit(changes);
 }

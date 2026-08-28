@@ -23,6 +23,17 @@ function toErrorMessage(error: unknown): string | null {
 }
 
 /**
+ * TanStack Start returns a raw Response as a value when a server function throws one. Convert that
+ * response into an ordinary Error before the ceremony can continue as if it succeeded.
+ */
+async function unwrapServerResponse<T>(value: T): Promise<T> {
+  if (!(value instanceof Response)) return value;
+
+  const message = (await value.text()).trim();
+  throw new Error(message || `Request failed (${value.status}).`);
+}
+
+/**
  * Drives both passkey ceremonies against the auth server functions.
  *
  * On mount it also starts a conditional ("autofill") request when the browser supports one, so a
@@ -51,9 +62,11 @@ export function usePasskeyAuth() {
       try {
         // Cancel the conditional request first: only one ceremony can be in flight at a time.
         WebAuthnAbortService.cancelCeremony();
-        const optionsJSON = await getSignUpOptions({ data: { username } });
+        const optionsJSON = await unwrapServerResponse(
+          await getSignUpOptions({ data: { username } }),
+        );
         const response = await startRegistration({ optionsJSON });
-        await signUp({ data: response });
+        await unwrapServerResponse(await signUp({ data: response }));
         await onSignedIn();
       } catch (caught) {
         setError(toErrorMessage(caught));
@@ -69,9 +82,9 @@ export function usePasskeyAuth() {
     setIsPending(true);
     try {
       WebAuthnAbortService.cancelCeremony();
-      const optionsJSON = await getSignInOptions();
+      const optionsJSON = await unwrapServerResponse(await getSignInOptions());
       const response = await startAuthentication({ optionsJSON });
-      await signIn({ data: response });
+      await unwrapServerResponse(await signIn({ data: response }));
       await onSignedIn();
     } catch (caught) {
       setError(toErrorMessage(caught));
@@ -91,15 +104,19 @@ export function usePasskeyAuth() {
       if (!(await browserSupportsWebAuthnAutofill())) return;
 
       try {
-        const optionsJSON = await getSignInOptions();
+        const optionsJSON = await unwrapServerResponse(await getSignInOptions());
         if (cancelled) return;
 
         const response = await startAuthentication({ optionsJSON, useBrowserAutofill: true });
-        await signIn({ data: response });
+        await unwrapServerResponse(await signIn({ data: response }));
         if (!cancelled) await onSignedIn();
-      } catch {
-        // The conditional request is a background convenience — if it is aborted (because the
-        // user pressed a button instead) or fails, the explicit flows are still there.
+      } catch (caught) {
+        // The conditional request is a background convenience — an abort (because the user pressed
+        // a button instead) stays silent, but a server rejection should still explain itself.
+        if (!cancelled) {
+          const message = toErrorMessage(caught);
+          if (message) setError(message);
+        }
       }
     };
 

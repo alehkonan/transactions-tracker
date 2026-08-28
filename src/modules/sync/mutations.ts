@@ -46,6 +46,30 @@ export type LocalChange = UpsertChange | DeleteChange | CascadeChange;
 
 type RowsByTable = { [Table in SyncedTable]: RowFor<Table>[] };
 
+type BackgroundSyncRegistration = ServiceWorkerRegistration & {
+  sync: { register(tag: string): Promise<void> };
+};
+
+/** Asks Chromium to retry the durable outbox even after this page closes. */
+function registerOutboxSync(): void {
+  if (
+    !import.meta.env.PROD ||
+    typeof navigator === "undefined" ||
+    !("serviceWorker" in navigator)
+  ) {
+    return;
+  }
+
+  void navigator.serviceWorker.ready
+    .then((registration) => {
+      if (!("sync" in registration)) return;
+      return (registration as BackgroundSyncRegistration).sync.register("outbox-sync");
+    })
+    .catch(() => {
+      // Unsupported Background Sync and registration failures leave the page-driven retry path intact.
+    });
+}
+
 function emptyRows(): RowsByTable {
   return { profiles: [], accounts: [], categories: [], transactions: [] };
 }
@@ -135,6 +159,7 @@ export async function commit(changes: LocalChange[]): Promise<void> {
   // On disk is on disk: any other tab on this browser is looking at the same database and should
   // show the change now, not once the push that carries it away has been round-tripped.
   announceLocalWrite();
+  registerOutboxSync();
   schedulePush();
 }
 

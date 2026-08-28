@@ -1,0 +1,86 @@
+/*
+ * The system dark theme is imported as a later cascade layer from styles.css. Keeping the
+ * overrides here makes the only theme switch explicit: the user's prefers-color-scheme setting.
+ */
+:root {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ink: oklch(0.94 0.02 250);
+    --color-paper: oklch(0.19 0.015 90);
+
+    --color-accent: oklch(0.72 0.12 195);
+    --color-accent-hover: oklch(0.78 0.11 195);
+    --color-accent-active: oklch(0.84 0.1 195);
+    --color-accent-muted: oklch(0.32 0.08 195);
+
+    --color-hold: oklch(0.8 0.12 70);
+    --color-hold-hover: oklch(0.86 0.11 70);
+    --color-hold-active: oklch(0.9 0.1 70);
+    --color-hold-muted: oklch(0.35 0.08 70);
+
+    --color-spend: oklch(0.7 0.16 25);
+    --color-spend-hover: oklch(0.76 0.15 25);
+    --color-spend-active: oklch(0.82 0.14 25);
+    --color-spend-muted: oklch(0.32 0.08 25);
+
+    --color-graphite: oklch(0.72 0.01 250);
+    --color-graphite-hover: oklch(0.78 0.012 250);
+    --color-graphite-active: oklch(0.84 0.014 250);
+    --color-graphite-muted: oklch(0.32 0.02 250);
+
+    --color-gain: oklch(0.75 0.16 145);
+    --color-gain-hover: oklch(0.81 0.15 145);
+    --color-gain-active: oklch(0.87 0.14 145);
+    --color-gain-muted: oklch(0.32 0.08 145);
+
+    --color-text-muted: oklch(0.72 0.01 250);
+
+    --color-surface: oklch(0.23 0.012 90);
+    --color-surface-hover: oklch(0.28 0.014 90);
+    --color-surface-active: oklch(0.33 0.016 90);
+    --color-surface-muted: oklch(0.21 0.01 90);
+
+    --color-border: oklch(0.3 0.01 90);
+
+    /* Necessity badges retain their dark fills and borders at 20% and 40% opacity. */
+    --color-necessity-low: oklch(0.808 0.114 19.571);
+    --color-necessity-low-muted: color-mix(in oklab, oklch(0.637 0.237 25.331) 20%, transparent);
+    --color-necessity-low-border: color-mix(in oklab, oklch(0.637 0.237 25.331) 40%, transparent);
+
+    --color-necessity-medium: oklch(0.905 0.182 98.111);
+    --color-necessity-medium-muted: color-mix(in oklab, oklch(0.795 0.184 86.047) 20%, transparent);
+    --color-necessity-medium-border: color-mix(
+      in oklab,
+      oklch(0.795 0.184 86.047) 40%,
+      transparent
+    );
+
+    --color-necessity-high: oklch(0.809 0.105 251.813);
+    --color-necessity-high-muted: color-mix(in oklab, oklch(0.623 0.214 259.815) 20%, transparent);
+    --color-necessity-high-border: color-mix(in oklab, oklch(0.623 0.214 259.815) 40%, transparent);
+
+    --color-necessity-essential: oklch(0.811 0.111 293.571);
+    --color-necessity-essential-muted: color-mix(
+      in oklab,
+      oklch(0.606 0.25 292.717) 20%,
+      transparent
+    );
+    --color-necessity-essential-border: color-mix(
+      in oklab,
+      oklch(0.606 0.25 292.717) 40%,
+      transparent
+    );
+
+    /* Warning text changes for dark contrast; its existing panel alpha stays 10%/40%. */
+    --color-warning: oklch(0.879 0.169 91.605);
+    --color-warning-muted: color-mix(in oklab, oklch(0.769 0.188 70.08) 10%, transparent);
+    --color-warning-border: color-mix(in oklab, oklch(0.769 0.188 70.08) 40%, transparent);
+
+    /* The gradient token includes the former dark 50% opacity variant. */
+    --color-saving-muted: color-mix(in oklab, oklch(0.35 0.08 70) 50%, transparent);
+    --color-archived-muted: color-mix(in oklab, var(--color-text-muted) 30%, transparent);
+  }
+}

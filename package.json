@@ -11,10 +11,11 @@
     "format": "oxfmt",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --checkers 2",
     "knip": "knip",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:pwa": "playwright test --project=pwa e2e/offline-cold-start.spec.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "gc:tombstones": "node --env-file=.env netlify/functions/tombstone-gc.ts"
@@ -60,7 +61,7 @@
     "lefthook": "^2.1.10",
     "oxfmt": "^0.59.0",
     "oxlint": "^1.74.0",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   },

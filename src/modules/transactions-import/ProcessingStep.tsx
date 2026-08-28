@@ -39,11 +39,11 @@ export function ProcessingStep() {
         </div>
       </dl>
       {report.warnings.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          <p className="font-semibold text-amber-700 dark:text-amber-300">
+        <div className="border-warning-border bg-warning-muted flex flex-col gap-1 rounded-xl border p-3 text-sm">
+          <p className="text-warning font-semibold">
             Some accounts were imported in a different currency
           </p>
-          <ul className="flex flex-col gap-1 text-amber-700 dark:text-amber-300">
+          <ul className="text-warning flex flex-col gap-1">
             {report.warnings.map((warning) => (
               <li key={warning.currency}>
                 <span className="font-mono">{warning.currency}</span> isn&apos;t supported yet —{" "}
@@ -59,7 +59,7 @@ export function ProcessingStep() {
       {report.failures.length > 0 && (
         <ul className="border-border flex max-h-48 flex-col gap-1 overflow-auto rounded-xl border p-3 text-sm">
           {report.failures.map((failure) => (
-            <li key={failure.row} className="text-red-600 dark:text-red-400">
+            <li key={failure.row} className="text-danger">
               Row {failure.row}: {failure.reason}
             </li>
           ))}

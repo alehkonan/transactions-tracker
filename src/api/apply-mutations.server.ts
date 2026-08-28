@@ -252,6 +252,36 @@ export async function applyMutations(
 
       if (run.op === "delete") {
         for (const id of ids) profileIds.add(id);
+
+        // Profiles are tombstoned rather than hard-deleted so delta pulls can carry the deletion to
+        // other devices. That means the database FK cascade does not run; mirror it explicitly for
+        // every child table before tombstoning the profile itself.
+        const ownedLiveProfiles = await db
+          .select({ id: profilesTable.id })
+          .from(profilesTable)
+          .where(
+            and(
+              inArray(profilesTable.id, ids),
+              eq(profilesTable.userId, userId),
+              isNull(profilesTable.deletedAt),
+            ),
+          );
+        const ownedLiveProfileIds = ownedLiveProfiles.map((profile) => profile.id);
+
+        if (ownedLiveProfileIds.length > 0) {
+          await tombstone(db, accountsTable, inArray(accountsTable.profileId, ownedLiveProfileIds));
+          await tombstone(
+            db,
+            categoriesTable,
+            inArray(categoriesTable.profileId, ownedLiveProfileIds),
+          );
+          await tombstone(
+            db,
+            transactionsTable,
+            inArray(transactionsTable.profileId, ownedLiveProfileIds),
+          );
+        }
+
         await tombstone(db, profilesTable, and(inArray(profilesTable.id, ids), scope));
         continue;
       }
