@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, count, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "~/database/get-db.server";
 import {
   accountsTable,
   categoriesTable,
@@ -11,11 +10,19 @@ import {
 } from "~/database/tables";
 import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
+import { runReadDatabaseTransaction } from "./database-resilience.server";
 import { loggerMiddleware } from "./logger.middleware";
 import { executePush } from "./push-execution.server";
+import {
+  logSyncEvent,
+  mutationLogFields,
+  retryableSyncResponse,
+  withSyncPhase,
+} from "./sync-observability.server";
 import { pushChangesSchema } from "./sync-schemas";
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
+import type { Executor } from "~/database/get-db.server";
 import type {
   IntegrityResult,
   PullChangesResult,
@@ -166,119 +173,186 @@ export const pullChanges = createServerFn()
   // Annotated rather than inferred: the payload shape is a contract with the IndexedDB stores and
   // the Zustand store, so a column dropped from a select should fail here, not at the far end.
   .handler(async ({ data, context }): Promise<PullChangesResult> => {
-    const db = getDb();
     const cursors: SyncCursors = data?.cursors ?? {};
+    logSyncEvent("sync.pull.request", {
+      withCounts: data?.withCounts === true,
+      cursorTables: Object.keys(cursors),
+    });
 
-    const ownProfiles = await db
-      .select({ id: profilesTable.id })
-      .from(profilesTable)
-      .where(eq(profilesTable.userId, context.user.id));
-    const profileIds = ownProfiles.map((profile) => profile.id);
+    // The external fetch stays concurrent but outside the database transaction. Its own one-second
+    // abort keeps optional rates from holding the pull open, and a failure preserves the client cache.
+    const usdRatesPromise = withSyncPhase("pull.currency_rates", getUsdRates, {}, undefined, {
+      failureLevel: "warn",
+    }).catch(() => null);
 
-    // Every synced row outside `profiles` carries its own `profile_id`, so ownership is one indexed
-    // predicate rather than a join back through `accounts`.
-    const inOwnProfiles = (column: PgColumn) => inArray(column, profileIds);
+    try {
+      const databasePagePromise = runReadDatabaseTransaction(
+        "pull.database",
+        async (db: Executor) => {
+          const ownProfiles = await withSyncPhase(
+            "pull.authorization",
+            () =>
+              db
+                .select({ id: profilesTable.id })
+                .from(profilesTable)
+                .where(eq(profilesTable.userId, context.user.id)),
+            {},
+            (rows) => ({ rowCount: rows.length }),
+          );
+          const profileIds = ownProfiles.map((profile) => profile.id);
 
-    const [profiles, accounts, categories, transactions, colors, backlog, usdRates] =
-      await Promise.all([
-        db
-          .select({
-            ...getTableColumns(profilesTable),
-            cursorAt: exactUpdatedAt(profilesTable.updatedAt),
-          })
-          .from(profilesTable)
-          .where(
-            and(
-              eq(profilesTable.userId, context.user.id),
-              afterCursor(profilesTable, cursors.profiles),
-            ),
-          )
-          .orderBy(asc(profilesTable.updatedAt), asc(profilesTable.id))
-          .limit(PULL_PAGE_SIZE),
-        db
-          .select({ ...accountSyncColumns, cursorAt: exactUpdatedAt(accountsTable.updatedAt) })
-          .from(accountsTable)
-          .where(
-            and(
-              inOwnProfiles(accountsTable.profileId),
-              afterCursor(accountsTable, cursors.accounts),
-            ),
-          )
-          .orderBy(asc(accountsTable.updatedAt), asc(accountsTable.id))
-          .limit(PULL_PAGE_SIZE),
-        db
-          .select({
-            ...getTableColumns(categoriesTable),
-            cursorAt: exactUpdatedAt(categoriesTable.updatedAt),
-          })
-          .from(categoriesTable)
-          .where(
-            and(
-              inOwnProfiles(categoriesTable.profileId),
-              afterCursor(categoriesTable, cursors.categories),
-            ),
-          )
-          .orderBy(asc(categoriesTable.updatedAt), asc(categoriesTable.id))
-          .limit(PULL_PAGE_SIZE),
-        db
-          .select({
-            ...getTableColumns(transactionsTable),
-            cursorAt: exactUpdatedAt(transactionsTable.updatedAt),
-          })
-          .from(transactionsTable)
-          .where(
-            and(
-              inOwnProfiles(transactionsTable.profileId),
-              afterCursor(transactionsTable, cursors.transactions),
-            ),
-          )
-          .orderBy(asc(transactionsTable.updatedAt), asc(transactionsTable.id))
-          .limit(PULL_PAGE_SIZE),
-        // Global, and re-read on every pull rather than once: the CSV import mints new colors for the
-        // categories it creates, so a client holding a stale palette would draw them untinted.
-        db.select().from(colorsTable).orderBy(asc(colorsTable.id)),
-        // Counted through the same predicate as the page above, so it measures exactly the run the
-        // client is about to make: an index-only scan over `(profile_id, updated_at, id)`.
-        data?.withCounts
-          ? db
-              .select({ count: count() })
-              .from(transactionsTable)
-              .where(
-                and(
-                  inOwnProfiles(transactionsTable.profileId),
-                  afterCursor(transactionsTable, cursors.transactions),
-                ),
+          // Every synced row outside `profiles` carries its own `profile_id`, so ownership is one indexed
+          // predicate rather than a join back through `accounts`.
+          const inOwnProfiles = (column: PgColumn) => inArray(column, profileIds);
+
+          const profiles = await withSyncPhase(
+            "pull.profiles",
+            () =>
+              db
+                .select({
+                  ...getTableColumns(profilesTable),
+                  cursorAt: exactUpdatedAt(profilesTable.updatedAt),
+                })
+                .from(profilesTable)
+                .where(
+                  and(
+                    eq(profilesTable.userId, context.user.id),
+                    afterCursor(profilesTable, cursors.profiles),
+                  ),
+                )
+                .orderBy(asc(profilesTable.updatedAt), asc(profilesTable.id))
+                .limit(PULL_PAGE_SIZE),
+            {},
+            (rows) => ({ rowCount: rows.length }),
+          );
+          const accounts = await withSyncPhase(
+            "pull.accounts",
+            () =>
+              db
+                .select({
+                  ...accountSyncColumns,
+                  cursorAt: exactUpdatedAt(accountsTable.updatedAt),
+                })
+                .from(accountsTable)
+                .where(
+                  and(
+                    inOwnProfiles(accountsTable.profileId),
+                    afterCursor(accountsTable, cursors.accounts),
+                  ),
+                )
+                .orderBy(asc(accountsTable.updatedAt), asc(accountsTable.id))
+                .limit(PULL_PAGE_SIZE),
+            {},
+            (rows) => ({ rowCount: rows.length }),
+          );
+          const categories = await withSyncPhase(
+            "pull.categories",
+            () =>
+              db
+                .select({
+                  ...getTableColumns(categoriesTable),
+                  cursorAt: exactUpdatedAt(categoriesTable.updatedAt),
+                })
+                .from(categoriesTable)
+                .where(
+                  and(
+                    inOwnProfiles(categoriesTable.profileId),
+                    afterCursor(categoriesTable, cursors.categories),
+                  ),
+                )
+                .orderBy(asc(categoriesTable.updatedAt), asc(categoriesTable.id))
+                .limit(PULL_PAGE_SIZE),
+            {},
+            (rows) => ({ rowCount: rows.length }),
+          );
+          const transactions = await withSyncPhase(
+            "pull.transactions",
+            () =>
+              db
+                .select({
+                  ...getTableColumns(transactionsTable),
+                  cursorAt: exactUpdatedAt(transactionsTable.updatedAt),
+                })
+                .from(transactionsTable)
+                .where(
+                  and(
+                    inOwnProfiles(transactionsTable.profileId),
+                    afterCursor(transactionsTable, cursors.transactions),
+                  ),
+                )
+                .orderBy(asc(transactionsTable.updatedAt), asc(transactionsTable.id))
+                .limit(PULL_PAGE_SIZE),
+            {},
+            (rows) => ({ rowCount: rows.length }),
+          );
+          // Global, and re-read on every pull rather than once: the CSV import mints new colors for the
+          // categories it creates, so a client holding a stale palette would draw them untinted.
+          const colors = await withSyncPhase(
+            "pull.colors",
+            () => db.select().from(colorsTable).orderBy(asc(colorsTable.id)),
+            {},
+            (rows) => ({ rowCount: rows.length }),
+          );
+          // Counted through the same predicate as the page above, so it measures exactly the run the
+          // client is about to make: an index-only scan over `(profile_id, updated_at, id)`.
+          const backlog = data?.withCounts
+            ? await withSyncPhase("pull.transaction_backlog", () =>
+                db
+                  .select({ count: count() })
+                  .from(transactionsTable)
+                  .where(
+                    and(
+                      inOwnProfiles(transactionsTable.profileId),
+                      afterCursor(transactionsTable, cursors.transactions),
+                    ),
+                  ),
               )
-          : undefined,
-        // The external fetch has to stay server-side; it rides along so statistics keep working
-        // offline. A rate-service outage must not fail the whole pull — the client keeps its cache.
-        getUsdRates().catch(() => null),
-      ]);
+            : undefined;
 
-    const pages = { profiles, accounts, categories, transactions };
-    const nextCursors: SyncCursors = {};
-    for (const table of Object.keys(pages) as SyncedTable[]) {
-      const cursor = nextCursor(pages[table], cursors[table]);
-      if (cursor) nextCursors[table] = cursor;
+          return { profiles, accounts, categories, transactions, colors, backlog };
+        },
+      );
+
+      const [{ profiles, accounts, categories, transactions, colors, backlog }, usdRates] =
+        await Promise.all([databasePagePromise, usdRatesPromise]);
+      const pages = { profiles, accounts, categories, transactions };
+      const nextCursors: SyncCursors = {};
+      for (const table of Object.keys(pages) as SyncedTable[]) {
+        const cursor = nextCursor(pages[table], cursors[table]);
+        if (cursor) nextCursors[table] = cursor;
+      }
+
+      const result: PullChangesResult = {
+        rows: {
+          profiles: withoutCursorColumn(profiles),
+          accounts: withoutCursorColumn(accounts),
+          categories: withoutCursorColumn(categories),
+          transactions: withoutCursorColumn(transactions),
+        },
+        nextCursors,
+        // A table that filled its page has more behind it. Reported per table so the client can start
+        // rendering off the small reference tables while transactions are still arriving.
+        pending: (Object.keys(pages) as SyncedTable[]).filter(
+          (table) => pages[table].length === PULL_PAGE_SIZE,
+        ),
+        transactionBacklog: backlog?.[0]?.count,
+        usdRates,
+        colors,
+      };
+      logSyncEvent("sync.pull.result", {
+        profiles: result.rows.profiles.length,
+        accounts: result.rows.accounts.length,
+        categories: result.rows.categories.length,
+        transactions: result.rows.transactions.length,
+        colorCount: result.colors.length,
+        pendingTables: result.pending,
+      });
+      return result;
+    } catch (error) {
+      const response = retryableSyncResponse(error);
+      if (response) throw response;
+      throw error;
     }
-
-    return {
-      rows: {
-        profiles: withoutCursorColumn(profiles),
-        accounts: withoutCursorColumn(accounts),
-        categories: withoutCursorColumn(categories),
-        transactions: withoutCursorColumn(transactions),
-      },
-      nextCursors,
-      // A table that filled its page has more behind it. Reported per table so the client can start
-      // rendering off the small reference tables while transactions are still arriving.
-      pending: (Object.keys(pages) as SyncedTable[]).filter(
-        (table) => pages[table].length === PULL_PAGE_SIZE,
-      ),
-      transactionBacklog: backlog?.[0]?.count,
-      usdRates,
-      colors,
-    };
   });
 
 /**
@@ -334,50 +408,73 @@ function integrityOf(columns: KeysetColumns) {
 export const checkIntegrity = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
   .handler(async ({ context }): Promise<IntegrityResult> => {
-    const db = getDb();
+    try {
+      return await runReadDatabaseTransaction("integrity.database", async (db) => {
+        const ownProfiles = await withSyncPhase(
+          "integrity.authorization",
+          () =>
+            db
+              .select({ id: profilesTable.id })
+              .from(profilesTable)
+              .where(eq(profilesTable.userId, context.user.id)),
+          {},
+          (rows) => ({ rowCount: rows.length }),
+        );
+        const profileIds = ownProfiles.map((profile) => profile.id);
 
-    const ownProfiles = await db
-      .select({ id: profilesTable.id })
-      .from(profilesTable)
-      .where(eq(profilesTable.userId, context.user.id));
-    const profileIds = ownProfiles.map((profile) => profile.id);
+        const profiles = await withSyncPhase("integrity.profiles", () =>
+          db
+            .select(integrityOf(profilesTable))
+            .from(profilesTable)
+            .where(and(eq(profilesTable.userId, context.user.id), isNull(profilesTable.deletedAt))),
+        );
+        const accounts = await withSyncPhase("integrity.accounts", () =>
+          db
+            .select(integrityOf(accountsTable))
+            .from(accountsTable)
+            .where(
+              and(inArray(accountsTable.profileId, profileIds), isNull(accountsTable.deletedAt)),
+            ),
+        );
+        const categories = await withSyncPhase("integrity.categories", () =>
+          db
+            .select(integrityOf(categoriesTable))
+            .from(categoriesTable)
+            .where(
+              and(
+                inArray(categoriesTable.profileId, profileIds),
+                isNull(categoriesTable.deletedAt),
+              ),
+            ),
+        );
+        const transactions = await withSyncPhase("integrity.transactions", () =>
+          db
+            .select(integrityOf(transactionsTable))
+            .from(transactionsTable)
+            .where(
+              and(
+                inArray(transactionsTable.profileId, profileIds),
+                isNull(transactionsTable.deletedAt),
+              ),
+            ),
+        );
 
-    const [profiles, accounts, categories, transactions] = await Promise.all([
-      db
-        .select(integrityOf(profilesTable))
-        .from(profilesTable)
-        .where(and(eq(profilesTable.userId, context.user.id), isNull(profilesTable.deletedAt))),
-      db
-        .select(integrityOf(accountsTable))
-        .from(accountsTable)
-        .where(and(inArray(accountsTable.profileId, profileIds), isNull(accountsTable.deletedAt))),
-      db
-        .select(integrityOf(categoriesTable))
-        .from(categoriesTable)
-        .where(
-          and(inArray(categoriesTable.profileId, profileIds), isNull(categoriesTable.deletedAt)),
-        ),
-      db
-        .select(integrityOf(transactionsTable))
-        .from(transactionsTable)
-        .where(
-          and(
-            inArray(transactionsTable.profileId, profileIds),
-            isNull(transactionsTable.deletedAt),
-          ),
-        ),
-    ]);
+        // An aggregate always returns its one row; the fallback is here so the shape is a
+        // `TableIntegrity` by construction rather than by argument.
+        const empty: TableIntegrity = { count: 0, checksum: "0" };
 
-    // An aggregate always returns its one row; the fallback is here so the shape is a `TableIntegrity`
-    // by construction rather than by argument.
-    const empty: TableIntegrity = { count: 0, checksum: "0" };
-
-    return {
-      profiles: profiles[0] ?? empty,
-      accounts: accounts[0] ?? empty,
-      categories: categories[0] ?? empty,
-      transactions: transactions[0] ?? empty,
-    };
+        return {
+          profiles: profiles[0] ?? empty,
+          accounts: accounts[0] ?? empty,
+          categories: categories[0] ?? empty,
+          transactions: transactions[0] ?? empty,
+        };
+      });
+    } catch (error) {
+      const response = retryableSyncResponse(error);
+      if (response) throw response;
+      throw error;
+    }
   });
 
 /**
@@ -396,6 +493,22 @@ export const checkIntegrity = createServerFn()
 export const pushChanges = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
   .validator(pushChangesSchema)
-  .handler(
-    ({ data, context }): Promise<PushChangesResult> => executePush(context.user.id, data.mutations),
-  );
+  .handler(async ({ data, context }): Promise<PushChangesResult> => {
+    logSyncEvent("sync.push.batch", mutationLogFields(data.mutations));
+
+    try {
+      return await withSyncPhase(
+        "push.execute",
+        () => executePush(context.user.id, data.mutations),
+        { mutationCount: data.mutations.length },
+        (result) => ({
+          appliedCount: result.applied.length,
+          conflictCount: result.conflicts.length,
+        }),
+      );
+    } catch (error) {
+      const response = retryableSyncResponse(error);
+      if (response) throw response;
+      throw error;
+    }
+  });

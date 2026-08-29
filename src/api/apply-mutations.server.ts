@@ -11,6 +11,7 @@ import {
   assertCategoriesInProfile,
   assertProfilesOwnedBy,
 } from "./ownership.server";
+import { withSyncPhase } from "./sync-observability.server";
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import type { Executor } from "~/database/get-db.server";
@@ -95,10 +96,16 @@ export type TouchedIds = Record<SyncedTable, Set<string>>;
  * of rows.
  */
 async function ownProfileIds(db: Executor, userId: number): Promise<string[]> {
-  const rows = await db
-    .select({ id: profilesTable.id })
-    .from(profilesTable)
-    .where(eq(profilesTable.userId, userId));
+  const rows = await withSyncPhase(
+    "push.authorization",
+    () =>
+      db
+        .select({ id: profilesTable.id })
+        .from(profilesTable)
+        .where(eq(profilesTable.userId, userId)),
+    { authorizationCheck: "owned_profiles" },
+    (profiles) => ({ rowCount: profiles.length }),
+  );
 
   return rows.map((row) => row.id);
 }
@@ -118,10 +125,16 @@ async function findConflicts(
   const table = syncedTables[run.table];
   const ids = run.mutations.map((mutation) => mutation.rowId);
 
-  const existing = await db
-    .select({ id: table.id, updatedAt: table.updatedAt })
-    .from(table)
-    .where(and(inArray(table.id, ids), scope));
+  const existing = await withSyncPhase(
+    "push.conflict_reads",
+    () =>
+      db
+        .select({ id: table.id, updatedAt: table.updatedAt })
+        .from(table)
+        .where(and(inArray(table.id, ids), scope)),
+    { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+    (rows) => ({ rowCount: rows.length }),
+  );
 
   // Milliseconds, matching what the client had to send: it holds the driver-parsed `Date`, so the
   // stored microseconds are precision neither side can compare on. See `Mutation.baseUpdatedAt`.
@@ -239,6 +252,8 @@ export async function applyMutations(
   };
   const profileIds = new Set<string>();
 
+  // Mutation runs must remain sequential: later rows can depend on parents created earlier in the batch.
+  /* oxlint-disable no-await-in-loop */
   for (const run of toRuns(mutations)) {
     for (const mutation of run.mutations) touched[run.table].add(mutation.rowId);
     const ids = run.mutations.map((mutation) => mutation.rowId);
@@ -256,51 +271,72 @@ export async function applyMutations(
         // Profiles are tombstoned rather than hard-deleted so delta pulls can carry the deletion to
         // other devices. That means the database FK cascade does not run; mirror it explicitly for
         // every child table before tombstoning the profile itself.
-        const ownedLiveProfiles = await db
-          .select({ id: profilesTable.id })
-          .from(profilesTable)
-          .where(
-            and(
-              inArray(profilesTable.id, ids),
-              eq(profilesTable.userId, userId),
-              isNull(profilesTable.deletedAt),
-            ),
-          );
+        const ownedLiveProfiles = await withSyncPhase(
+          "push.authorization",
+          () =>
+            db
+              .select({ id: profilesTable.id })
+              .from(profilesTable)
+              .where(
+                and(
+                  inArray(profilesTable.id, ids),
+                  eq(profilesTable.userId, userId),
+                  isNull(profilesTable.deletedAt),
+                ),
+              ),
+          { authorizationCheck: "live_profiles", mutationCount: run.mutations.length },
+          (profiles) => ({ rowCount: profiles.length }),
+        );
         const ownedLiveProfileIds = ownedLiveProfiles.map((profile) => profile.id);
 
-        if (ownedLiveProfileIds.length > 0) {
-          await tombstone(db, accountsTable, inArray(accountsTable.profileId, ownedLiveProfileIds));
-          await tombstone(
-            db,
-            categoriesTable,
-            inArray(categoriesTable.profileId, ownedLiveProfileIds),
-          );
-          await tombstone(
-            db,
-            transactionsTable,
-            inArray(transactionsTable.profileId, ownedLiveProfileIds),
-          );
-        }
+        await withSyncPhase(
+          "push.mutation_application",
+          async () => {
+            if (ownedLiveProfileIds.length > 0) {
+              await tombstone(
+                db,
+                accountsTable,
+                inArray(accountsTable.profileId, ownedLiveProfileIds),
+              );
+              await tombstone(
+                db,
+                categoriesTable,
+                inArray(categoriesTable.profileId, ownedLiveProfileIds),
+              );
+              await tombstone(
+                db,
+                transactionsTable,
+                inArray(transactionsTable.profileId, ownedLiveProfileIds),
+              );
+            }
 
-        await tombstone(db, profilesTable, and(inArray(profilesTable.id, ids), scope));
+            await tombstone(db, profilesTable, and(inArray(profilesTable.id, ids), scope));
+          },
+          { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+        );
         continue;
       }
 
-      await db
-        .insert(profilesTable)
-        .values(
-          run.mutations.map((mutation) => ({
-            id: mutation.rowId,
-            ...mutation.payload,
-            userId,
-            updatedAt: now(),
-          })),
-        )
-        .onConflictDoUpdate({
-          target: profilesTable.id,
-          set: { name: excluded(profilesTable.name), updatedAt: now() },
-          setWhere: and(scope, isNull(profilesTable.deletedAt)),
-        });
+      await withSyncPhase(
+        "push.mutation_application",
+        () =>
+          db
+            .insert(profilesTable)
+            .values(
+              run.mutations.map((mutation) => ({
+                id: mutation.rowId,
+                ...mutation.payload,
+                userId,
+                updatedAt: now(),
+              })),
+            )
+            .onConflictDoUpdate({
+              target: profilesTable.id,
+              set: { name: excluded(profilesTable.name), updatedAt: now() },
+              setWhere: and(scope, isNull(profilesTable.deletedAt)),
+            }),
+        { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+      );
 
       for (const id of ids) profileIds.add(id);
       continue;
@@ -314,26 +350,32 @@ export async function applyMutations(
     conflicts.push(...(await findConflicts(db, run, scope)));
 
     if (run.op === "delete") {
-      await tombstone(db, table, and(inArray(table.id, ids), scope));
+      await withSyncPhase(
+        "push.mutation_application",
+        async () => {
+          await tombstone(db, table, and(inArray(table.id, ids), scope));
+
+          // Deleting an account takes its transactions with it. Their `onDelete: "cascade"` only fires
+          // for a real delete, and without this the account would disappear from clients while the rows
+          // filed against it stayed behind, counting towards balances belonging to nothing. The client
+          // applies the same cascade to its own copy, which is what keeps the two ends agreeing.
+          if (run.table === "accounts") {
+            await tombstone(
+              db,
+              transactionsTable,
+              and(
+                inArray(transactionsTable.accountId, ids),
+                inArray(transactionsTable.profileId, owned),
+              ),
+            );
+          }
+        },
+        { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+      );
       // Which profile the deleted rows were in is not worth a `returning` clause: a user has a
       // handful of profiles between them, and restating the balances of all of them is one indexed
       // statement that cannot miss the account a deleted transaction belonged to.
       for (const id of owned) profileIds.add(id);
-
-      // Deleting an account takes its transactions with it. Their `onDelete: "cascade"` only fires
-      // for a real delete, and without this the account would disappear from clients while the rows
-      // filed against it stayed behind, counting towards balances belonging to nothing. The client
-      // applies the same cascade to its own copy, which is what keeps the two ends agreeing.
-      if (run.table === "accounts") {
-        await tombstone(
-          db,
-          transactionsTable,
-          and(
-            inArray(transactionsTable.accountId, ids),
-            inArray(transactionsTable.profileId, owned),
-          ),
-        );
-      }
 
       continue;
     }
@@ -343,71 +385,96 @@ export async function applyMutations(
     const targetProfileIds = run.mutations.flatMap((mutation) =>
       mutation.payload.profileId == null ? [] : [mutation.payload.profileId],
     );
-    await assertProfilesOwnedBy(userId, targetProfileIds, db);
+    await withSyncPhase(
+      "push.authorization",
+      () => assertProfilesOwnedBy(userId, targetProfileIds, db),
+      {
+        authorizationCheck: "target_profiles",
+        table: run.table,
+        mutationCount: run.mutations.length,
+      },
+    );
     for (const id of targetProfileIds) profileIds.add(id);
 
     if (run.table === "accounts") {
-      await db
-        .insert(accountsTable)
-        .values(
-          run.mutations.map((mutation) => ({
-            id: mutation.rowId,
-            ...mutation.payload,
-            updatedAt: now(),
-          })),
-        )
-        .onConflictDoUpdate({
-          target: accountsTable.id,
-          set: {
-            name: excluded(accountsTable.name),
-            initialBalance: excluded(accountsTable.initialBalance),
-            currencyCode: excluded(accountsTable.currencyCode),
-            status: excluded(accountsTable.status),
-            type: excluded(accountsTable.type),
-            updatedAt: now(),
-          },
-          // The existing row has to already be in the profile the incoming one names, so an upsert
-          // can never move a record between profiles or land on a stranger's. A tombstoned row is
-          // gone as far as every client is concerned, so it is not editable either — the deletion
-          // wins over a concurrent edit, and the client hears about it in `conflicts`.
-          setWhere: and(
-            sql`${accountsTable.profileId} = excluded.profile_id`,
-            isNull(accountsTable.deletedAt),
-          ),
-        });
+      await withSyncPhase(
+        "push.mutation_application",
+        () =>
+          db
+            .insert(accountsTable)
+            .values(
+              run.mutations.map((mutation) => ({
+                id: mutation.rowId,
+                ...mutation.payload,
+                updatedAt: now(),
+              })),
+            )
+            .onConflictDoUpdate({
+              target: accountsTable.id,
+              set: {
+                name: excluded(accountsTable.name),
+                initialBalance: excluded(accountsTable.initialBalance),
+                currencyCode: excluded(accountsTable.currencyCode),
+                status: excluded(accountsTable.status),
+                type: excluded(accountsTable.type),
+                updatedAt: now(),
+              },
+              // The existing row has to already be in the profile the incoming one names, so an upsert
+              // can never move a record between profiles or land on a stranger's. A tombstoned row is
+              // gone as far as every client is concerned, so it is not editable either — the deletion
+              // wins over a concurrent edit, and the client hears about it in `conflicts`.
+              setWhere: and(
+                sql`${accountsTable.profileId} = excluded.profile_id`,
+                isNull(accountsTable.deletedAt),
+              ),
+            }),
+        { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+      );
 
       continue;
     }
 
     if (run.table === "categories") {
-      const colorIds = await resolveColorIds(db, [
-        ...new Set(run.mutations.flatMap((mutation) => mutation.payload.colorHex ?? [])),
-      ]);
+      const colorIds = await withSyncPhase(
+        "push.color_resolution",
+        () =>
+          resolveColorIds(db, [
+            ...new Set(run.mutations.flatMap((mutation) => mutation.payload.colorHex ?? [])),
+          ]),
+        { mutationCount: run.mutations.length },
+        (colors) => ({ colorCount: colors.size }),
+      );
 
-      await db
-        .insert(categoriesTable)
-        .values(
-          run.mutations.map(({ rowId, payload }) => ({
-            id: rowId,
-            name: payload.name,
-            profileId: payload.profileId,
-            colorId:
-              (payload.colorHex == null ? payload.colorId : colorIds.get(payload.colorHex)) ?? null,
-            updatedAt: now(),
-          })),
-        )
-        .onConflictDoUpdate({
-          target: categoriesTable.id,
-          set: {
-            name: excluded(categoriesTable.name),
-            colorId: excluded(categoriesTable.colorId),
-            updatedAt: now(),
-          },
-          setWhere: and(
-            sql`${categoriesTable.profileId} = excluded.profile_id`,
-            isNull(categoriesTable.deletedAt),
-          ),
-        });
+      await withSyncPhase(
+        "push.mutation_application",
+        () =>
+          db
+            .insert(categoriesTable)
+            .values(
+              run.mutations.map(({ rowId, payload }) => ({
+                id: rowId,
+                name: payload.name,
+                profileId: payload.profileId,
+                colorId:
+                  (payload.colorHex == null ? payload.colorId : colorIds.get(payload.colorHex)) ??
+                  null,
+                updatedAt: now(),
+              })),
+            )
+            .onConflictDoUpdate({
+              target: categoriesTable.id,
+              set: {
+                name: excluded(categoriesTable.name),
+                colorId: excluded(categoriesTable.colorId),
+                updatedAt: now(),
+              },
+              setWhere: and(
+                sql`${categoriesTable.profileId} = excluded.profile_id`,
+                isNull(categoriesTable.deletedAt),
+              ),
+            }),
+        { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+      );
 
       continue;
     }
@@ -424,52 +491,69 @@ export async function applyMutations(
       group.categoryIds.push(payload.categoryId);
       byProfile.set(payload.profileId, group);
     }
-    await Promise.all(
-      [...byProfile].flatMap(([profileId, group]) => [
-        assertAccountsInProfile(profileId, group.accountIds, db),
-        assertCategoriesInProfile(profileId, group.categoryIds, db),
-      ]),
+    await withSyncPhase(
+      "push.authorization",
+      () =>
+        Promise.all(
+          [...byProfile].flatMap(([profileId, group]) => [
+            assertAccountsInProfile(profileId, group.accountIds, db),
+            assertCategoriesInProfile(profileId, group.categoryIds, db),
+          ]),
+        ),
+      {
+        authorizationCheck: "transaction_references",
+        profileCount: byProfile.size,
+        mutationCount: run.mutations.length,
+      },
     );
 
-    await db
-      .insert(transactionsTable)
-      .values(
-        // Spelled out rather than spread, mirroring the `set` below: these are the columns a push
-        // writes, and the two lists have to agree or an insert and an update of the same row would
-        // not produce the same row.
-        run.mutations.map(({ rowId, payload }) => ({
-          id: rowId,
-          type: payload.type,
-          necessityLevel: payload.necessityLevel,
-          amount: payload.amount,
-          comment: payload.comment,
-          createdAt: payload.createdAt,
-          accountId: payload.accountId,
-          categoryId: payload.categoryId,
-          profileId: payload.profileId,
-          updatedAt: now(),
-        })),
-      )
-      .onConflictDoUpdate({
-        target: transactionsTable.id,
-        set: {
-          type: excluded(transactionsTable.type),
-          necessityLevel: excluded(transactionsTable.necessityLevel),
-          amount: excluded(transactionsTable.amount),
-          comment: excluded(transactionsTable.comment),
-          createdAt: excluded(transactionsTable.createdAt),
-          accountId: excluded(transactionsTable.accountId),
-          categoryId: excluded(transactionsTable.categoryId),
-          updatedAt: now(),
-        },
-        setWhere: and(
-          sql`${transactionsTable.profileId} = excluded.profile_id`,
-          isNull(transactionsTable.deletedAt),
-        ),
-      });
+    await withSyncPhase(
+      "push.mutation_application",
+      () =>
+        db
+          .insert(transactionsTable)
+          .values(
+            // Spelled out rather than spread, mirroring the `set` below: these are the columns a push
+            // writes, and the two lists have to agree or an insert and an update of the same row would
+            // not produce the same row.
+            run.mutations.map(({ rowId, payload }) => ({
+              id: rowId,
+              type: payload.type,
+              necessityLevel: payload.necessityLevel,
+              amount: payload.amount,
+              comment: payload.comment,
+              createdAt: payload.createdAt,
+              accountId: payload.accountId,
+              categoryId: payload.categoryId,
+              profileId: payload.profileId,
+              updatedAt: now(),
+            })),
+          )
+          .onConflictDoUpdate({
+            target: transactionsTable.id,
+            set: {
+              type: excluded(transactionsTable.type),
+              necessityLevel: excluded(transactionsTable.necessityLevel),
+              amount: excluded(transactionsTable.amount),
+              comment: excluded(transactionsTable.comment),
+              createdAt: excluded(transactionsTable.createdAt),
+              accountId: excluded(transactionsTable.accountId),
+              categoryId: excluded(transactionsTable.categoryId),
+              updatedAt: now(),
+            },
+            setWhere: and(
+              sql`${transactionsTable.profileId} = excluded.profile_id`,
+              isNull(transactionsTable.deletedAt),
+            ),
+          }),
+      { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+    );
   }
+  /* oxlint-enable no-await-in-loop */
 
-  await recomputeBalances(db, [...profileIds]);
+  await withSyncPhase("push.balance_recomputation", () => recomputeBalances(db, [...profileIds]), {
+    profileCount: profileIds.size,
+  });
 
   return { conflicts, touched, profileIds };
 }

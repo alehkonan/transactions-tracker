@@ -1,55 +1,9 @@
-import { performance } from "node:perf_hooks";
 import { createMiddleware } from "@tanstack/react-start";
-
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-
-const METHOD_COLORS: Record<string, string> = {
-  GET: "\x1b[36m", // cyan
-  POST: "\x1b[32m", // green
-  PUT: "\x1b[33m", // yellow
-  PATCH: "\x1b[33m", // yellow
-  DELETE: "\x1b[31m", // red
-};
-
-function colorForStatus(status: number): string {
-  if (status >= 500) return "\x1b[31m"; // red
-  if (status >= 400) return "\x1b[33m"; // yellow
-  if (status >= 300) return "\x1b[36m"; // cyan
-  return "\x1b[32m"; // green
-}
-
-function colorForDuration(ms: number): string {
-  if (ms >= 500) return "\x1b[31m"; // red
-  if (ms >= 100) return "\x1b[33m"; // yellow
-  return "\x1b[32m"; // green
-}
-
-function pad(n: number, length = 2): string {
-  return String(n).padStart(length, "0");
-}
-
-/** Formats a `Date` as a local `HH:MM:SS.mmm` timestamp. */
-function formatTimestamp(date: Date): string {
-  return (
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
-    `.${pad(date.getMilliseconds(), 3)}`
-  );
-}
-
-async function responseMessage(response: Response): Promise<string> {
-  try {
-    const body = (await response.clone().text()).trim();
-    return body || response.statusText || "request failed";
-  } catch {
-    return response.statusText || "request failed";
-  }
-}
+import { retryableSyncResponse, withSyncRequest } from "./sync-observability.server";
 
 /**
- * Logs every server function call: method, name, response status (when known), and how long it
- * took.
+ * Logs every server function call with a start record that survives platform termination, a shared
+ * request/isolate identity, and a completion or sanitized failure record.
  *
  * TanStack Start's middleware `.server()` callbacks are isomorphic — this also runs on the
  * client as part of the RPC call path (`window` exists there), and separately, `next()`'s
@@ -59,48 +13,18 @@ async function responseMessage(response: Response): Promise<string> {
  */
 export const loggerMiddleware = createMiddleware().server(
   async ({ next, request, pathname, serverFnMeta }) => {
-    const startedAt = performance.now();
-    const startedAtDate = new Date();
-    const methodColor = METHOD_COLORS[request.method] ?? "\x1b[37m";
-    const label = serverFnMeta?.name ?? pathname;
+    if (typeof window !== "undefined") return next();
 
     try {
-      const result = await next();
-      if (typeof window !== "undefined") return result;
-
-      const durationMs = performance.now() - startedAt;
-      const status = result.response?.status;
-
-      console.log(
-        `${DIM}${formatTimestamp(startedAtDate)}${RESET} ` +
-          `${methodColor}${BOLD}${request.method.padEnd(6)}${RESET}` +
-          `${DIM}${label}${RESET} ` +
-          (status != null ? `${colorForStatus(status)}${status}${RESET} ` : "") +
-          `${colorForDuration(durationMs)}${durationMs.toFixed(1)}ms${RESET}`,
+      return await withSyncRequest(
+        request,
+        serverFnMeta?.name ?? pathname,
+        async () => await next(),
+        (result) => (result instanceof Response ? result.status : result.response?.status),
       );
-
-      return result;
     } catch (error) {
-      if (typeof window !== "undefined") throw error;
-
-      const durationMs = performance.now() - startedAt;
-      const status = error instanceof Response ? error.status : undefined;
-      const errorLabel =
-        error instanceof Response
-          ? await responseMessage(error)
-          : error instanceof Error
-            ? error.message
-            : "request failed";
-
-      console.error(
-        `${DIM}${formatTimestamp(startedAtDate)}${RESET} ` +
-          `${methodColor}${BOLD}${request.method.padEnd(6)}${RESET}` +
-          `${DIM}${label}${RESET} ` +
-          (status != null ? `${colorForStatus(status)}${status}${RESET} ` : "") +
-          `${colorForDuration(durationMs)}${durationMs.toFixed(1)}ms${RESET} ` +
-          `${errorLabel}`,
-      );
-
+      const response = retryableSyncResponse(error);
+      if (response) throw response;
       throw error;
     }
   },

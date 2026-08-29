@@ -1,4 +1,4 @@
-import { asc, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   accountsTable,
   categoriesTable,
@@ -27,7 +27,11 @@ const accountSyncColumns = {
 };
 
 /** Reads exactly the rows touched by a push, in the shape shared with the local stores. */
-export async function readCanonicalRows(db: Executor, touched: TouchedIds): Promise<SyncedRows> {
+export async function readCanonicalRows(
+  db: Executor,
+  userId: number,
+  touched: TouchedIds,
+): Promise<SyncedRows> {
   const ids = {
     profiles: [...touched.profiles],
     accounts: [...touched.accounts],
@@ -35,22 +39,52 @@ export async function readCanonicalRows(db: Executor, touched: TouchedIds): Prom
     transactions: [...touched.transactions],
   };
 
+  const ownProfiles = await db
+    .select({ id: profilesTable.id })
+    .from(profilesTable)
+    .where(eq(profilesTable.userId, userId));
+  const profileIds = ownProfiles.map((profile) => profile.id);
+
   const [profiles, accounts, categories, transactions] = await Promise.all([
     ids.profiles.length === 0
       ? []
-      : db.select().from(profilesTable).where(inArray(profilesTable.id, ids.profiles)),
+      : db
+          .select()
+          .from(profilesTable)
+          .where(and(inArray(profilesTable.id, ids.profiles), eq(profilesTable.userId, userId))),
     ids.accounts.length === 0
       ? []
       : db
           .select(accountSyncColumns)
           .from(accountsTable)
-          .where(inArray(accountsTable.id, ids.accounts)),
+          .where(
+            and(
+              inArray(accountsTable.id, ids.accounts),
+              inArray(accountsTable.profileId, profileIds),
+            ),
+          ),
     ids.categories.length === 0
       ? []
-      : db.select().from(categoriesTable).where(inArray(categoriesTable.id, ids.categories)),
+      : db
+          .select()
+          .from(categoriesTable)
+          .where(
+            and(
+              inArray(categoriesTable.id, ids.categories),
+              inArray(categoriesTable.profileId, profileIds),
+            ),
+          ),
     ids.transactions.length === 0
       ? []
-      : db.select().from(transactionsTable).where(inArray(transactionsTable.id, ids.transactions)),
+      : db
+          .select()
+          .from(transactionsTable)
+          .where(
+            and(
+              inArray(transactionsTable.id, ids.transactions),
+              inArray(transactionsTable.profileId, profileIds),
+            ),
+          ),
   ]);
 
   return { profiles, accounts, categories, transactions };

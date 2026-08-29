@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 import { and, eq, gt, lt, or } from "drizzle-orm";
-import { getDb } from "~/database/get-db.server";
 import { sessionsTable, usersTable } from "~/database/tables";
 import { encodeSessionHint, SESSION_HINT_COOKIE } from "~/modules/auth/session-hint";
+import { runDatabaseTransaction, runReadDatabaseTransaction } from "./database-resilience.server";
 import { clearSelectedProfileCookies } from "./selected-profile.server";
 import { signCookieValue, verifyCookieValue } from "./signed-cookie.server";
 import type { SQL } from "drizzle-orm";
@@ -120,14 +120,16 @@ export async function createSession(user: SessionUser): Promise<void> {
   const refreshToken = generateToken();
   const refreshTokenExpiresAt = expiresIn(REFRESH_TOKEN_TTL_SECONDS);
 
-  const [session] = await getDb()
-    .insert(sessionsTable)
-    .values({
-      userId: user.id,
-      refreshTokenHash: hashToken(refreshToken),
-      refreshTokenExpiresAt,
-    })
-    .returning({ id: sessionsTable.id });
+  const [session] = await runDatabaseTransaction("auth.create_session", (database) =>
+    database
+      .insert(sessionsTable)
+      .values({
+        userId: user.id,
+        refreshTokenHash: hashToken(refreshToken),
+        refreshTokenExpiresAt,
+      })
+      .returning({ id: sessionsTable.id }),
+  );
 
   issueAccessToken({ sessionId: session.id, userId: user.id, username: user.username });
   setTokenCookie(REFRESH_TOKEN_COOKIE, refreshToken, REFRESH_TOKEN_TTL_SECONDS);
@@ -144,17 +146,20 @@ export async function destroySession(): Promise<void> {
   const matchers: SQL[] = [];
   if (access) matchers.push(eq(sessionsTable.id, access.sessionId));
   if (refreshToken) matchers.push(eq(sessionsTable.refreshTokenHash, hashToken(refreshToken)));
-  if (matchers.length > 0)
-    await getDb()
-      .delete(sessionsTable)
-      .where(or(...matchers));
+  if (matchers.length > 0) {
+    await runDatabaseTransaction("auth.destroy_session", (database) =>
+      database.delete(sessionsTable).where(or(...matchers)),
+    );
+  }
 
   clearSessionCookies();
 }
 
 /** Best-effort cleanup so fully-expired sessions do not accumulate forever. */
 async function deleteExpiredSessions(): Promise<void> {
-  await getDb().delete(sessionsTable).where(lt(sessionsTable.refreshTokenExpiresAt, new Date()));
+  await runDatabaseTransaction("auth.expired_sessions_cleanup", (database) =>
+    database.delete(sessionsTable).where(lt(sessionsTable.refreshTokenExpiresAt, new Date())),
+  );
 }
 
 /**
@@ -187,23 +192,25 @@ export async function resolveSession(): Promise<SessionUser | null> {
     return null;
   }
 
-  const [session] = await getDb()
-    .select({
-      id: sessionsTable.id,
-      user: { id: usersTable.id, username: usersTable.username },
-    })
-    .from(sessionsTable)
-    .innerJoin(usersTable, eq(usersTable.id, sessionsTable.userId))
-    .where(
-      and(
-        eq(sessionsTable.refreshTokenHash, hashToken(refreshToken)),
-        gt(sessionsTable.refreshTokenExpiresAt, new Date()),
+  const [session] = await runReadDatabaseTransaction("auth.refresh_session", (database) =>
+    database
+      .select({
+        id: sessionsTable.id,
+        user: { id: usersTable.id, username: usersTable.username },
+      })
+      .from(sessionsTable)
+      .innerJoin(usersTable, eq(usersTable.id, sessionsTable.userId))
+      .where(
+        and(
+          eq(sessionsTable.refreshTokenHash, hashToken(refreshToken)),
+          gt(sessionsTable.refreshTokenExpiresAt, new Date()),
+        ),
       ),
-    );
+  );
 
   if (!session) {
     clearSessionCookies();
-    void deleteExpiredSessions().catch(() => {});
+    await deleteExpiredSessions().catch(() => {});
     return null;
   }
 
