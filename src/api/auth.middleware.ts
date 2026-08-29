@@ -1,5 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { resolveSession } from "./session.server";
+import { withSyncPhase } from "./sync-observability.server";
 
 /**
  * Injects the caller's session into the handler's `context` as `user`, or `null` when they are not
@@ -10,7 +11,8 @@ import { resolveSession } from "./session.server";
  * anonymous and signed-in callers alike.
  */
 const sessionMiddleware = createMiddleware().server(async ({ next }) => {
-  return next({ context: { user: await resolveSession() } });
+  const user = await withSyncPhase("auth.resolve_session", resolveSession);
+  return next({ context: { user } });
 });
 
 /**

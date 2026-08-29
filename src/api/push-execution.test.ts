@@ -46,7 +46,10 @@ function createTestExecution(options?: {
       if (options?.failDuringTransaction) throw options.failDuringTransaction;
       return work({ kind: "transaction" });
     },
-    readDatabase: () => database,
+    runReadTransaction: async (work) => {
+      events.push("read-transaction");
+      return work(database);
+    },
     applyMutations: async (transaction, userId, mutations) => {
       expect(transaction.kind).toBe("transaction");
       expect(userId).toBe(42);
@@ -54,8 +57,9 @@ function createTestExecution(options?: {
       events.push("apply");
       return appliedBatch;
     },
-    readCanonicalRows: async (readDatabase, touched) => {
+    readCanonicalRows: async (readDatabase, userId, touched) => {
       expect(readDatabase).toBe(database);
+      expect(userId).toBe(42);
       expect(touched).toBe(appliedBatch.touched);
       events.push("canonical");
       if (options?.failReadingCanonicalRows) throw options.failReadingCanonicalRows;
@@ -81,7 +85,7 @@ describe("createPushExecution", () => {
       conflicts: [],
       colors: [],
     });
-    expect(events).toEqual(["colors"]);
+    expect(events).toEqual(["read-transaction", "colors"]);
   });
 
   it("applies mutations before reading the committed result", async () => {
@@ -93,7 +97,7 @@ describe("createPushExecution", () => {
       conflicts: [],
       colors: [{ id: 7, hex: "#123456" }],
     });
-    expect(events).toEqual(["transaction", "apply", "canonical", "colors"]);
+    expect(events).toEqual(["transaction", "apply", "read-transaction", "canonical", "colors"]);
   });
 
   it("propagates transaction failures without fabricating a result", async () => {
@@ -109,6 +113,6 @@ describe("createPushExecution", () => {
     const { executePush, events } = createTestExecution({ failReadingCanonicalRows: failure });
 
     await expect(executePush(42, [mutation])).rejects.toBe(failure);
-    expect(events).toEqual(["transaction", "apply", "canonical", "colors"]);
+    expect(events).toEqual(["transaction", "apply", "read-transaction", "canonical"]);
   });
 });

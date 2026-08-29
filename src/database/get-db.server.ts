@@ -35,9 +35,14 @@ export function getDb() {
         // and, against a 500MB database where each backend costs several MB of RAM, exhaust
         // `max_connections` long before it ever helped throughput.
         max: 1,
+        // Required by Supavisor transaction mode and safe if the reported port is actually session mode.
+        prepare: false,
         // Let an idle instance hand its connection back rather than holding it until it is frozen.
         idle_timeout: 20,
-        connect_timeout: 10,
+        // Leave enough room for a controlled retry well before the platform request boundary.
+        connect_timeout: 3,
+        // Visible in pg_stat_activity without exposing a host, credential, user, or request payload.
+        connection: { application_name: "transactions-tracker-runtime" },
       });
     globalForDb.client = client;
     globalForDb.db = drizzle(client, { schema });
