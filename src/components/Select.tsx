@@ -3,7 +3,7 @@ import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { twJoin, twMerge } from "tailwind-merge";
 
-export type SelectOption = {
+type SelectOption = {
   value: string;
   label: string;
 };
