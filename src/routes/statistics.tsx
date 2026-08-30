@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { useMemo } from "react";
 import { z } from "zod";
 import { PageContainer } from "~/components/PageContainer";
+import { Select } from "~/components/Select";
 import { Title } from "~/components/Title";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useCategories } from "~/modules/categories/useCategories";
@@ -70,12 +71,11 @@ export const Route = createFileRoute("/statistics")({
 
     return (
       <PageContainer>
-        <Title variant="page">Statistics</Title>
         {/* The chart is the reason this page exists and it used to start below the fold on a
             phone, under a screen and a half of stacked cards. Three abreast is what buys it back —
             rather than reordering, which would have left the reading order disagreeing with the
             visual one at one size or the other. */}
-        <div className="mt-4 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <section>
             <div className="flex items-center justify-between gap-4 pb-2">
               <Title variant="section">Averages</Title>
@@ -108,11 +108,24 @@ export const Route = createFileRoute("/statistics")({
               <MoneyRunwayCard runway={averages.runway} perDayUsd={averages.expense.perDayUsd} />
             </div>
           </section>
+          <hr className="border-border" />
           <section>
-            <SpendingTrendCard months={months} month={month} trend={trend} />
-          </section>
-          <section>
-            <CategoryBreakdownCard spending={categorySpending} />
+            <div className="mb-2 flex items-center justify-between gap-4">
+              <Title variant="section">Spending trend</Title>
+              {months.length > 0 && (
+                <Select
+                  options={months}
+                  value={month}
+                  onValueChange={(value) =>
+                    value && navigate({ search: (prev) => ({ ...prev, month: value }) })
+                  }
+                />
+              )}
+            </div>
+            <div className="flex flex-col gap-4">
+              <SpendingTrendCard hasSpendingData={months.length > 0} month={month} trend={trend} />
+              <CategoryBreakdownCard spending={categorySpending} />
+            </div>
           </section>
         </div>
       </PageContainer>
