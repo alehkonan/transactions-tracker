@@ -5,6 +5,8 @@
 - `docs/architecture.md` is the source of truth for the offline-first sync
   architecture. Follow it when changing data flow, sync, authentication, or
   storage behavior.
+- Read `docs/limitations.md` before changing database connectivity, sync retries
+  or batching, transaction budgets, or deployment topology.
 - Do not read or commit `.env*` files. Use `.env.example` for variable names.
 
 ## Stack and commands

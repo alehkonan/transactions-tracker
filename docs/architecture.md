@@ -44,8 +44,9 @@ A keyset-paginated delta pull scoped to the caller's user, sending tombstones as
   microseconds and `Date` only milliseconds, so a strict cursor rounded _down_ keeps matching the
   rows it was meant to advance past and the pull never terminates. Nothing outside `pullChanges` may
   interpret it.
-- **Pagination is mandatory** — `PULL_PAGE_SIZE` is 2000 rows, against a 10s Netlify function
-  timeout. The client loops until nothing is `pending`.
+- **Pagination is mandatory** — `PULL_PAGE_SIZE` is 2000 rows so each request stays well inside the
+  application's database budget and the observed platform boundary. The client loops until nothing is
+  `pending`.
 - **`pending` is per table, not one `hasMore` flag**, because the app opens on the reference tables
   and lets transactions keep arriving — it has to know which table is the one still streaming.
 - **The cursor is rewound ~10s on each pull.** A row whose `now()` was evaluated before another's can
@@ -56,8 +57,9 @@ A keyset-paginated delta pull scoped to the caller's user, sending tombstones as
   "syncing 35%" indicator, and the client only asks on the first page of a run: the number does not
   change during one, and a `count(*)` per page would be a real cost against a slow database.
 - **`usdRates` rides along in the response** (the external fetch stays server-side, cached per UTC
-  day) and is stored in IndexedDB so statistics work offline. A rate-service outage returns `null`
-  rather than failing the pull; the client keeps its cached rates.
+  day) and is stored in IndexedDB so statistics work offline. The fetch aborts after one second and
+  backs off for five minutes after provider failure. An outage returns `null` rather than failing the
+  pull; the client keeps its cached rates.
 - **`colors` is pulled in full on every page, not once.** The CSV import mints new colors for the
   categories it creates, so a client holding a pull-once palette draws them untinted. It is a few
   dozen rows.
@@ -138,11 +140,14 @@ pushChanges({ mutations }) → { applied, canonicalRows, conflicts, colors }
 3. Debounced push (~1s), then a pull.
 4. Success → drop the outbox entries, apply the canonical rows.
 5. Failure → keep the outbox, retry with exponential backoff (capped at 30s), show "N unsaved
-   changes".
+   changes". Retryable database failures are sanitized `503` responses with `Retry-After: 2`.
 
 - **A mutation carries the whole row, not a diff.** The client already holds the row it is changing,
-  and sending all of it is what makes applying one idempotent — which is why the outbox needs no
-  dedup table, and why a retry after a half-finished push is safe rather than merely likely to work.
+  and sending all of it makes the resulting row state idempotent.
+- **Delivery is operation-idempotent.** `mutation_receipts` is keyed by
+  `(user_id, mutation_id)`. A push claims unreceipted ids in the same transaction as their writes;
+  already-receipted ids are acknowledged without replaying writes or conflicts. If the transaction
+  rolls back, its claims roll back too. Receipts are currently retained indefinitely.
 - **Ids are minted client-side** (`utils/uuid-v7.ts`). UUIDv7 rather than `serial`, because a serial
   cannot be minted offline: without it every optimistic insert needs a temp id plus FK rewriting on
   push, the most bug-prone part of any offline-first system. The client mints the id and it is final.
@@ -387,8 +392,15 @@ discrete `POSTGRES_USER` / `PASSWORD` / `HOST` / `PORT` / `DB` variables (not a 
 
 `get-db.server.ts` exposes `getDb()`, a lazily-initialized Drizzle singleton with **no top-level side
 effects**, so the TanStack Start compiler can tree-shake the postgres driver out of the client
-bundle. Never create the connection at module scope. Serverless tuning: `max: 1`, `idle_timeout: 20`,
-`connect_timeout: 10`, cached on `globalThis` in production too.
+bundle. Never create the connection at module scope. Serverless tuning: `max: 1`, `prepare: false`,
+`idle_timeout: 20`, `connect_timeout: 3`, and `application_name: transactions-tracker-runtime`, cached
+on `globalThis` in production too.
+
+**Runtime database work is fail-fast.** Pull, push, integrity, and session database operations run in
+bounded transactions with a 1.5s lock timeout, 6s statement timeout, 7s idle-transaction timeout, and
+an 8s whole-transaction timeout on PostgreSQL 17+. These database-side limits must remain below the
+platform request boundary so a terminated request does not leave work or locks behind. Logs record
+request and phase durations plus sanitized PostgreSQL classifications, never row payloads or secrets.
 
 Every synced table carries `id uuid` (v7 from clients), `updated_at timestamptz not null default
 now()`, `deleted_at timestamptz`, and a `(profile_id, updated_at, id)` index; transactions keep
@@ -437,7 +449,7 @@ parent domain folder is promoted to its own sibling module (`transaction-form/` 
 
 | Constant                    | Value      | Where                               | Why                                   |
 | --------------------------- | ---------- | ----------------------------------- | ------------------------------------- |
-| `PULL_PAGE_SIZE`            | 2000 rows  | `api/sync.functions.ts`             | 10s Netlify function timeout          |
+| `PULL_PAGE_SIZE`            | 2000 rows  | `api/sync.functions.ts`             | bounded sync request latency          |
 | `CURSOR_OVERLAP_MS`         | 10s        | `api/sync.functions.ts`             | commit-order vs. timestamp-order gap  |
 | `PUSH_BATCH_LIMIT`          | 500        | `modules/sync/sync-types.ts`        | one atomic DB transaction per batch   |
 | `STALE_CURSOR_AFTER_DAYS`   | 60         | `modules/sync/sync-types.ts`        | must stay well inside the sweep's 90  |

@@ -13,7 +13,8 @@ write accepted by the server replaces the whole row; there is no field-level mer
 use client-generated UUIDs, so concurrent new transactions do not conflict and are both added.
 
 **Read [`docs/architecture.md`](docs/architecture.md) for the applied solution** — the pull/push
-protocol, the sync engine, tombstones and retention, integrity checking, and the auth path.
+protocol, the sync engine, tombstones and retention, integrity checking, and the auth path. Known
+production and design constraints are tracked in [`docs/limitations.md`](docs/limitations.md).
 
 Database access is server-only and the current request handlers enforce ownership before syncing or
 mutating data. A staged PostgreSQL Row-Level Security rollout is documented in the
@@ -54,6 +55,7 @@ Read from `.env` locally and from the real environment in deployments.
 | Variable                                                                              | Notes                                                         |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` | Discrete variables, not a `DATABASE_URL`.                     |
+| `POSTGRES_CA_CERT_BASE64`                                                             | Base64-encoded PostgreSQL CA PEM; required in deployments.    |
 | `AUTH_SECRET`                                                                         | HMAC key for the signed access and profile cookies. Required. |
 | `AUTH_RP_ID`, `AUTH_ORIGIN`                                                           | WebAuthn relying party. Fall back to the request URL locally. |
 
