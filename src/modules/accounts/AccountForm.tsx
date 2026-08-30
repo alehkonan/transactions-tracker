@@ -141,7 +141,7 @@ export function AccountForm({ account }: Props) {
             control={control}
             name="initialBalance"
             label="Initial balance"
-            inputMode="numeric"
+            inputMode="decimal"
             className="w-full"
           />
         </div>
