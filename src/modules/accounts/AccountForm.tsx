@@ -1,18 +1,14 @@
 import { Field } from "@base-ui/react/field";
-import { Toggle } from "@base-ui/react/toggle";
 import { TrashIcon } from "lucide-react";
 import { useContext, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
 import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
 import { SelectControl } from "~/components/SelectControl";
-import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
-import { accountTypeIcons, accountTypeStyles } from "~/modules/accounts/account-type-tag";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import { formatMoney } from "~/utils/format-money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
@@ -109,48 +105,46 @@ export function AccountForm({ account }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-3">
-      <ToggleGroupControl
-        control={control}
-        name="type"
-        aria-label="Type"
-        className="border-border bg-surface flex gap-1 rounded-lg border p-1"
-      >
-        {typeOptions.map((option) => {
-          const Icon = accountTypeIcons[option.value];
-          return (
-            <Toggle
-              key={option.value}
-              value={option.value}
-              className={(toggleState) =>
-                twMerge(
-                  "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors sm:h-9",
-                  toggleState.pressed
-                    ? accountTypeStyles[option.value]
-                    : "text-text-muted hover:bg-surface-muted",
-                )
-              }
-            >
-              <Icon className="size-4" />
-              {option.label}
-            </Toggle>
-          );
-        })}
-      </ToggleGroupControl>
-      <div className="grid grid-cols-2 gap-3">
-        <InputControl control={control} name="name" label="Name" rules={{ required: true }} />
-        <SelectControl
-          control={control}
-          name="currencyCode"
-          label="Currency"
-          options={currencyOptions}
-        />
-        <SelectControl control={control} name="status" label="Status" options={statusOptions} />
+      <div className="flex flex-col gap-3">
         <InputControl
           control={control}
-          name="initialBalance"
-          label="Initial balance"
-          inputMode="decimal"
+          name="name"
+          label="Name"
+          rules={{ required: true }}
+          className="w-full"
         />
+        <div className="grid grid-cols-2 gap-3">
+          <SelectControl
+            control={control}
+            name="type"
+            label="Type"
+            options={typeOptions}
+            className="w-full"
+          />
+          <SelectControl
+            control={control}
+            name="status"
+            label="Status"
+            options={statusOptions}
+            className="w-full"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <SelectControl
+            control={control}
+            name="currencyCode"
+            label="Currency"
+            options={currencyOptions}
+            className="w-full"
+          />
+          <InputControl
+            control={control}
+            name="initialBalance"
+            label="Initial balance"
+            inputMode="numeric"
+            className="w-full"
+          />
+        </div>
         {account && (
           <Field.Root className="flex flex-col gap-1">
             <Field.Label className="text-text text-sm font-bold">Balance</Field.Label>
@@ -160,7 +154,7 @@ export function AccountForm({ account }: Props) {
                 getProjectedBalance(account, initialBalance),
                 account.currencyCode,
               )}
-              className="border-border bg-surface-muted text-text-muted h-11 rounded-lg border px-2 sm:h-9"
+              className="border-border bg-surface-muted text-text-muted h-11 w-full rounded-lg border px-2 sm:h-9"
             />
             <Field.Description className="text-text-muted text-sm">
               Initial balance plus all transactions
@@ -168,7 +162,11 @@ export function AccountForm({ account }: Props) {
           </Field.Root>
         )}
       </div>
-      <div className="flex items-center justify-between gap-2">
+      <div
+        className={
+          isEditing ? "flex items-center justify-between gap-2" : "flex justify-center gap-2"
+        }
+      >
         {account && (
           <Button
             variant="danger"
@@ -180,7 +178,7 @@ export function AccountForm({ account }: Props) {
             Delete
           </Button>
         )}
-        <div className="ml-auto flex gap-2">
+        <div className={isEditing ? "ml-auto flex gap-2" : "flex gap-2"}>
           <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
           </Button>
