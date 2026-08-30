@@ -65,7 +65,7 @@ export function createPushExecution<Database>(
     });
 
     return {
-      applied: mutations.map((mutation) => mutation.mutationId),
+      applied: appliedBatch?.applied ?? [],
       canonicalRows,
       conflicts: appliedBatch?.conflicts ?? [],
       colors,

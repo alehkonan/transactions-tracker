@@ -64,9 +64,9 @@ export const Route = createRootRoute({
               <header
                 className={twJoin(
                   "pointer-events-none",
-                  "flex items-center justify-center p-3",
+                  "flex items-center justify-center px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]",
                   "z-navbar fixed inset-x-0 bottom-0",
-                  "md:sticky md:top-0 md:bottom-auto",
+                  "md:sticky md:top-0 md:bottom-auto md:p-3",
                 )}
               >
                 <Navbar />
@@ -79,7 +79,7 @@ export const Route = createRootRoute({
             <div
               className={twJoin(
                 !isLogin && (showNavbar ? "pt-8 md:pt-0" : "pt-8 md:pt-14"),
-                showNavbar && "pb-12 sm:pb-0",
+                showNavbar && "pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-0",
               )}
             >
               {isLogin ? children : <SyncGate>{children}</SyncGate>}

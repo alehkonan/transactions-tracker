@@ -1,5 +1,4 @@
 import { Card } from "~/components/Card";
-import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
 import type { CategorySpending } from "~/modules/statistics/compute-category-spending";
 
@@ -15,8 +14,6 @@ type Props = {
 export function CategoryBreakdownCard({ spending }: Props) {
   return (
     <Card>
-      <Title variant="card">Where the money went</Title>
-      <hr className="border-border my-3" />
       {spending.length === 0 ? (
         <p className="text-text-muted text-sm">No spending this month.</p>
       ) : (

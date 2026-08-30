@@ -14,22 +14,22 @@ const navItems: NavItem[] = [
   {
     to: "/accounts",
     label: "Accounts",
-    icon: <WalletIcon className="size-6" />,
+    icon: <WalletIcon className="size-7 md:size-6" />,
   },
   {
     to: "/transactions",
     label: "Transactions",
-    icon: <ReceiptTextIcon className="size-6" />,
+    icon: <ReceiptTextIcon className="size-7 md:size-6" />,
   },
   {
     to: "/statistics",
     label: "Statistics",
-    icon: <ChartNoAxesCombinedIcon className="size-6" />,
+    icon: <ChartNoAxesCombinedIcon className="size-7 md:size-6" />,
   },
   {
     to: "/settings",
     label: "Settings",
-    icon: <SettingsIcon className="size-6" />,
+    icon: <SettingsIcon className="size-7 md:size-6" />,
   },
 ];
 

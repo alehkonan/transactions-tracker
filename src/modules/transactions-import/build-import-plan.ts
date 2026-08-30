@@ -2,6 +2,7 @@ import { currencyCodeEnum } from "~/database/enums";
 import { newRow } from "~/modules/sync/mutations";
 import { negateMoney } from "~/utils/money";
 import { generateUniqueHexColors } from "./generate-hex-colors";
+import { parseImportDate } from "./parse-import-date";
 import type { ImportRow } from "./utils";
 import type { LocalChange } from "~/modules/sync/mutations";
 import type {
@@ -202,7 +203,7 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
   rows.forEach((row, index) => {
     const rowNumber = index + 1;
 
-    const createdAt = new Date(row.createdDate);
+    const createdAt = parseImportDate(row.createdDate);
     if (!row.createdDate.trim() || Number.isNaN(createdAt.getTime())) {
       failures.push({ row: rowNumber, reason: `Invalid date: "${row.createdDate}"` });
       return;

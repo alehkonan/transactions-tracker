@@ -120,27 +120,8 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         })}
       </ToggleGroupControl>
 
-      <DatePickerControl
-        control={control}
-        name="createdAt"
-        label="Date"
-        // Money that has not moved yet isn't a transaction this app knows how to hold: it would
-        // count against balances and averages as though it had already been spent.
-        disabled={{ after: new Date() }}
-      />
-
-      {type !== "TRANSFER" && (
-        // One per row on a phone: four necessity labels do not fit half of 390px, and shrinking
-        // them to fit only trades a clipped word for a truncated one.
-        <div className="grid gap-3 sm:grid-cols-2">
-          <SelectControl
-            control={control}
-            name="categoryId"
-            label="Category"
-            options={categoryOptions}
-            placeholder="None"
-          />
-
+      {type !== "TRANSFER" ? (
+        <>
           <ToggleGroupControl
             control={control}
             name="necessityLevel"
@@ -165,7 +146,32 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               </Toggle>
             ))}
           </ToggleGroupControl>
-        </div>
+
+          <DatePickerControl
+            control={control}
+            name="createdAt"
+            label="Date & time"
+            // Money that has not moved yet isn't a transaction this app knows how to hold: it
+            // would count against balances and averages as though it had already been spent.
+            disabled={{ after: new Date() }}
+          />
+
+          <SelectControl
+            control={control}
+            name="categoryId"
+            label="Category"
+            options={categoryOptions}
+            placeholder="None"
+            className="w-full"
+          />
+        </>
+      ) : (
+        <DatePickerControl
+          control={control}
+          name="createdAt"
+          label="Date & time"
+          disabled={{ after: new Date() }}
+        />
       )}
 
       {showTransferSplit ? (
@@ -180,6 +186,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
                   placeholder="Select account"
+                  className="w-full"
                 />
                 <BalancePreview account={selectedAccount} projectedBalance={projectedBalance} />
               </div>
@@ -189,8 +196,10 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 label="Amount"
                 rules={{ required: "Amount is required." }}
                 type="number"
+                inputMode="numeric"
                 step="0.01"
                 min="0.01"
+                className="w-full"
               />
             </div>
           </div>
@@ -207,6 +216,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
                   placeholder="Select account"
+                  className="w-full"
                 />
                 <BalancePreview account={selectedToAccount} projectedBalance={projectedToBalance} />
               </div>
@@ -216,8 +226,10 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 label="Amount"
                 rules={{ required: "Amount is required." }}
                 type="number"
+                inputMode="numeric"
                 step="0.01"
                 min="0.01"
+                className="w-full"
                 onChange={markToAmountTouched}
               />
             </div>
@@ -233,6 +245,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               rules={{ required: "Account is required." }}
               options={activeAccountOptions}
               placeholder="Select account"
+              className="w-full"
             />
             <BalancePreview account={selectedAccount} projectedBalance={projectedBalance} />
           </div>
@@ -242,13 +255,21 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             label="Amount"
             rules={{ required: "Amount is required." }}
             type="number"
+            inputMode="numeric"
             step="0.01"
             min="0.01"
+            className="w-full"
           />
         </div>
       )}
 
-      <TextareaControl control={control} name="comment" label="Comment" rows={3} />
+      <TextareaControl
+        control={control}
+        name="comment"
+        label="Comment"
+        rows={2}
+        className="w-full"
+      />
 
       {rootError && <p className="text-danger text-sm">{rootError}</p>}
 

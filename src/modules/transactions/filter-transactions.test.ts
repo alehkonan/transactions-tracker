@@ -25,9 +25,20 @@ const rows = [
   row({ id: "start-of-from", createdAt: new Date(2026, 0, 10, 0, 0) }),
   row({ id: "middle", createdAt: new Date(2026, 0, 11, 12, 0) }),
   row({ id: "end-of-to", createdAt: new Date(2026, 0, 12, 23, 59) }),
-  row({ id: "after", createdAt: new Date(2026, 0, 13, 0, 0), account: "Bank" }),
+  row({
+    id: "after",
+    createdAt: new Date(2026, 0, 13, 0, 0),
+    account: "Bank",
+    comment: "Airport taxi",
+    currencyCode: "EUR",
+  }),
   row({ id: "groceries", createdAt: new Date(2026, 0, 14, 9, 0), category: "Food" }),
-  row({ id: "lunch", createdAt: new Date(2026, 0, 15, 13, 0), category: "Food" }),
+  row({
+    id: "lunch",
+    createdAt: new Date(2026, 0, 15, 13, 0),
+    category: "Food",
+    necessityLevel: "ESSENTIAL",
+  }),
 ];
 
 const ids = (result: TransactionRow[]) => result.map((entry) => entry.id);
@@ -76,5 +87,12 @@ describe("filterTransactions", () => {
       "groceries",
       "lunch",
     ]);
+  });
+
+  it("matches trimmed, case-insensitive text across transaction fields", () => {
+    expect(ids(filterTransactions(rows, { search: " food " }))).toEqual(["groceries", "lunch"]);
+    expect(ids(filterTransactions(rows, { search: "AIRPORT" }))).toEqual(["after"]);
+    expect(ids(filterTransactions(rows, { search: "eur" }))).toEqual(["after"]);
+    expect(ids(filterTransactions(rows, { search: "essential" }))).toEqual(["lunch"]);
   });
 });

@@ -4,6 +4,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -79,6 +80,25 @@ export const sessionsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("sessions_user_id_idx").on(table.userId)],
+);
+
+/**
+ * A durable acknowledgement of an outbox mutation.
+ *
+ * The composite key deliberately includes the user: mutation ids are client-generated and only
+ * identify one user's delivery. Receipts are written in the same transaction as their mutations,
+ * so a retry can distinguish a lost response after commit from work that never committed.
+ */
+export const mutationReceiptsTable = pgTable(
+  "mutation_receipts",
+  {
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
+    mutationId: uuid("mutation_id").notNull(),
+    appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.mutationId] })],
 );
 
 /**

@@ -1,10 +1,6 @@
-import { useNavigate } from "@tanstack/react-router";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { twJoin } from "tailwind-merge";
-import { Button } from "~/components/Button";
 import { Card } from "~/components/Card";
-import { Select, type SelectOption } from "~/components/Select";
 import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
 import type { TooltipContentProps } from "recharts";
@@ -79,20 +75,12 @@ const renderChartTooltip = ({ active, payload, label }: TooltipContentProps) => 
 };
 
 type Props = {
-  months: SelectOption[];
+  hasSpendingData: boolean;
   month: string;
   trend: SpendingTrendPoint[];
 };
 
-export function SpendingTrendCard({ months, month, trend }: Props) {
-  const navigate = useNavigate({ from: "/statistics" });
-  const goToMonth = (value: string) => navigate({ search: { month: value } });
-
-  // `months` is sorted newest-first, so "next" (more recent) is the previous index.
-  const currentIndex = months.findIndex((option) => option.value === month);
-  const prevMonth = currentIndex >= 0 ? months[currentIndex + 1] : undefined;
-  const nextMonth = currentIndex > 0 ? months[currentIndex - 1] : undefined;
-
+export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
   const [year, monthNum] = month.split("-").map(Number);
   // A current-month series must not run flat into the future — the cumulative total stops at
   // today and the axis stops with it, so the line reads as "spending so far" rather than
@@ -107,37 +95,12 @@ export function SpendingTrendCard({ months, month, trend }: Props) {
 
   return (
     <Card>
-      <div className="flex items-center justify-between gap-4">
-        <Title variant="card">Spending trend</Title>
-        {months.length > 0 && (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="secondary"
-              aria-label="Previous month"
-              disabled={!prevMonth}
-              onClick={() => prevMonth && goToMonth(prevMonth.value)}
-            >
-              <ChevronLeftIcon />
-            </Button>
-            <Select options={months} value={month} onValueChange={(v) => v && goToMonth(v)} />
-            <Button
-              variant="secondary"
-              aria-label="Next month"
-              disabled={!nextMonth}
-              onClick={() => nextMonth && goToMonth(nextMonth.value)}
-            >
-              <ChevronRightIcon />
-            </Button>
-          </div>
-        )}
-      </div>
-      <hr className="border-border my-3" />
-      {months.length === 0 ? (
+      {!hasSpendingData ? (
         <p className="text-text-muted text-sm">No spending data yet.</p>
       ) : (
         <div
           className={twJoin(
-            "h-72",
+            "h-36 sm:h-72",
             // Recharts shifts DOM focus between several of its own internal SVG
             // elements (the root surface, its z-index layer groups, ...) as you
             // interact, so every focusable descendant needs the same treatment.

@@ -15,7 +15,7 @@ export function NavLink({ children, className, icon, to, ...props }: Props) {
           <span
             className={twMerge(
               className,
-              "flex h-10 items-center gap-2 rounded-2xl px-4",
+              "flex h-12 items-center justify-center gap-2 rounded-2xl px-5 md:h-10 md:px-4",
               isActive ? "text-surface bg-accent" : "text-text",
             )}
           >

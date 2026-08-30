@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { PageContainer } from "~/components/PageContainer";
-import { Title } from "~/components/Title";
 import { accountTypeStyles } from "~/modules/accounts/account-type-tag";
 import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
 import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
@@ -59,27 +58,19 @@ export const Route = createFileRoute("/accounts")({
 
     return (
       <PageContainer>
-        <div className="flex items-center justify-between gap-2">
-          <Title variant="page">Accounts</Title>
+        <div className="flex flex-col gap-6">
+          {groups.map((group) => {
+            if (!group.accounts.length) return null;
+            return (
+              <AccountGroupSection
+                key={group.title}
+                {...group}
+                activityByAccount={activityByAccount}
+              />
+            );
+          })}
           <CreateAccountButton />
         </div>
-        <div className="py-4" />
-        {accounts.length === 0 ? (
-          <p>No accounts yet.</p>
-        ) : (
-          <div className="flex flex-col gap-6">
-            {groups.map((group) => {
-              if (!group.accounts.length) return null;
-              return (
-                <AccountGroupSection
-                  key={group.title}
-                  {...group}
-                  activityByAccount={activityByAccount}
-                />
-              );
-            })}
-          </div>
-        )}
       </PageContainer>
     );
   },

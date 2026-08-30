@@ -29,6 +29,23 @@ export const config = { schedule: "@daily" };
 
 type SweepResult = Record<string, number>;
 
+function getSslConfig() {
+  const encodedCertificate = process.env.POSTGRES_CA_CERT_BASE64;
+  const deployed = process.env.NODE_ENV === "production" || process.env.NETLIFY === "true";
+
+  if (!encodedCertificate) {
+    if (deployed) throw new Error("POSTGRES_CA_CERT_BASE64 is required in deployed environments");
+    return false;
+  }
+
+  const ca = Buffer.from(encodedCertificate, "base64").toString("utf8");
+  if (!ca.includes("-----BEGIN CERTIFICATE-----") || !ca.includes("-----END CERTIFICATE-----")) {
+    throw new Error("POSTGRES_CA_CERT_BASE64 does not contain a valid PEM certificate");
+  }
+
+  return { ca, rejectUnauthorized: true };
+}
+
 function connect() {
   const host = process.env.POSTGRES_HOST;
   if (!host) throw new Error("POSTGRES_HOST is not set — no database to sweep.");
@@ -39,9 +56,12 @@ function connect() {
     host,
     port: Number(process.env.POSTGRES_PORT),
     database: process.env.POSTGRES_DB,
+    ssl: getSslConfig(),
     max: 1,
+    prepare: false,
     idle_timeout: 20,
-    connect_timeout: 10,
+    connect_timeout: 3,
+    connection: { application_name: "transactions-tracker-tombstone-gc" },
   });
 }
 
@@ -58,6 +78,7 @@ export async function sweepTombstones(): Promise<SweepResult> {
   try {
     const removed: SweepResult = {};
 
+    /* oxlint-disable no-await-in-loop -- maintenance deletes are intentionally sequential. */
     for (const table of SWEPT_TABLES) {
       const result = await sql`
         delete from ${sql(table)}
@@ -66,6 +87,7 @@ export async function sweepTombstones(): Promise<SweepResult> {
       `;
       removed[table] = result.count;
     }
+    /* oxlint-enable no-await-in-loop */
 
     return removed;
   } finally {
