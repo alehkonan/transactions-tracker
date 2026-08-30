@@ -196,7 +196,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 label="Amount"
                 rules={{ required: "Amount is required." }}
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
                 step="0.01"
                 min="0.01"
                 className="w-full"
@@ -226,7 +226,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 label="Amount"
                 rules={{ required: "Amount is required." }}
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
                 step="0.01"
                 min="0.01"
                 className="w-full"
@@ -255,7 +255,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             label="Amount"
             rules={{ required: "Amount is required." }}
             type="number"
-            inputMode="numeric"
+            inputMode="decimal"
             step="0.01"
             min="0.01"
             className="w-full"
