@@ -63,9 +63,11 @@ type Props = DayPickerProps & {
    * once `onSelect` reports a complete selection.
    */
   actionsRef?: RefObject<DatePickerActions | null>;
+  /** Classes applied to the date trigger; use `w-full` when it should fill a form field. */
+  triggerClassName?: string;
 };
 
-export function DatePicker({ label, onReset, actionsRef, ...props }: Props) {
+export function DatePicker({ label, onReset, actionsRef, triggerClassName, ...props }: Props) {
   const panelId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -80,10 +82,14 @@ export function DatePicker({ label, onReset, actionsRef, ...props }: Props) {
     <>
       {/* The chip sits on top of the trigger rather than inside it: nesting a button in a
           button is invalid HTML, and its click would also open the popover. */}
-      <span className="relative inline-flex">
-        <Button variant="secondary" popoverTarget={panelId} className={twJoin(onReset && "pr-9")}>
-          <CalendarIcon className="size-4" />
-          <span className="truncate">{label ?? "Select date"}</span>
+      <span className={twJoin("relative inline-flex", triggerClassName && "min-w-0 flex-1")}>
+        <Button
+          variant="secondary"
+          popoverTarget={panelId}
+          className={twJoin("justify-between", onReset && "pr-9", triggerClassName)}
+        >
+          <span className="min-w-0 flex-1 truncate">{label ?? "Select date"}</span>
+          <CalendarIcon className="size-4 shrink-0" />
         </Button>
         {onReset && (
           <button

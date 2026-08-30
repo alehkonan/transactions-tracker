@@ -21,9 +21,8 @@ type Props<TFieldValues extends FieldValues, TName extends FieldPathByValue<TFie
  * Single-date `DatePicker` wired to react-hook-form via `useController`, wrapped in a `Field.Root`
  * with an optional label and its validation error.
  *
- * The field holds a full `Date` but the calendar only picks a day, so the time of day is carried
- * across a selection rather than reset to midnight — it is what orders two entries made on the
- * same day, and the person picking a date never said anything about it.
+ * The field holds a full `Date`: the calendar changes its day while the native time input changes
+ * its hours and minutes. Each preserves the portion the other control owns.
  */
 export function DatePickerControl<
   TFieldValues extends FieldValues,
@@ -46,18 +45,35 @@ export function DatePickerControl<
     datePicker.current?.close();
   };
 
+  const handleTimeChange = (time: string) => {
+    const [hours, minutes] = time.split(":").map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return;
+    field.onChange(set(selected, { hours, minutes }));
+  };
+
   return (
-    <Field.Root className="flex flex-col items-start gap-1">
+    <Field.Root className="flex w-full min-w-0 flex-col gap-1">
       {label && <Field.Label className="text-text text-sm font-bold">{label}</Field.Label>}
-      <DatePicker
-        actionsRef={datePicker}
-        mode="single"
-        selected={selected}
-        onSelect={handleSelect}
-        label={format(selected, "d MMM yyyy")}
-        defaultMonth={selected}
-        disabled={disabled}
-      />
+      <div className="flex w-full items-center gap-2">
+        <DatePicker
+          actionsRef={datePicker}
+          triggerClassName="w-full justify-between"
+          mode="single"
+          selected={selected}
+          onSelect={handleSelect}
+          label={format(selected, "d MMM yyyy")}
+          defaultMonth={selected}
+          disabled={disabled}
+        />
+        <input
+          type="time"
+          value={format(selected, "HH:mm")}
+          onChange={(event) => handleTimeChange(event.target.value)}
+          onBlur={field.onBlur}
+          aria-label="Time"
+          className="border-border bg-surface text-text focus-visible:ring-accent h-11 min-w-0 flex-1 rounded-2xl border px-3 text-center transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:h-9"
+        />
+      </div>
       {(fieldState.error?.message ?? description) && (
         <Field.Description
           className={twMerge("text-sm", fieldState.error ? "text-danger" : "text-text-muted")}
