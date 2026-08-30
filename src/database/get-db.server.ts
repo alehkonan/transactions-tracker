@@ -12,6 +12,23 @@ const globalForDb = globalThis as unknown as {
 
 type Database = ReturnType<typeof drizzle<typeof schema>>;
 
+function getSslConfig() {
+  const encodedCertificate = process.env.POSTGRES_CA_CERT_BASE64;
+  const deployed = process.env.NODE_ENV === "production" || process.env.NETLIFY === "true";
+
+  if (!encodedCertificate) {
+    if (deployed) throw new Error("POSTGRES_CA_CERT_BASE64 is required in deployed environments");
+    return false;
+  }
+
+  const ca = Buffer.from(encodedCertificate, "base64").toString("utf8");
+  if (!ca.includes("-----BEGIN CERTIFICATE-----") || !ca.includes("-----END CERTIFICATE-----")) {
+    throw new Error("POSTGRES_CA_CERT_BASE64 does not contain a valid PEM certificate");
+  }
+
+  return { ca, rejectUnauthorized: true };
+}
+
 /**
  * A handle statements can run on: the connection itself, or an open transaction.
  *
@@ -30,6 +47,7 @@ export function getDb() {
         host: process.env.POSTGRES_HOST,
         port: Number(process.env.POSTGRES_PORT),
         database: process.env.POSTGRES_DB,
+        ssl: getSslConfig(),
         // Deployed as serverless functions, so concurrency comes from many instances rather than
         // many connections within one. The driver's default pool of 10 would multiply per instance
         // and, against a 500MB database where each backend costs several MB of RAM, exhaust
