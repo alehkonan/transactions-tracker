@@ -4,7 +4,17 @@ The production `502` incident was mitigated on 2026-08-29 by deploying pull/push
 
 Current constraints and the resolved incident context are documented in [`docs/limitations.md`](../limitations.md). This file contains only remaining work. Implement each step only when production measurements justify it; the issue is currently considered solved.
 
+## How to use this plan
+
+This is a conditional resilience roadmap, not a checklist to implement all at once. First finish deployment verification in steps 1–2: apply migration `0008_nosy_mordo.sql`, deploy and test the TLS and receipt changes, and only then enable Supabase SSL enforcement. Monitor production phase logs for several days after that rollout.
+
+Do not implement steps 3–6 merely because they are listed. The successful production baseline completed the application pull in about 5.2 seconds, including a 3.1-second database transaction and 1,208 transactions, while most of the invocation duration occurred before `sync.request.started`. Push/pull query or payload changes would not address that pre-dispatch delay and could increase database work. Choose an optimization from steps 3–6 only when production measurements identify its corresponding bottleneck; remove this plan once all required rollout work is verified and the remaining conditional items are either implemented or explicitly rejected as unnecessary.
+
+Status labels describe the repository at the time this plan was last updated. **Implemented** means the code exists locally; it does not imply that a migration was applied, a deployment succeeded, or production behavior was verified.
+
 ## 1. Verify and monitor the deployed configuration
+
+**Status: partially implemented.** Verified TLS configuration is implemented for runtime, Drizzle Kit, and tombstone maintenance. Production deployment verification, Supabase SSL enforcement, and sustained monitoring are still pending.
 
 1. Deploy and verify the configured TLS clients for the transaction pooler on port `6543`:
    - keep `POSTGRES_CA_CERT_BASE64` available to runtime, Drizzle Kit, and tombstone maintenance;
@@ -23,6 +33,8 @@ Acceptance: normal sync stays well below the platform boundary, controlled retry
 
 ## 2. Deploy and verify operation-idempotent push delivery
 
+**Status: implementation complete; database rollout and production verification pending.** The receipt schema, duplicate-request validation, atomic claim/skip behavior, focused unit tests, and generated migration are complete. The migration has not been applied by this plan, and replay/concurrency behavior has not been verified against production PostgreSQL.
+
 The receipt schema and atomic claim/skip behavior are implemented, and migration `0008_nosy_mordo.sql` is generated. Before deploying the application code:
 
 1. Apply the additive migration with `pnpm db:migrate`; never use `drizzle-kit push`.
@@ -33,6 +45,8 @@ The receipt schema and atomic claim/skip behavior are implemented, and migration
 Keep receipts indefinitely until a maximum offline/retry window is explicitly defined.
 
 ## 3. Reduce push database work if phase logs justify it
+
+**Status: not implemented and not currently justified.** Preserve the current behavior until production phase logs identify push SQL or balance recomputation as a material bottleneck.
 
 1. Build an `affectedAccountIds` set while applying account and transaction mutations, including both old and new accounts when a transaction moves.
 2. Recompute balances once per batch with one set-based aggregate/update over only affected live accounts.
@@ -45,6 +59,8 @@ Do not increase the per-isolate connection count to hide repeated SQL.
 
 ## 4. Reduce pull work if phase logs justify it
 
+**Status: not implemented and not currently justified.** The measured successful pull is below the application budget; retain the current pagination and request shape until production data identifies a pull bottleneck.
+
 1. Fetch `PULL_PAGE_SIZE + 1`, return one page, and derive `pending` from the extra row.
 2. Request only still-pending tables on continuation pages, followed by a small all-table delta sweep.
 3. Fetch colors and currency rates once per sync run rather than once per transaction page.
@@ -55,6 +71,8 @@ Do not increase the per-isolate connection count to hide repeated SQL.
 Do not change the composite cursor, timestamp literal handling, overlap window, tombstones, or local outbox merge protection.
 
 ## 5. Calibrate limits and retry behavior
+
+**Status: not implemented; existing foundations only.** Count limits, retained outbox retries, exponential backoff, and sanitized retryable `503` responses already exist. The benchmarks, byte limits, complete outcome classification, `Retry-After` handling, terminal-entry recovery, and adaptive splitting listed below remain pending and measurement-gated.
 
 Only after steps 1–4 produce measurements:
 
@@ -68,6 +86,8 @@ Only after steps 1–4 produce measurements:
 
 ## 6. Improve deployment topology only if latency remains material
 
+**Status: partially implemented; topology changes are not currently justified.** Runtime lazy initialization, `max: 1`, `prepare: false`, the short connection timeout, verified TLS support, and distinct runtime/tombstone application names are implemented. Regional benchmarking, independent credentials/endpoints, a confirmed migration endpoint, and tombstone transaction deadlines remain pending.
+
 1. Benchmark regional co-location between Netlify compute and Supabase before moving either service.
 2. Separate runtime, migration, and maintenance variable groups and roles if independent endpoints or privileges are needed.
 3. Keep runtime lazy initialization, `max: 1`, `prepare: false`, short connection timeout, and a distinct application name.
@@ -75,6 +95,8 @@ Only after steps 1–4 produce measurements:
 5. Give tombstone maintenance its own application name, validated configuration, and deadlines below the scheduled-function limit.
 
 ## 7. Validate and roll out each remaining change independently
+
+**Status: local validation complete for the current code; deployment validation pending.** Unit tests, typecheck, lint/format checks, diagnostics, and the production build passed. Database migration, preview/canary testing, failure-injection scenarios, production verification, and rollback validation have not been performed.
 
 For each implemented step:
 
