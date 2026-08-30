@@ -43,7 +43,16 @@ export function InputControl<
         {...props}
         {...field}
         onChange={(event) => {
-          field.onChange(event);
+          const value =
+            props.inputMode === "decimal"
+              ? event.currentTarget.value.replace(/,/g, ".")
+              : event.currentTarget.value;
+
+          if (value !== event.currentTarget.value) {
+            event.currentTarget.value = value;
+          }
+
+          field.onChange(value);
           onChange?.(event);
         }}
         onBlur={(event) => {
