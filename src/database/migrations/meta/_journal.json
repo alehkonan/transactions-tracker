@@ -57,6 +57,13 @@
       "when": 1786537518803,
       "tag": "0007_handy_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788074305993,
+      "tag": "0008_nosy_mordo",
+      "breakpoints": true
     }
   ]
 }

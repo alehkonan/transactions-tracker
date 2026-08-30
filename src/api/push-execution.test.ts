@@ -30,6 +30,7 @@ function createTestExecution(options?: {
   const events: string[] = [];
   const database: FakeDatabase = { kind: "database" };
   const appliedBatch = options?.appliedBatch ?? {
+    applied: [mutation.mutationId],
     conflicts: [],
     touched: {
       profiles: new Set([mutation.rowId]),
@@ -98,6 +99,45 @@ describe("createPushExecution", () => {
       colors: [{ id: 7, hex: "#123456" }],
     });
     expect(events).toEqual(["transaction", "apply", "read-transaction", "canonical", "colors"]);
+  });
+
+  it("acknowledges a previously receipted mutation without replaying its conflict", async () => {
+    const { executePush } = createTestExecution({
+      appliedBatch: {
+        applied: [mutation.mutationId],
+        conflicts: [],
+        touched: {
+          profiles: new Set([mutation.rowId]),
+          accounts: new Set<string>(),
+          categories: new Set<string>(),
+          transactions: new Set<string>(),
+        },
+        profileIds: new Set<string>(),
+      },
+    });
+
+    await expect(executePush(42, [mutation])).resolves.toMatchObject({
+      applied: [mutation.mutationId],
+      conflicts: [],
+    });
+  });
+
+  it("uses only mutation ids confirmed by the write transaction", async () => {
+    const { executePush } = createTestExecution({
+      appliedBatch: {
+        applied: [],
+        conflicts: [],
+        touched: {
+          profiles: new Set<string>(),
+          accounts: new Set<string>(),
+          categories: new Set<string>(),
+          transactions: new Set<string>(),
+        },
+        profileIds: new Set<string>(),
+      },
+    });
+
+    await expect(executePush(42, [mutation])).resolves.toMatchObject({ applied: [] });
   });
 
   it("propagates transaction failures without fabricating a result", async () => {

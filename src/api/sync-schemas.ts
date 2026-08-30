@@ -94,5 +94,12 @@ const mutationSchema = z.union([
 ]);
 
 export const pushChangesSchema = z.object({
-  mutations: z.array(mutationSchema).max(PUSH_BATCH_LIMIT),
+  mutations: z
+    .array(mutationSchema)
+    .max(PUSH_BATCH_LIMIT)
+    .refine(
+      (mutations) =>
+        new Set(mutations.map((mutation) => mutation.mutationId)).size === mutations.length,
+      { message: "Mutation ids must be unique within a push batch." },
+    ),
 });

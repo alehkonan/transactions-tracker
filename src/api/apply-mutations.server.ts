@@ -3,6 +3,7 @@ import {
   accountsTable,
   categoriesTable,
   colorsTable,
+  mutationReceiptsTable,
   profilesTable,
   transactionsTable,
 } from "~/database/tables";
@@ -226,6 +227,8 @@ async function recomputeBalances(db: Executor, profileIds: string[]): Promise<vo
 }
 
 export type AppliedBatch = {
+  /** Newly applied and previously receipted ids, in the submitted outbox order. */
+  applied: string[];
   conflicts: PushConflict[];
   touched: TouchedIds;
   /** Every profile the batch wrote into — whose account balances have to be restated afterwards. */
@@ -252,10 +255,29 @@ export async function applyMutations(
   };
   const profileIds = new Set<string>();
 
+  for (const mutation of mutations) touched[mutation.table].add(mutation.rowId);
+
+  // Claim before applying. The unique key serializes concurrent delivery of the same mutation, while
+  // the surrounding transaction ensures a claim disappears if any later authorization or write fails.
+  const claimedReceipts = await withSyncPhase(
+    "push.receipt_claims",
+    () =>
+      db
+        .insert(mutationReceiptsTable)
+        .values(mutations.map((mutation) => ({ userId, mutationId: mutation.mutationId })))
+        .onConflictDoNothing()
+        .returning({ mutationId: mutationReceiptsTable.mutationId }),
+    { mutationCount: mutations.length },
+    (receipts) => ({ claimedCount: receipts.length }),
+  );
+  const claimedMutationIds = new Set(claimedReceipts.map((receipt) => receipt.mutationId));
+  const unreceiptedMutations = mutations.filter((mutation) =>
+    claimedMutationIds.has(mutation.mutationId),
+  );
+
   // Mutation runs must remain sequential: later rows can depend on parents created earlier in the batch.
   /* oxlint-disable no-await-in-loop */
-  for (const run of toRuns(mutations)) {
-    for (const mutation of run.mutations) touched[run.table].add(mutation.rowId);
+  for (const run of toRuns(unreceiptedMutations)) {
     const ids = run.mutations.map((mutation) => mutation.rowId);
 
     if (run.table === "profiles") {
@@ -555,5 +577,10 @@ export async function applyMutations(
     profileCount: profileIds.size,
   });
 
-  return { conflicts, touched, profileIds };
+  return {
+    applied: mutations.map((mutation) => mutation.mutationId),
+    conflicts,
+    touched,
+    profileIds,
+  };
 }

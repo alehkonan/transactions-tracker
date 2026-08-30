@@ -127,9 +127,9 @@ export type IntegrityResult = Record<SyncedTable, TableIntegrity>;
  * The write path.
  *
  * A mutation is a whole row, not a diff: the client already holds the row it is changing, and
- * sending all of it makes applying one idempotent — the same entry replayed after a failed push
- * lands on exactly the same state. That, plus `accounts.balance` being recomputed rather than
- * incremented, is why the outbox needs no dedup table.
+ * sending all of it makes the resulting row state idempotent. Delivery is operation-idempotent too:
+ * the server records `(user_id, mutation_id)` in the same transaction as the write, so a response
+ * lost after commit can be acknowledged on retry without executing the mutation again.
  */
 
 /**
