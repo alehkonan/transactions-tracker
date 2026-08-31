@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review for transactions-tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "neutral",
+        securityLevel: "loose",
+        flowchart: { curve: "basis" },
+      });
+    </script>
+    <style>
+      html {
+        scroll-behavior: smooth;
+      }
+      .seam {
+        border-style: dashed;
+      }
+      .deep {
+        background: linear-gradient(145deg, #0f172a, #1e293b);
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18);
+      }
+      .leak-line {
+        height: 2px;
+        background: #dc2626;
+        position: relative;
+      }
+      .leak-line:after {
+        content: "→";
+        position: absolute;
+        right: -2px;
+        top: -14px;
+        color: #dc2626;
+        font-size: 22px;
+      }
+      .arrow {
+        height: 2px;
+        background: #94a3b8;
+        position: relative;
+      }
+      .arrow:after {
+        content: "→";
+        position: absolute;
+        right: -2px;
+        top: -14px;
+        color: #64748b;
+        font-size: 22px;
+      }
+      .grid-paper {
+        background-image:
+          linear-gradient(to right, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+        background-size: 18px 18px;
+      }
+      .mass-interface {
+        background: repeating-linear-gradient(
+          135deg,
+          #eef2ff,
+          #eef2ff 8px,
+          #e0e7ff 8px,
+          #e0e7ff 16px
+        );
+      }
+      .internal {
+        opacity: 0.58;
+        border-style: dashed;
+      }
+      @media (max-width: 768px) {
+        .diagram-grid {
+          grid-template-columns: 1fr !important;
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 font-sans text-slate-900">
+    <main class="mx-auto max-w-6xl space-y-14 px-5 py-12">
+      <header class="border-b border-slate-300 pb-8">
+        <div class="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p class="text-xs font-semibold tracking-[0.22em] text-indigo-700 uppercase">
+              Deep-module scan
+            </p>
+            <h1 class="mt-2 font-serif text-4xl tracking-tight md:text-5xl">
+              transactions-tracker
+            </h1>
+            <p class="mt-2 text-sm text-slate-500">Architecture review · 31 August 2026</p>
+          </div>
+          <div class="flex flex-wrap gap-4 text-xs text-slate-600">
+            <span class="inline-flex items-center gap-2"
+              ><i class="h-4 w-5 border border-slate-500 bg-white"></i>module</span
+            ><span class="inline-flex items-center gap-2"
+              ><i class="h-4 w-5 border border-dashed border-slate-500 bg-white"></i>seam</span
+            ><span class="inline-flex items-center gap-2"
+              ><i class="h-0.5 w-6 bg-red-600"></i>leakage</span
+            ><span class="inline-flex items-center gap-2"
+              ><i class="h-4 w-5 bg-slate-800"></i>deep module</span
+            >
+          </div>
+        </div>
+      </header>
+      <section id="candidates" class="space-y-12">
+        <article
+          id="accepted-outbox"
+          class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div class="space-y-7 p-6 md:p-8">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800"
+                  >Strong</span
+                ><span
+                  class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700"
+                  >ports & adapters</span
+                ><span class="text-xs tracking-wider text-slate-400 uppercase">01</span>
+              </div>
+              <h2 class="mt-3 font-serif text-3xl">
+                Give accepted outbox delivery one settlement meaning
+              </h2>
+            </div>
+            <div>
+              <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Files</p>
+              <p class="mt-2 font-mono text-sm leading-6 text-slate-700">
+                src/modules/sync/outbox-acceptance.ts · src/modules/sync/outbox.ts ·
+                src/modules/sync/idb.ts · src/modules/sync/sync-engine.ts · public/sw.js ·
+                vite-plugins/offline-service-worker.ts
+              </p>
+            </div>
+            <div class="diagram-grid grid grid-cols-2 gap-5">
+              <section class="grid-paper rounded-xl border border-red-200 bg-red-50/40 p-4">
+                <p class="text-xs font-bold tracking-wider text-red-700 uppercase">
+                  Before · acceptance varies
+                </p>
+                <div class="mt-5 flex h-72 flex-col justify-center">
+                  <div
+                    class="mx-auto w-44 rounded-lg border-2 border-slate-700 bg-white p-3 text-center"
+                  >
+                    <p class="text-xs tracking-wider text-slate-500 uppercase">shallow module</p>
+                    <p class="mt-1 font-semibold">drainOutbox</p>
+                    <p class="mt-2 text-xs text-slate-500">
+                      optional settlement<br />optional accepted effect
+                    </p>
+                  </div>
+                  <div class="mx-auto h-7 border-l-2 border-slate-400"></div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="rounded-lg border border-slate-400 bg-white p-3 text-center">
+                      <p class="text-xs tracking-wider text-slate-500 uppercase">page adapter</p>
+                      <p class="mt-2 text-xs">rows + colors durable</p>
+                      <p class="text-xs">memory + conflicts</p>
+                    </div>
+                    <div class="rounded-lg border-2 border-red-500 bg-white p-3 text-center">
+                      <p class="text-xs tracking-wider text-red-600 uppercase">worker adapter</p>
+                      <p class="mt-2 text-xs">delete entries</p>
+                      <p class="text-xs text-red-700">discard result details</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="rounded-xl border border-slate-800 bg-slate-950 p-4 text-white">
+                <p class="text-xs font-bold tracking-wider text-indigo-300 uppercase">
+                  After · invariant is internal
+                </p>
+                <div class="mt-5 flex h-72 items-center">
+                  <div class="deep w-full rounded-xl border-2 border-indigo-300 p-5">
+                    <div class="flex items-center justify-between">
+                      <p class="text-xs tracking-wider text-indigo-200 uppercase">
+                        deep acceptance module
+                      </p>
+                      <span class="rounded-full bg-white/10 px-2 py-1 text-xs">one seam</span>
+                    </div>
+                    <p class="mt-3 font-serif text-xl">Confirmed means settled</p>
+                    <div class="mt-5 grid grid-cols-2 gap-3 text-xs">
+                      <div class="internal rounded-lg border border-white/50 p-3">
+                        <p class="font-semibold text-white">Page adapter</p>
+                        <p class="mt-1 text-slate-300">memory effects</p>
+                      </div>
+                      <div class="internal rounded-lg border border-white/50 p-3">
+                        <p class="font-semibold text-white">Worker adapter</p>
+                        <p class="mt-1 text-slate-300">durable effects</p>
+                      </div>
+                    </div>
+                    <div
+                      class="mt-4 rounded-lg border border-emerald-300/40 bg-emerald-400/15 p-3 text-xs text-emerald-100"
+                    >
+                      Queue removal follows required settlement.
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="grid gap-6 md:grid-cols-[1fr_1fr_0.85fr]">
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Problem</p>
+                <p class="mt-2 text-sm leading-6">
+                  The shallow interface lets callers decide whether acceptance settles canonical
+                  rows, colors, conflicts, and pending-row protection.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Solution
+                </p>
+                <p class="mt-2 text-sm leading-6">
+                  Deepen the module so its implementation owns the complete settlement invariant
+                  while page and worker adapters keep environment-specific effects.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Benefits
+                </p>
+                <ul class="mt-2 space-y-1 text-sm">
+                  <li>• locality: settlement concentrates</li>
+                  <li>• leverage: both adapters agree</li>
+                  <li>• tests cross one seam</li>
+                  <li>• conflicts stop leaking</li>
+                </ul>
+              </div>
+            </div>
+            <div class="rounded-lg bg-slate-100 px-4 py-3 text-sm">
+              <strong>Deletion test:</strong> deleting the module spreads ordering, receipt
+              filtering, and batch progression into both adapters; deleting its optional policy
+              knobs concentrates complexity.
+            </div>
+            <div
+              class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            >
+              <strong>Architecture conflict:</strong> the documented write path requires canonical
+              settlement before outbox removal; the worker adapter currently removes accepted
+              entries and discards canonical rows, colors, and conflicts.
+            </div>
+          </div>
+        </article>
+        <article
+          id="browser-engine"
+          class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div class="space-y-7 p-6 md:p-8">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800"
+                  >Strong</span
+                ><span
+                  class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700"
+                  >ports & adapters</span
+                ><span class="text-xs tracking-wider text-slate-400 uppercase">02</span>
+              </div>
+              <h2 class="mt-3 font-serif text-3xl">
+                Test the browser sync engine through its real seam
+              </h2>
+            </div>
+            <div>
+              <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Files</p>
+              <p class="mt-2 font-mono text-sm leading-6 text-slate-700">
+                src/modules/sync/sync-engine.ts · src/modules/sync/sync-run.ts ·
+                src/modules/sync/sync-run.test.ts · src/modules/sync/useSyncStore.ts ·
+                src/modules/sync/idb.ts · src/api/sync.functions.ts
+              </p>
+            </div>
+            <div class="diagram-grid grid grid-cols-2 gap-5">
+              <section class="rounded-xl border border-slate-200 bg-stone-50 p-4">
+                <p class="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                  Before · tested core, exposed wiring
+                </p>
+                <div class="mt-4 h-72 space-y-2">
+                  <div
+                    class="flex h-10 items-center justify-between border-l-4 border-indigo-400 bg-white px-3 text-xs"
+                  >
+                    <span>runSync tests</span><span class="text-slate-400">recording adapters</span>
+                  </div>
+                  <div
+                    class="flex h-12 items-center justify-between border-l-4 border-slate-400 bg-white px-3 text-xs"
+                  >
+                    <span>runSync</span><span>ordering + recovery</span>
+                  </div>
+                  <div class="flex h-8 items-center justify-center text-slate-400">↓</div>
+                  <div
+                    class="flex h-10 items-center justify-between border-l-4 border-red-500 bg-red-50 px-3 text-xs"
+                  >
+                    <span>Response classification</span><span class="text-red-700">untested</span>
+                  </div>
+                  <div
+                    class="flex h-10 items-center justify-between border-l-4 border-red-500 bg-red-50 px-3 text-xs"
+                  >
+                    <span>timers + backoff</span><span class="text-red-700">module state</span>
+                  </div>
+                  <div
+                    class="flex h-10 items-center justify-between border-l-4 border-red-500 bg-red-50 px-3 text-xs"
+                  >
+                    <span>locks + broadcasts</span><span class="text-red-700">module state</span>
+                  </div>
+                  <div
+                    class="flex h-10 items-center justify-between border-l-4 border-red-500 bg-red-50 px-3 text-xs"
+                  >
+                    <span>working-set translation</span><span class="text-red-700">untested</span>
+                  </div>
+                </div>
+              </section>
+              <section class="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+                <p class="text-xs font-bold tracking-wider text-indigo-700 uppercase">
+                  After · engine becomes test surface
+                </p>
+                <div class="mt-4 flex h-72 items-center">
+                  <div class="w-full">
+                    <div
+                      class="mass-interface flex h-10 items-center justify-between rounded-t-lg border border-indigo-300 px-3 text-xs font-semibold"
+                    >
+                      <span>small engine interface</span><span>boot · sync · push</span>
+                    </div>
+                    <div class="deep h-48 rounded-b-lg p-4 text-white">
+                      <p class="text-xs tracking-wider text-indigo-200 uppercase">
+                        deep browser implementation
+                      </p>
+                      <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+                        <span class="internal rounded border border-white/40 p-2"
+                          >classification</span
+                        ><span class="internal rounded border border-white/40 p-2"
+                          >state transitions</span
+                        ><span class="internal rounded border border-white/40 p-2"
+                          >backoff + time</span
+                        ><span class="internal rounded border border-white/40 p-2"
+                          >locks + broadcasts</span
+                        >
+                      </div>
+                      <div
+                        class="mt-3 rounded border border-emerald-300/40 bg-emerald-300/10 p-2 text-xs"
+                      >
+                        runSync remains internal run policy.
+                      </div>
+                    </div>
+                    <div class="mt-3 flex justify-center gap-3 text-xs">
+                      <span class="seam rounded border border-slate-500 bg-white px-3 py-2"
+                        >production adapters</span
+                      ><span class="seam rounded border border-slate-500 bg-white px-3 py-2"
+                        >deterministic adapters</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="grid gap-6 md:grid-cols-[1fr_1fr_0.85fr]">
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Problem</p>
+                <p class="mt-2 text-sm leading-6">
+                  Pure run tests stop before browser state, retry policy, endpoint classification,
+                  Web Locks, and broadcasts where production bugs can hide.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Solution
+                </p>
+                <p class="mt-2 text-sm leading-6">
+                  Make the engine implementation constructible with production and deterministic
+                  adapters while preserving the documented responsibility split with runSync.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Benefits
+                </p>
+                <ul class="mt-2 space-y-1 text-sm">
+                  <li>• locality: browser policy concentrates</li>
+                  <li>• leverage: every trigger verified</li>
+                  <li>• interface becomes test surface</li>
+                  <li>• adapters justify the seam</li>
+                </ul>
+              </div>
+            </div>
+            <div class="rounded-lg bg-slate-100 px-4 py-3 text-sm">
+              <strong>Deletion test:</strong> deleting either runSync or the engine spreads distinct
+              ordering and browser complexity; deepen the engine without merging their
+              responsibilities.
+            </div>
+            <div
+              class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            >
+              <strong>Known limitation:</strong> every non-401 Response is currently retryable, so
+              terminal protocol or authorization failures can keep one mutation at the outbox head.
+            </div>
+          </div>
+        </article>
+        <article
+          id="server-push"
+          class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div class="space-y-7 p-6 md:p-8">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span
+                  class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800"
+                  >Strong</span
+                ><span class="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700"
+                  >local-substitutable</span
+                ><span class="text-xs tracking-wider text-slate-400 uppercase">03</span>
+              </div>
+              <h2 class="mt-3 font-serif text-3xl">
+                Remove the shallow recording seam from push execution
+              </h2>
+            </div>
+            <div>
+              <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Files</p>
+              <p class="mt-2 font-mono text-sm leading-6 text-slate-700">
+                src/api/push-execution.server.ts · src/api/push-execution.test.ts ·
+                src/api/apply-mutations.server.ts · src/api/push.server.ts ·
+                src/api/sync.functions.ts · src/routes/api/push.ts
+              </p>
+            </div>
+            <div class="diagram-grid grid grid-cols-2 gap-5">
+              <section class="rounded-xl border border-slate-200 bg-stone-50 p-4">
+                <p class="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                  Before · tests bypass implementation
+                </p>
+                <div class="mt-3">
+                  <pre class="mermaid">
+flowchart TB
+  P[Two transport adapters] --> E[executePush]
+  E --> DB[(PostgreSQL implementation)]
+  T[Tests] --> F[createPushExecution]
+  F --> A[record apply]
+  F --> R[record reread]
+  F --> C[record colors]
+  classDef leak fill:#fef2f2,stroke:#dc2626,stroke-width:2px;
+  class F,A,R,C leak;</pre>
+                </div>
+              </section>
+              <section class="rounded-xl border border-slate-800 bg-slate-950 p-4 text-white">
+                <p class="text-xs font-bold tracking-wider text-indigo-300 uppercase">
+                  After · same seam in tests
+                </p>
+                <div class="mt-5 flex h-72 flex-col justify-center">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="seam w-1/3 rounded-lg border border-indigo-300 p-3 text-center text-xs"
+                    >
+                      two transport adapters
+                    </div>
+                    <div class="arrow flex-1"></div>
+                    <div class="deep w-1/2 rounded-xl border-2 border-indigo-300 p-4">
+                      <p class="text-xs tracking-wider text-indigo-200 uppercase">deep module</p>
+                      <p class="mt-2 font-serif text-lg">executePush</p>
+                      <p class="mt-3 text-xs text-slate-300">
+                        receipts · authorization<br />conflicts · canonical reread
+                      </p>
+                    </div>
+                  </div>
+                  <div class="mt-5 flex items-center gap-3">
+                    <div
+                      class="seam w-1/3 rounded-lg border border-emerald-300 p-3 text-center text-xs"
+                    >
+                      database-backed tests
+                    </div>
+                    <div class="arrow flex-1"></div>
+                    <div class="w-1/2 rounded-lg border border-slate-600 p-3 text-center text-xs">
+                      local PostgreSQL adapter
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="grid gap-6 md:grid-cols-[1fr_1fr_0.85fr]">
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Problem</p>
+                <p class="mt-2 text-sm leading-6">
+                  The factory interface exposes six internal operations and tests collaborator order
+                  while the mutation implementation remains largely outside the test surface.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Solution
+                </p>
+                <p class="mt-2 text-sm leading-6">
+                  Keep executePush as the external seam, privatize the recording factory, and verify
+                  push outcomes through the local PostgreSQL adapter.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Benefits
+                </p>
+                <ul class="mt-2 space-y-1 text-sm">
+                  <li>• depth: implementation stays hidden</li>
+                  <li>• locality: push behavior verified</li>
+                  <li>• leverage: both transports covered</li>
+                  <li>• tests observe committed rows</li>
+                </ul>
+              </div>
+            </div>
+            <div class="rounded-lg bg-slate-100 px-4 py-3 text-sm">
+              <strong>Deletion test:</strong> deleting createPushExecution removes a test-only
+              interface without spreading production complexity; deleting executePush duplicates
+              transaction policy across both transport adapters.
+            </div>
+          </div>
+        </article>
+        <article
+          id="transaction-read"
+          class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div class="space-y-7 p-6 md:p-8">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800"
+                  >Worth exploring</span
+                ><span
+                  class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+                  >in-process</span
+                ><span class="text-xs tracking-wider text-slate-400 uppercase">04</span>
+              </div>
+              <h2 class="mt-3 font-serif text-3xl">
+                Concentrate the selected-profile transaction read
+              </h2>
+            </div>
+            <div>
+              <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Files</p>
+              <p class="mt-2 font-mono text-sm leading-6 text-slate-700">
+                src/modules/transactions/useTransactionRows.ts · to-transaction-rows.ts ·
+                filter-transactions.ts · group-transactions-by-day.ts · src/routes/transactions.tsx
+                · TransactionsAccountFilter.tsx · TransactionsCategoryFilter.tsx
+              </p>
+            </div>
+            <div class="diagram-grid grid grid-cols-2 gap-5">
+              <section class="rounded-xl border border-red-200 bg-red-50/30 p-4">
+                <p class="text-xs font-bold tracking-wider text-red-700 uppercase">
+                  Before · identity and order leak
+                </p>
+                <div class="mt-5 flex h-72 flex-col justify-center gap-3">
+                  <div class="rounded border border-slate-400 bg-white p-2 text-center text-xs">
+                    working set + selected profile
+                  </div>
+                  <div class="text-center text-slate-400">↓</div>
+                  <div class="grid grid-cols-4 gap-2 text-center text-[11px]">
+                    <div class="rounded border border-slate-400 bg-white p-2">scope</div>
+                    <div class="rounded border border-slate-400 bg-white p-2">join + sort</div>
+                    <div class="rounded border-2 border-red-500 bg-white p-2 text-red-700">
+                      filter by names
+                    </div>
+                    <div class="rounded border-2 border-red-500 bg-white p-2 text-red-700">
+                      group assumes sort
+                    </div>
+                  </div>
+                  <div class="text-center text-slate-400">↓</div>
+                  <div class="rounded border border-slate-400 bg-white p-2 text-center text-xs">
+                    route orchestration → list
+                  </div>
+                  <div class="mt-2 grid grid-cols-2 gap-3 text-[11px] text-red-700">
+                    <div class="rounded bg-red-100 p-2">duplicate names collide</div>
+                    <div class="rounded bg-red-100 p-2">rename changes URL meaning</div>
+                  </div>
+                </div>
+              </section>
+              <section class="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+                <p class="text-xs font-bold tracking-wider text-indigo-700 uppercase">
+                  After · one deep in-process module
+                </p>
+                <div class="mt-5 flex h-72 flex-col justify-center">
+                  <div
+                    class="mass-interface flex h-11 items-center justify-between rounded-t-xl border border-indigo-300 px-3 text-xs"
+                  >
+                    <span>working set + profile + filter intent</span><span>stable ids</span>
+                  </div>
+                  <div class="deep h-44 rounded-b-xl p-4 text-white">
+                    <p class="text-xs tracking-wider text-indigo-200 uppercase">
+                      transaction read implementation
+                    </p>
+                    <div class="mt-4 grid grid-cols-3 gap-2 text-[11px]">
+                      <span class="internal rounded border border-white/40 p-2 text-center"
+                        >scope + joins</span
+                      ><span class="internal rounded border border-white/40 p-2 text-center"
+                        >filter + order</span
+                      ><span class="internal rounded border border-white/40 p-2 text-center"
+                        >local days</span
+                      >
+                    </div>
+                    <div class="mt-4 flex gap-2 text-xs">
+                      <span class="flex-1 rounded bg-white/10 p-2 text-center">prepared groups</span
+                      ><span class="flex-1 rounded bg-white/10 p-2 text-center"
+                        >export projection</span
+                      >
+                    </div>
+                  </div>
+                  <div class="mt-3 text-center text-xs text-slate-500">
+                    route learns less; tests cross one seam
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="grid gap-6 md:grid-cols-[1fr_1fr_0.85fr]">
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Problem</p>
+                <p class="mt-2 text-sm leading-6">
+                  Profile scope, joins, name-based identity, sorting, filtering, and grouping are
+                  spread across one-caller shallow modules and route orchestration.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Solution
+                </p>
+                <p class="mt-2 text-sm leading-6">
+                  Concentrate stable-identity filtering, ordering, grouping, and resolved export
+                  data behind one in-process transaction read seam.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Benefits
+                </p>
+                <ul class="mt-2 space-y-1 text-sm">
+                  <li>• locality: identity rules concentrate</li>
+                  <li>• leverage: list and export</li>
+                  <li>• interface hides ordering</li>
+                  <li>• tests cover full derivation</li>
+                </ul>
+              </div>
+            </div>
+            <div class="rounded-lg bg-slate-100 px-4 py-3 text-sm">
+              <strong>Deletion test:</strong> filterTransactions and groupTransactionsByDay merely
+              move into their only route caller; the wider read cluster concentrates complexity and
+              earns a deeper seam.
+            </div>
+          </div>
+        </article>
+        <article
+          id="import-run"
+          class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div class="space-y-7 p-6 md:p-8">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800"
+                  >Worth exploring</span
+                ><span class="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700"
+                  >local-substitutable</span
+                ><span class="text-xs tracking-wider text-slate-400 uppercase">05</span>
+              </div>
+              <h2 class="mt-3 font-serif text-3xl">Make one import run own the workflow</h2>
+            </div>
+            <div>
+              <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Files</p>
+              <p class="mt-2 font-mono text-sm leading-6 text-slate-700">
+                src/modules/transactions-import/useTransactionsImport.ts · build-import-plan.ts ·
+                parse-import-date.ts · utils.ts · UploadStep.tsx · ProcessingStep.tsx ·
+                src/modules/sync/mutations.ts
+              </p>
+            </div>
+            <div class="diagram-grid grid grid-cols-2 gap-5">
+              <section class="rounded-xl border border-slate-200 bg-stone-50 p-4">
+                <p class="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                  Before · workflow knowledge scatters
+                </p>
+                <div class="relative mt-4 grid h-72 grid-cols-2 content-center gap-3">
+                  <div class="rounded border border-slate-400 bg-white p-3 text-center text-xs">
+                    file parsing
+                  </div>
+                  <div class="rounded border border-slate-400 bg-white p-3 text-center text-xs">
+                    global workflow state
+                  </div>
+                  <div class="rounded border border-slate-400 bg-white p-3 text-center text-xs">
+                    profile projection
+                  </div>
+                  <div
+                    class="rounded border border-indigo-400 bg-indigo-50 p-3 text-center text-xs"
+                  >
+                    deep buildImportPlan
+                  </div>
+                  <div class="rounded border border-slate-400 bg-white p-3 text-center text-xs">
+                    raw LocalChange list
+                  </div>
+                  <div class="rounded border border-slate-400 bg-white p-3 text-center text-xs">
+                    commit + report
+                  </div>
+                  <div
+                    class="col-span-2 rounded border-2 border-red-500 bg-red-50 p-3 text-center text-xs text-red-700"
+                  >
+                    discard policy returns through global state
+                  </div>
+                </div>
+              </section>
+              <section class="rounded-xl border border-slate-800 bg-slate-950 p-4 text-white">
+                <p class="text-xs font-bold tracking-wider text-indigo-300 uppercase">
+                  After · run owns intent to outcome
+                </p>
+                <div class="mt-5 flex h-72 items-center">
+                  <div class="deep w-full rounded-xl border-2 border-indigo-300 p-5">
+                    <p class="text-xs tracking-wider text-indigo-200 uppercase">
+                      deep import-run module
+                    </p>
+                    <p class="mt-2 font-serif text-xl">file → local outcome</p>
+                    <div class="mt-4 grid grid-cols-2 gap-2 text-[11px]">
+                      <span class="internal rounded border border-white/40 p-2"
+                        >parse + validate</span
+                      ><span class="internal rounded border border-white/40 p-2"
+                        >profile planning</span
+                      ><span class="internal rounded border border-white/40 p-2"
+                        >local-first commit</span
+                      ><span class="internal rounded border border-white/40 p-2"
+                        >report + discard</span
+                      >
+                    </div>
+                    <div class="mt-4 flex gap-3 text-xs">
+                      <span class="seam flex-1 rounded border border-emerald-300 p-2 text-center"
+                        >workflow-state adapter</span
+                      ><span class="seam flex-1 rounded border border-emerald-300 p-2 text-center"
+                        >mutation adapter</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div class="grid gap-6 md:grid-cols-[1fr_1fr_0.85fr]">
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Problem</p>
+                <p class="mt-2 text-sm leading-6">
+                  The plan is deep, but parsing, profile projection, commit, reporting, and discard
+                  behavior remain assembled in global actions with no complete-run test surface.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Solution
+                </p>
+                <p class="mt-2 text-sm leading-6">
+                  Let one import-run implementation own parsed file through local commit and report,
+                  with workflow state and mutation persistence as adapters.
+                </p>
+              </div>
+              <div>
+                <p class="text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                  Benefits
+                </p>
+                <ul class="mt-2 space-y-1 text-sm">
+                  <li>• locality: workflow policy concentrates</li>
+                  <li>• leverage: views become callers</li>
+                  <li>• depth hides LocalChange details</li>
+                  <li>• tests observe durable outcome</li>
+                </ul>
+              </div>
+            </div>
+            <div class="rounded-lg bg-slate-100 px-4 py-3 text-sm">
+              <strong>Deletion test:</strong> buildImportPlan and workflow state each concentrate
+              real complexity; deepen their relationship rather than flatten either into view
+              modules.
+            </div>
+          </div>
+        </article>
+      </section>
+      <section
+        id="top-recommendation"
+        class="rounded-2xl bg-indigo-950 p-7 text-white shadow-xl md:p-10"
+      >
+        <p class="text-xs font-bold tracking-[0.22em] text-indigo-300 uppercase">
+          Top recommendation
+        </p>
+        <div class="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 class="font-serif text-3xl md:text-4xl">
+              One settlement meaning for accepted outbox delivery
+            </h2>
+            <p class="mt-3 max-w-3xl text-indigo-100">
+              It repairs a documented architecture conflict at a real two-adapter seam, prevents
+              irreversible conflict loss, and gives the highest locality and leverage across
+              foreground and background push delivery.
+            </p>
+          </div>
+          <a
+            href="#accepted-outbox"
+            class="shrink-0 rounded-full bg-white px-5 py-3 text-sm font-bold text-indigo-950"
+            >View candidate 01 ↑</a
+          >
+        </div>
+      </section>
+      <footer class="pt-2 text-xs text-slate-400">
+        Scope: recent sync, transaction read, and import hot spots · No root CONTEXT.md or docs/adr
+        records were present.
+      </footer>
+    </main>
+  </body>
+</html>
