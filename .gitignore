@@ -26,3 +26,6 @@ todos.json
 
 # Ad-hoc verification screenshots
 /.temp/
+
+# Local agent issue tracker
+/.scratch/
