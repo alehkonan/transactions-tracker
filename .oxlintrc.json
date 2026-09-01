@@ -4,6 +4,7 @@
     "node": true,
     "browser": true
   },
+  "ignorePatterns": [".agents/skills/impeccable/**", ".claude/skills/impeccable/**"],
   "plugins": [
     "eslint",
     "import",
