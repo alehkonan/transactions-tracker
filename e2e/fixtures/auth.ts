@@ -5,11 +5,11 @@ import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
 const SYNCED_TITLE = /Everything on this device is on the server/;
 const E2E_PROFILE_NAME = "E2E Profile";
 export const E2E_ACCOUNT_NAME = "E2E Account";
-export const E2E_TEST_PASSWORD = "E2e-Password!Round-Trip-2026";
+const E2E_TEST_PASSWORD = "E2e-Password!Round-Trip-2026";
 
 const bootGateObservations = new WeakMap<Page, Promise<boolean>>();
 
-export type AuthCredentials = {
+type AuthCredentials = {
   username: string;
   password: string;
 };

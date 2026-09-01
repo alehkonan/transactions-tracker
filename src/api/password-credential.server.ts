@@ -1,7 +1,7 @@
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { passwordCredentialsTable } from "~/database/tables";
-import { runDatabaseTransaction, runReadDatabaseTransaction } from "./database-resilience.server";
+import { runReadDatabaseTransaction } from "./database-resilience.server";
 
 const FORMAT = "scrypt";
 const VERSION = 1;
@@ -34,7 +34,7 @@ export function isPasswordAllowed(password: string): boolean {
   return length >= MIN_PASSWORD_LENGTH && length <= MAX_PASSWORD_LENGTH;
 }
 
-export function assertPasswordAllowed(password: string): void {
+function assertPasswordAllowed(password: string): void {
   if (!isPasswordAllowed(password)) {
     throw new Error(`Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters.`);
   }
@@ -131,24 +131,4 @@ export async function getPasswordHash(userId: number): Promise<string | null> {
         .limit(1),
   );
   return credential?.passwordHash ?? null;
-}
-
-/** Creates or replaces a user's password credential. The caller supplies an already-policy-checked password. */
-export async function setPasswordCredential(userId: number, password: string): Promise<void> {
-  const passwordHash = await hashPassword(password);
-  await runDatabaseTransaction("auth.set_password_credential", (database) =>
-    database
-      .insert(passwordCredentialsTable)
-      .values({ userId, passwordHash })
-      .onConflictDoUpdate({
-        target: passwordCredentialsTable.userId,
-        set: { passwordHash, updatedAt: new Date() },
-      }),
-  );
-}
-
-export async function deletePasswordCredential(userId: number): Promise<void> {
-  await runDatabaseTransaction("auth.delete_password_credential", (database) =>
-    database.delete(passwordCredentialsTable).where(eq(passwordCredentialsTable.userId, userId)),
-  );
 }
