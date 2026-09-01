@@ -2,85 +2,86 @@
 @import "./styles/dark.css" layer(dark-theme);
 
 @theme {
-  /*
-   * Visual-direction palette: verdigris/ochre/brick on warm paper.
-   * See docs/ui-ux-improvement-plan.md "Visual direction".
-   */
-  --color-ink: oklch(0.19 0.02 250);
-  --color-paper: oklch(0.97 0.006 90);
+  /* The Proofing Sheet: wheat stock, toasted rules, cocoa ink, and dry press pigments. */
+  --color-ink: oklch(0.25 0.025 55);
+  --color-paper: oklch(0.93 0.045 86);
 
-  --color-accent: oklch(0.52 0.09 195);
-  --color-accent-hover: oklch(0.47 0.1 195);
-  --color-accent-active: oklch(0.42 0.11 195);
-  --color-accent-muted: oklch(0.86 0.06 195);
+  --color-accent: oklch(0.49 0.115 73);
+  --color-accent-hover: oklch(0.44 0.12 70);
+  --color-accent-active: oklch(0.39 0.12 66);
+  --color-accent-muted: oklch(0.84 0.075 82);
 
-  --color-hold: oklch(0.72 0.13 70);
-  --color-hold-hover: oklch(0.66 0.14 70);
-  --color-hold-active: oklch(0.6 0.15 70);
-  --color-hold-muted: oklch(0.88 0.08 70);
+  --color-hold: oklch(0.45 0.09 90);
+  --color-hold-hover: oklch(0.4 0.095 88);
+  --color-hold-active: oklch(0.35 0.09 85);
+  --color-hold-muted: oklch(0.87 0.065 89);
 
-  --color-spend: oklch(0.55 0.16 25);
-  --color-spend-hover: oklch(0.49 0.17 25);
-  --color-spend-active: oklch(0.43 0.18 25);
-  --color-spend-muted: oklch(0.83 0.08 25);
+  --color-spend: oklch(0.48 0.14 35);
+  --color-spend-hover: oklch(0.43 0.145 34);
+  --color-spend-active: oklch(0.38 0.14 33);
+  --color-spend-muted: oklch(0.86 0.065 39);
 
-  --color-graphite: oklch(0.55 0.01 250);
-  --color-graphite-hover: oklch(0.48 0.012 250);
-  --color-graphite-active: oklch(0.41 0.014 250);
-  --color-graphite-muted: oklch(0.85 0.02 250);
+  --color-graphite: oklch(0.43 0.03 55);
+  --color-graphite-hover: oklch(0.38 0.032 55);
+  --color-graphite-active: oklch(0.33 0.032 55);
+  --color-graphite-muted: oklch(0.83 0.035 70);
 
-  --color-gain: oklch(0.58 0.15 145);
-  --color-gain-hover: oklch(0.52 0.16 145);
-  --color-gain-active: oklch(0.46 0.17 145);
-  --color-gain-muted: oklch(0.86 0.08 145);
+  --color-gain: oklch(0.44 0.085 120);
+  --color-gain-hover: oklch(0.39 0.09 120);
+  --color-gain-active: oklch(0.34 0.085 120);
+  --color-gain-muted: oklch(0.85 0.06 110);
 
-  /* aliases for the existing component vocabulary */
   --color-text: var(--color-ink);
-  --color-text-muted: oklch(0.55 0.01 250);
-
+  --color-text-muted: oklch(0.46 0.035 62);
   --color-background: var(--color-paper);
 
-  --color-surface: oklch(0.99 0.003 90);
-  --color-surface-hover: oklch(0.95 0.004 90);
-  --color-surface-active: oklch(0.91 0.005 90);
-  --color-surface-muted: oklch(0.96 0.003 90);
+  --color-surface: oklch(0.975 0.025 88);
+  --color-surface-hover: oklch(0.94 0.04 85);
+  --color-surface-active: oklch(0.9 0.05 82);
+  --color-surface-muted: oklch(0.955 0.03 87);
 
   --color-danger: var(--color-spend);
   --color-danger-hover: var(--color-spend-hover);
   --color-danger-active: var(--color-spend-active);
   --color-danger-muted: var(--color-spend-muted);
+  --color-border: oklch(0.72 0.055 72);
+  --color-overlay: color-mix(in oklab, var(--color-ink) 72%, transparent);
 
-  --color-border: oklch(0.88 0.004 90);
-
-  /* transaction type tags */
   --color-expense: var(--color-spend);
   --color-transfer: var(--color-graphite);
 
-  /* necessity level tags */
-  --color-necessity-low: oklch(0.505 0.213 27.518);
-  --color-necessity-low-muted: oklch(0.936 0.032 17.717);
-  --color-necessity-low-border: oklch(0.885 0.062 18.334);
+  --color-necessity-low: oklch(0.43 0.055 92);
+  --color-necessity-low-muted: oklch(0.91 0.04 91);
+  --color-necessity-low-border: oklch(0.78 0.055 88);
 
-  --color-necessity-medium: oklch(0.554 0.135 66.442);
-  --color-necessity-medium-muted: oklch(0.973 0.071 103.193);
-  --color-necessity-medium-border: oklch(0.945 0.129 101.54);
+  --color-necessity-medium: oklch(0.44 0.105 75);
+  --color-necessity-medium-muted: oklch(0.9 0.055 79);
+  --color-necessity-medium-border: oklch(0.76 0.075 76);
 
-  --color-necessity-high: oklch(0.488 0.243 264.376);
-  --color-necessity-high-muted: oklch(0.932 0.032 255.585);
-  --color-necessity-high-border: oklch(0.882 0.059 254.128);
+  --color-necessity-high: oklch(0.43 0.125 54);
+  --color-necessity-high-muted: oklch(0.89 0.06 58);
+  --color-necessity-high-border: oklch(0.73 0.085 55);
 
-  --color-necessity-essential: oklch(0.491 0.27 292.581);
-  --color-necessity-essential-muted: oklch(0.943 0.029 294.588);
-  --color-necessity-essential-border: oklch(0.894 0.057 293.283);
+  --color-necessity-essential: oklch(0.4 0.12 35);
+  --color-necessity-essential-muted: oklch(0.88 0.055 39);
+  --color-necessity-essential-border: oklch(0.7 0.085 37);
 
-  /* import feedback */
-  --color-warning: oklch(0.555 0.163 48.998);
-  --color-warning-muted: color-mix(in oklab, oklch(0.769 0.188 70.08) 10%, transparent);
-  --color-warning-border: color-mix(in oklab, oklch(0.769 0.188 70.08) 40%, transparent);
+  --color-warning: oklch(0.44 0.115 70);
+  --color-warning-muted: color-mix(in oklab, oklch(0.72 0.13 78) 14%, transparent);
+  --color-warning-border: color-mix(in oklab, oklch(0.62 0.12 72) 44%, transparent);
 
-  /* AccountCard gradient end colors include their intentional theme-specific alpha. */
-  --color-saving-muted: oklch(0.86 0.1 70);
+  --color-saving-muted: oklch(0.82 0.08 83);
   --color-archived-muted: color-mix(in oklab, var(--color-text-muted) 20%, transparent);
+
+  --shadow-sm:
+    0 1px 2px color-mix(in oklab, var(--color-ink) 12%, transparent),
+    0 5px 14px color-mix(in oklab, var(--color-ink) 7%, transparent);
+  --shadow:
+    0 2px 4px color-mix(in oklab, var(--color-ink) 13%, transparent),
+    0 8px 22px color-mix(in oklab, var(--color-ink) 8%, transparent);
+  --shadow-lg:
+    0 4px 10px color-mix(in oklab, var(--color-ink) 14%, transparent),
+    0 18px 40px color-mix(in oklab, var(--color-ink) 10%, transparent);
 
   /* typography: system-only stacks */
   --font-sans:
@@ -106,6 +107,51 @@
   --z-index-dialog: 31; /* modal Dialog popup, above its own backdrop */
   --z-index-dropdown: 40; /* floating popups anchored to a trigger: Select, Menu, Popover — above `dialog` since triggers can live inside a Dialog */
   --z-index-toast: 50; /* Toaster — must outrank everything, including open dialogs */
+}
+
+body {
+  caret-color: var(--color-accent);
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(
+      circle at center,
+      color-mix(in oklab, var(--color-border) 22%, transparent) 0 0.55px,
+      transparent 0.8px
+    ),
+    radial-gradient(
+      circle at center,
+      color-mix(in oklab, var(--color-ink) 9%, transparent) 0 0.45px,
+      transparent 0.75px
+    );
+  background-position:
+    0 0,
+    9px 7px;
+  background-size:
+    19px 17px,
+    29px 23px;
+  background-attachment: fixed;
+}
+
+::selection {
+  color: var(--color-ink);
+  background: var(--color-accent-muted);
+}
+
+* {
+  scrollbar-color: var(--color-accent-muted) var(--color-surface-muted);
+}
+
+*:focus-visible {
+  --tw-ring-offset-color: var(--color-paper);
+}
+
+a {
+  text-decoration-color: color-mix(in oklab, currentColor 55%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+hr {
+  border-top-style: dashed;
 }
 
 .popover {

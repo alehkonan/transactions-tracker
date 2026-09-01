@@ -1,4 +1,4 @@
-# Transactions tracker
+# Cracker Tracker
 
 A personal finance tracker for multi-currency, multi-account bookkeeping: accounts and balances,
 categorized transactions, spending statistics, and CSV import/export.

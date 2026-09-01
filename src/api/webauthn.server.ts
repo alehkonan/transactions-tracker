@@ -6,7 +6,7 @@ import { webauthnChallengesTable } from "~/database/tables";
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 
-export const RP_NAME = "Transactions tracker";
+export const RP_NAME = "Cracker Tracker";
 
 type ChallengeType = (typeof webauthnChallengesTable.$inferSelect)["type"];
 

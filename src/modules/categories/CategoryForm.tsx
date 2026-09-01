@@ -12,6 +12,7 @@ import {
   deleteCategory,
   updateCategory,
 } from "~/modules/categories/category-mutations";
+import { getCategoryDisplayColor } from "~/modules/categories/category-palette";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
 import type { Color } from "~/modules/sync/sync-types";
@@ -88,7 +89,7 @@ export function CategoryForm({ colors, category }: Props) {
               <button
                 key={color.id}
                 type="button"
-                aria-label={`Color ${color.hex}`}
+                aria-label={`Color option ${color.id}`}
                 aria-pressed={color.id === colorField.value}
                 onClick={() => colorField.onChange(color.id)}
                 onBlur={colorField.onBlur}
@@ -98,7 +99,7 @@ export function CategoryForm({ colors, category }: Props) {
                     ? "border-text scale-110"
                     : "border-transparent hover:scale-110",
                 )}
-                style={{ backgroundColor: color.hex }}
+                style={{ backgroundColor: getCategoryDisplayColor(color.id) }}
               />
             ))}
           </div>

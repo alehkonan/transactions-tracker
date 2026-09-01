@@ -1,3 +1,5 @@
+import { CATEGORY_DISPLAY_COLORS } from "~/modules/categories/category-palette";
+
 /**
  * Colors for the categories a CSV import invents.
  *
@@ -26,19 +28,34 @@ function hslToHex(hue: number, saturationPct: number, lightnessPct: number): str
 /**
  * Generates `count` random hex colors that collide with neither `existingHexes` nor each other.
  *
- * Drawn from a band of the HSL space rather than the whole of it — mid lightness, decent saturation
- * — so every category tag stays legible against both themes.
+ * The established proof-sheet colors are used first. Larger imports continue through restrained
+ * baked, husk, and dry-ink hue bands instead of introducing arbitrary neon or cool colors.
  */
 export function generateUniqueHexColors(count: number, existingHexes: Iterable<string>): string[] {
   const used = new Set(existingHexes);
   const result: string[] = [];
+
+  for (const color of CATEGORY_DISPLAY_COLORS) {
+    if (result.length >= count) break;
+    if (used.has(color)) continue;
+    used.add(color);
+    result.push(color);
+  }
+
+  const hueBands = [
+    { start: 22, width: 24 },
+    { start: 52, width: 38 },
+    { start: 98, width: 28 },
+    { start: 330, width: 24 },
+  ] as const;
   let attempts = 0;
 
   while (result.length < count && attempts < count * 50 + 200) {
     attempts++;
-    const hue = Math.floor(Math.random() * 360);
-    const saturation = 55 + Math.floor(Math.random() * 25);
-    const lightness = 45 + Math.floor(Math.random() * 15);
+    const band = hueBands[Math.floor(Math.random() * hueBands.length)];
+    const hue = band.start + Math.floor(Math.random() * band.width);
+    const saturation = 34 + Math.floor(Math.random() * 22);
+    const lightness = 38 + Math.floor(Math.random() * 16);
     const hex = hslToHex(hue, saturation, lightness);
     if (used.has(hex)) continue;
     used.add(hex);
