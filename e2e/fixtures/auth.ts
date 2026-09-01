@@ -5,10 +5,18 @@ import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
 const SYNCED_TITLE = /Everything on this device is on the server/;
 const E2E_PROFILE_NAME = "E2E Profile";
 export const E2E_ACCOUNT_NAME = "E2E Account";
+export const E2E_TEST_PASSWORD = "E2e-Password!Round-Trip-2026";
 
 const bootGateObservations = new WeakMap<Page, Promise<boolean>>();
 
+export type AuthCredentials = {
+  username: string;
+  password: string;
+};
+
 export type E2EFixtures = {
+  /** Unique credentials registered through the password Create account UI. */
+  authCredentials: AuthCredentials;
   /** A newly registered page, left on the profile-selection screen. */
   authenticatedPage: Page;
   /** An authenticated page with one selected profile and one account. */
@@ -19,35 +27,26 @@ export type E2EFixtures = {
 
 /**
  * Playwright's browser contexts isolate IndexedDB, cookies and BroadcastChannel state. Each test
- * therefore creates its own user and virtual authenticator rather than sharing storage state.
+ * therefore creates its own password user through the public UI rather than sharing storage state.
  */
 export const test = base.extend<E2EFixtures>({
-  authenticatedPage: async ({ browserName, page }, use, testInfo) => {
-    testInfo.skip(
-      browserName !== "chromium",
-      "the WebAuthn virtual authenticator requires Chromium",
-    );
+  authCredentials: async ({ browserName: _browserName }, use, testInfo) => {
+    await use({ username: uniqueUsername(testInfo), password: E2E_TEST_PASSWORD });
+  },
 
-    await installTestAuthControls(page);
-    await enableVirtualAuthenticator(page);
+  authenticatedPage: async ({ authCredentials, page }, use) => {
+    await installBootGateInstrumentation(page);
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
 
-    await page.getByLabel("Username").fill(uniqueUsername(testInfo));
-    await page.getByRole("button", { name: "Create a passkey" }).click();
+    await page.getByRole("button", { name: "Create account", exact: true }).click();
+    await page.getByLabel("Username", { exact: true }).fill(authCredentials.username);
+    await page.getByLabel("Password", { exact: true }).fill(authCredentials.password);
+    await page.getByLabel("Confirm password", { exact: true }).fill(authCredentials.password);
+    await page.getByRole("button", { name: "Create account", exact: true }).last().click();
     await expect(page).toHaveURL(/\/profile$/, { timeout: 30_000 });
 
-    const bootGateShown = page.evaluate(() => {
-      const windowWithTestState = window as typeof window & { e2eBootGateSeen?: boolean };
-      const currentlyVisible = document.body?.textContent?.includes("Loading your data…") ?? false;
-      const seen = currentlyVisible || sessionStorage.getItem("e2eBootGateSeen") === "true";
-      if (seen) {
-        windowWithTestState.e2eBootGateSeen = true;
-        sessionStorage.setItem("e2eBootGateSeen", "true");
-      }
-      return seen;
-    });
-    bootGateObservations.set(page, bootGateShown);
+    bootGateObservations.set(page, observeBootGate(page));
 
     await use(page);
   },
@@ -128,9 +127,7 @@ async function chooseOption(dialog: Locator, label: string, option: string): Pro
   await dialog.page().getByRole("option", { name: option, exact: true }).click();
 }
 
-async function installTestAuthControls(page: Page): Promise<void> {
-  // The login page starts conditional WebAuthn autofill on mount. Disable only that convenience in
-  // E2E contexts so it cannot race the explicit registration/sign-in ceremony below.
+export async function installBootGateInstrumentation(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const windowWithTestState = window as typeof window & { e2eBootGateSeen?: boolean };
     windowWithTestState.e2eBootGateSeen = sessionStorage.getItem("e2eBootGateSeen") === "true";
@@ -149,32 +146,22 @@ async function installTestAuthControls(page: Page): Promise<void> {
     const pollingTimer = window.setInterval(markBootGate, 10);
     window.setTimeout(() => window.clearInterval(pollingTimer), 30_000);
     markBootGate();
-
-    const credential = globalThis.PublicKeyCredential;
-    if (!credential) return;
-
-    Object.defineProperty(credential, "isConditionalMediationAvailable", {
-      configurable: true,
-      value: async () => false,
-    });
   });
 }
 
-async function enableVirtualAuthenticator(page: Page): Promise<void> {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("WebAuthn.enable");
-  await cdp.send("WebAuthn.addVirtualAuthenticator", {
-    options: {
-      protocol: "ctap2",
-      transport: "internal",
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
+export function observeBootGate(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const windowWithTestState = window as typeof window & { e2eBootGateSeen?: boolean };
+    const currentlyVisible = document.body?.textContent?.includes("Loading your data…") ?? false;
+    const seen = currentlyVisible || sessionStorage.getItem("e2eBootGateSeen") === "true";
+    if (seen) {
+      windowWithTestState.e2eBootGateSeen = true;
+      sessionStorage.setItem("e2eBootGateSeen", "true");
+    }
+    return seen;
   });
 }
 
-function uniqueUsername(testInfo: TestInfo): string {
+export function uniqueUsername(testInfo: TestInfo): string {
   return `e2e-${testInfo.workerIndex}-${Date.now()}-${randomUUID().slice(0, 8)}`;
 }

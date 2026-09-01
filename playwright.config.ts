@@ -4,7 +4,6 @@ const isPwaRun = process.argv.includes("--project=pwa") || process.env.PLAYWRIGH
 
 export default defineConfig({
   testDir: "./e2e",
-  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -47,12 +46,12 @@ export default defineConfig({
 
   webServer: isPwaRun
     ? {
-        command: "pnpm build && pnpm preview --port 5455",
+        command: "pnpm build && pnpm preview --port 5455 --strictPort",
         url: "http://localhost:5455",
         reuseExistingServer: !process.env.CI,
       }
     : {
-        command: "pnpm dev",
+        command: "pnpm dev -- --strictPort",
         url: "http://localhost:5454",
         reuseExistingServer: !process.env.CI,
       },
