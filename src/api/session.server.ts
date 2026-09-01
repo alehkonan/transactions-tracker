@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
-import { and, eq, gt, lt, or } from "drizzle-orm";
+import { and, eq, gt, lt, ne, or } from "drizzle-orm";
 import { sessionsTable, usersTable } from "~/database/tables";
 import { encodeSessionHint, SESSION_HINT_COOKIE } from "~/modules/auth/session-hint";
 import { runDatabaseTransaction, runReadDatabaseTransaction } from "./database-resilience.server";
@@ -153,6 +153,24 @@ export async function destroySession(): Promise<void> {
   }
 
   clearSessionCookies();
+}
+
+/**
+ * Revokes every refresh session for `userId` except the session identified by the caller's signed
+ * access cookie. Scoping both the retained id and the deletion by user prevents a caller-provided
+ * user id (or an impossible cross-user session-id collision) from affecting another account.
+ */
+export async function revokeOtherSessions(userId: number): Promise<void> {
+  const access = verifyCookieValue<AccessTokenPayload>(getCookie(ACCESS_TOKEN_COOKIE));
+  if (!access || access.userId !== userId) {
+    throw new Response("Unauthorized", { status: 401 });
+  }
+
+  await runDatabaseTransaction("auth.revoke_other_sessions", (database) =>
+    database
+      .delete(sessionsTable)
+      .where(and(eq(sessionsTable.userId, userId), ne(sessionsTable.id, access.sessionId))),
+  );
 }
 
 /** Best-effort cleanup so fully-expired sessions do not accumulate forever. */

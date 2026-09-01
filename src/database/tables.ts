@@ -1,4 +1,5 @@
 import {
+  bigserial,
   bigint,
   boolean,
   index,
@@ -32,6 +33,17 @@ export const usersTable = pgTable("users", {
    */
   webauthnUserId: text("webauthn_user_id").unique().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A password credential kept separate from the user and replaceable without changing identity. */
+export const passwordCredentialsTable = pgTable("password_credentials", {
+  userId: integer("user_id")
+    .primaryKey()
+    .references(() => usersTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
+  /** Self-describing, versioned scrypt encoding containing parameters, salt, and derived key. */
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /** A passkey registered against a user — one row per authenticator. */
@@ -80,6 +92,28 @@ export const sessionsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("sessions_user_id_idx").on(table.userId)],
+);
+
+/**
+ * Durable, privacy-preserving authentication attempts used by rolling-window rate limits.
+ * Identifiers are stored only as AUTH_SECRET-keyed HMAC digests.
+ */
+export const authAttemptsTable = pgTable(
+  "auth_attempts",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    kind: text("kind").notNull(),
+    keyDigest: text("key_digest").notNull(),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("auth_attempts_kind_key_digest_attempted_at_idx").on(
+      table.kind,
+      table.keyDigest,
+      table.attemptedAt,
+    ),
+    index("auth_attempts_attempted_at_idx").on(table.attemptedAt),
+  ],
 );
 
 /**

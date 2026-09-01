@@ -4,6 +4,22 @@ A personal finance tracker whose working data remains available and mutable with
 
 ## Language
 
+**User**:
+A person’s authentication identity, which may be proven by one or more credentials and may own multiple financial profiles.
+_Avoid_: Account, profile
+
+**Authentication credential**:
+A revocable means by which a user proves ownership of their identity. A user may hold both passkey credentials and a password credential.
+_Avoid_: Login method, account
+
+**Passkey credential**:
+A public-key authentication credential held by a user; a user may hold multiple passkey credentials.
+_Avoid_: WebAuthn user, passkey account
+
+**Password credential**:
+The single password-based authentication credential a user may hold in addition to any passkey credentials.
+_Avoid_: Test password, local password
+
 **Local replica**:
 A user-bound copy of the working data and its pending obligations on one device. It survives reauthentication by the same user and is intentionally discarded on explicit sign-out or replacement by a different user.
 _Avoid_: Cache, session data
