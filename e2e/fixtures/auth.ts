@@ -78,9 +78,11 @@ export async function completeOnboarding(page: Page): Promise<string> {
   await expect(page.getByText(E2E_PROFILE_NAME, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page).toHaveURL(/\/transactions$/, { timeout: 30_000 });
+  await page.waitForLoadState("networkidle");
 
-  await page.goto("/accounts");
-  await page.getByRole("button", { name: "Add account" }).click();
+  await page.getByRole("link", { name: "Accounts" }).click();
+  await expect(page).toHaveURL(/\/accounts$/);
+  await page.getByRole("button", { name: /Create a new account/ }).click();
 
   const accountDialog = page.getByRole("dialog");
   await expect(accountDialog).toBeVisible();
@@ -106,6 +108,7 @@ export async function createTransaction(page: Page, comment: string): Promise<vo
   await dialog.getByLabel("Amount").fill("12.34");
   await dialog.getByLabel("Comment").fill(comment);
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
   await expect(page.getByText(comment, { exact: false })).toBeVisible();
 }
 

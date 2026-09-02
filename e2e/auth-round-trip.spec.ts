@@ -26,7 +26,7 @@ test("a password account signs out and signs in again", async ({
 
 test("a duplicate password signup is rejected", async ({
   authCredentials,
-  authenticatedPage: page,
+  onboardedPage: page,
 }) => {
   await page.goto("/settings");
   await page.getByRole("button", { name: "Sign out" }).click();
