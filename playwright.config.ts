@@ -1,6 +1,17 @@
+import { loadEnvFile } from "node:process";
 import { defineConfig, devices } from "@playwright/test";
 
+loadEnvFile(".env");
+
 const isPwaRun = process.argv.includes("--project=pwa") || process.env.PLAYWRIGHT_PWA === "true";
+const requiredE2eEnvironment = ["E2E_TEST_USERNAME", "E2E_TEST_PASSWORD"] as const;
+const missingE2eEnvironment = requiredE2eEnvironment.filter((name) => !process.env[name]?.trim());
+
+if (missingE2eEnvironment.length > 0) {
+  throw new Error(
+    `Playwright E2E configuration error: set ${missingE2eEnvironment.join(", ")} before running the suite.`,
+  );
+}
 
 export default defineConfig({
   testDir: "./e2e",

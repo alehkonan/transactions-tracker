@@ -52,12 +52,15 @@ also serves on cannot complete a passkey ceremony.
 
 Read from `.env` locally and from the real environment in deployments.
 
-| Variable                                                                              | Notes                                                         |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` | Discrete variables, not a `DATABASE_URL`.                     |
-| `POSTGRES_CA_CERT_BASE64`                                                             | Base64-encoded PostgreSQL CA PEM; required in deployments.    |
-| `AUTH_SECRET`                                                                         | HMAC key for the signed access and profile cookies. Required. |
-| `AUTH_RP_ID`, `AUTH_ORIGIN`                                                           | WebAuthn relying party. Fall back to the request URL locally. |
+| Variable                                                                              | Notes                                                                                                                 |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` | Discrete variables, not a `DATABASE_URL`.                                                                             |
+| `POSTGRES_CA_CERT_BASE64`                                                             | Base64-encoded PostgreSQL CA PEM; required in deployments.                                                            |
+| `AUTH_SECRET`                                                                         | HMAC key for the signed access and profile cookies. Required.                                                         |
+| `AUTH_RP_ID`, `AUTH_ORIGIN`                                                           | WebAuthn relying party. Fall back to the request URL locally.                                                         |
+| `E2E_TEST_USERNAME`, `E2E_TEST_PASSWORD`                                              | Existing password credential used by Playwright's configured-user sign-in check. Both are required for every e2e run. |
+
+`E2E_TEST_USERNAME` must refer to a password-authenticated user already provisioned in the target database. The app deliberately returns the same response for an unknown username and a wrong password; the e2e result therefore identifies this as a configured-user authentication failure and directs you to verify both the user and password.
 
 ## Commands
 
