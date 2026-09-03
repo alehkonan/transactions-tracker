@@ -101,11 +101,26 @@ describe("createPushExecution", () => {
     expect(events).toEqual(["transaction", "apply", "read-transaction", "canonical", "colors"]);
   });
 
-  it("acknowledges a previously receipted mutation without replaying its conflict", async () => {
+  it("returns a replayed immutable acceptance outcome from the write transaction", async () => {
+    const replayedOutcome = {
+      mutationId: mutation.mutationId,
+      table: mutation.table,
+      rowId: mutation.rowId,
+      classification: "canonical-deleted",
+      baseUpdatedAt: mutation.baseUpdatedAt,
+      conflictingServerUpdatedAt: 1_780_000_000_000,
+      acceptedAt: "2026-09-03T12:00:00.000Z",
+      presentationContext: {
+        profileId: mutation.rowId,
+        profileName: "Deleted profile",
+        entityLabel: "Deleted profile",
+      },
+      canonicalRow: null,
+    } as const;
     const { executePush } = createTestExecution({
       appliedBatch: {
         applied: [mutation.mutationId],
-        conflicts: [],
+        conflicts: [replayedOutcome],
         touched: {
           profiles: new Set([mutation.rowId]),
           accounts: new Set<string>(),
@@ -118,7 +133,7 @@ describe("createPushExecution", () => {
 
     await expect(executePush(42, [mutation])).resolves.toMatchObject({
       applied: [mutation.mutationId],
-      conflicts: [],
+      conflicts: [replayedOutcome],
     });
   });
 

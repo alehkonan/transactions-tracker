@@ -216,13 +216,48 @@ export const PUSH_BATCH_LIMIT = 500;
 /** Every mutation addressing one table, both operations. */
 export type MutationFor<Table extends SyncedTable> = Extract<Mutation, { table: Table }>;
 
-/** A write that landed on top of a row the client had not seen the latest version of. */
+type SerializeDates<T> = T extends Date
+  ? string
+  : T extends readonly (infer Item)[]
+    ? SerializeDates<Item>[]
+    : T extends object
+      ? { [Key in keyof T]: SerializeDates<T[Key]> }
+      : T;
+
+export type AcceptanceCanonicalRow = SerializeDates<SyncedRows[SyncedTable][number]>;
+
+/** What the canonical entity represented when a stale-base mutation was accepted. */
+export type AcceptanceOutcomeClassification =
+  | "intent-applied"
+  | "canonical-deleted"
+  | "canonical-diverged";
+
+/**
+ * The immutable acceptance-time outcome of a write made from a stale base.
+ *
+ * Unlike an ephemeral conflict warning, this is complete enough to replay after a lost response:
+ * the base and conflicting server times explain the ordering, `acceptedAt` fixes the acceptance
+ * event in that timeline, and `canonicalRow` records what the mutation actually produced rather
+ * than assuming last-write-wins kept the submitted intent.
+ */
 export type PushConflict = {
   mutationId: string;
   table: SyncedTable;
   rowId: string;
-  /** What the row's `updatedAt` was before this push overwrote it, in epoch milliseconds. */
-  serverUpdatedAt: number;
+  classification: AcceptanceOutcomeClassification;
+  baseUpdatedAt: number | null;
+  /** What the row's `updatedAt` was immediately before acceptance, in epoch milliseconds. */
+  conflictingServerUpdatedAt: number;
+  /** The receipt's durable acceptance time as an ISO timestamp. */
+  acceptedAt: string;
+  /** Labels frozen at acceptance so a later rename or deletion cannot rewrite the notice's meaning. */
+  presentationContext: {
+    profileId: string | null;
+    profileName: string | null;
+    entityLabel: string;
+  };
+  /** The canonical row at acceptance, serialized for durable JSON receipt storage. */
+  canonicalRow: AcceptanceCanonicalRow | null;
 };
 
 export type PushChangesResult = {

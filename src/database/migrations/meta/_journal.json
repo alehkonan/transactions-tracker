@@ -71,6 +71,13 @@
       "when": 1788277442975,
       "tag": "0009_flat_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788440416095,
+      "tag": "0010_massive_microchip",
+      "breakpoints": true
     }
   ]
 }

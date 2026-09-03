@@ -145,9 +145,12 @@ pushChanges({ mutations }) → { applied, canonicalRows, conflicts, colors }
 - **A mutation carries the whole row, not a diff.** The client already holds the row it is changing,
   and sending all of it makes the resulting row state idempotent.
 - **Delivery is operation-idempotent.** `mutation_receipts` is keyed by
-  `(user_id, mutation_id)`. A push claims unreceipted ids in the same transaction as their writes;
-  already-receipted ids are acknowledged without replaying writes or conflicts. If the transaction
-  rolls back, its claims roll back too. Receipts are currently retained indefinitely.
+  `(user_id, mutation_id)` and binds each new identity to a SHA-256 fingerprint of its full submitted
+  intent. A push claims unreceipted ids in the same transaction as their writes and any stale-base
+  outcome; an identical retry skips the write and replays that immutable outcome. Reusing an accepted
+  id for different content returns a terminal `409` and rolls back the whole batch. Pre-upgrade
+  receipts have no fingerprint or historical outcome, so they are acknowledged from current canonical
+  state without inventing a conflict. Receipts are currently retained indefinitely.
 - **Ids are minted client-side** (`utils/uuid-v7.ts`). UUIDv7 rather than `serial`, because a serial
   cannot be minted offline: without it every optimistic insert needs a temp id plus FK rewriting on
   push, the most bug-prone part of any offline-first system. The client mints the id and it is final.
@@ -190,9 +193,11 @@ the one a row names belongs to the caller.
 ### Conflicts
 
 **Last-write-wins on the server clock at push time.** Single user, few devices, one writer at a time
-in practice — no CRDTs. Each mutation carries `baseUpdatedAt` so the server can _detect_ a clobber
-and return a warning, surfaced as a toast. There is no merge UI: conflicts are reported, never
-resolved.
+in practice — no CRDTs. Each mutation carries `baseUpdatedAt` so the server can _detect_ a clobber.
+When it does, acceptance stores the actual canonical result, its classification, frozen profile and
+entity labels, and the base/server/acceptance timeline on the receipt; identical retries replay those
+acceptance-time facts even if the entity has moved again. The current client surfaces the result as a
+toast. There is no merge UI: conflicts are reported, never resolved.
 
 ### Two deliberate asymmetries
 

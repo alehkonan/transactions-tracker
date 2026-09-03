@@ -118,6 +118,9 @@ async function sendWorkerPush(mutations) {
 
   // A session may expire while the tab is closed. Keep the outbox: a later sign-in will send it.
   if (response.status === 401) return { kind: "unauthorized" };
+  // Identity reuse is permanent for this queued content. Retain it without asking Background Sync to
+  // retry forever; foreground sync can surface the terminal protocol error when a page is open.
+  if (response.status === 409) return { kind: "terminal", error: response };
   if (!response.ok)
     return { kind: "retryable", error: new Error(`Push failed with status ${response.status}.`) };
 

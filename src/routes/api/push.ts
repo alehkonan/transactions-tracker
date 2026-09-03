@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { mutationIntentMismatchResponse } from "~/api/mutation-receipts.server";
 import { executePush } from "~/api/push-execution.server";
 import { resolveSession } from "~/api/session.server";
 import {
@@ -55,7 +56,8 @@ export const Route = createFileRoute("/api/push")({
               );
               return Response.json(result);
             } catch (error) {
-              const response = retryableSyncResponse(error);
+              const response =
+                mutationIntentMismatchResponse(error) ?? retryableSyncResponse(error);
               if (response) return response;
               throw error;
             }
