@@ -67,7 +67,7 @@ export const Route = createRootRoute({
               <header
                 className={twJoin(
                   "pointer-events-none",
-                  "flex items-center justify-center px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]",
+                  "flex items-center justify-center px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]",
                   "z-navbar fixed inset-x-0 bottom-0",
                   "md:sticky md:top-0 md:bottom-auto md:p-3",
                 )}
