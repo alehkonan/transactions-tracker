@@ -1,8 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#F5E8C8" />
-  <rect x="68" y="68" width="376" height="376" rx="72" fill="#D8A94E" stroke="#5C3B25" stroke-width="12" />
-  <path d="M112 144h32v-32M368 112v32h32M112 368h32v32M400 368h-32v32" fill="none" stroke="#F5E8C8" stroke-width="12" stroke-linecap="square" />
-  <rect x="132" y="178" width="248" height="36" rx="8" fill="#38271D" />
-  <rect x="132" y="244" width="164" height="36" rx="8" fill="#38271D" />
-  <rect x="132" y="310" width="212" height="36" rx="8" fill="#38271D" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="122 117 266 252" role="img" aria-label="Cracker Tracker">
+  <defs>
+    <linearGradient id="rim" x1="126" y1="45" x2="392" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffb43c" />
+      <stop offset="0.48" stop-color="#ed9324" />
+      <stop offset="1" stop-color="#db7d16" />
+    </linearGradient>
+    <radialGradient id="face" cx="0" cy="0" r="1" gradientTransform="translate(224 180) rotate(50) scale(340 334)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffd36a" />
+      <stop offset="0.58" stop-color="#ffc04a" />
+      <stop offset="1" stop-color="#f3a532" />
+    </radialGradient>
+    <linearGradient id="hole" x1="-10" y1="-10" x2="11" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9d4805" />
+      <stop offset="0.63" stop-color="#bc5e09" />
+      <stop offset="1" stop-color="#eea13a" />
+    </linearGradient>
+    <path id="cracker" d="M108 54C88 49 66 60 55 79C46 94 47 108 55 122C64 138 67 148 58 163C48 180 44 195 51 211C58 228 68 239 59 255C49 273 43 289 51 305C59 322 68 333 59 350C49 368 44 385 53 402C62 419 66 431 58 444C48 461 55 479 70 490C86 502 105 504 123 496C142 488 151 476 170 478C189 480 198 493 217 495C236 497 246 483 265 481C284 479 294 493 314 495C334 497 343 483 362 481C382 479 391 492 411 494C431 496 450 484 458 466C466 449 459 435 453 423C446 408 454 396 462 382C471 366 469 350 461 336C452 321 452 308 461 293C470 277 470 262 461 247C452 232 452 218 461 203C470 187 469 172 461 158C453 143 453 132 461 118C469 103 468 88 459 73C447 54 425 47 406 52C387 57 379 69 361 70C342 71 332 57 314 54C295 51 284 66 265 68C245 69 235 55 217 54C198 53 188 67 169 69C150 70 139 57 122 54C117 53 112 53 108 54Z" />
+  </defs>
+
+  <use
+    href="#cracker"
+    transform="translate(94 90) scale(.625 .556)"
+    fill="url(#rim)"
+    stroke="#ffbf50"
+    stroke-width="1.5"
+    vector-effect="non-scaling-stroke"
+  />
+  <use
+    href="#cracker"
+    transform="translate(94 90) scale(.625 .556) translate(18.4 18.4) scale(.928)"
+    fill="url(#face)"
+  />
+
+  <path d="M139 166C143 145 157 134 174 134C190 134 200 148 220 149" fill="none" stroke="#ffe39a" stroke-width="7" stroke-linecap="round" opacity=".72" />
+  <path d="M132 169C129 175 129 180 132 185" fill="none" stroke="#ffd77b" stroke-width="3" stroke-linecap="round" opacity=".58" />
+
+  <g>
+    <g transform="translate(195 193)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(256 193)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(318 193)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(194 252)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(256 252)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(318 252)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(194 308)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(256 308)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+    <g transform="translate(318 308)"><circle r="9" fill="#df861d"/><circle r="6.7" fill="url(#hole)"/></g>
+  </g>
+
+  <g fill="#fff3d4" opacity=".9">
+    <rect x="182" y="153" width="10" height="10" rx="2" transform="rotate(38 187 158)" />
+    <rect x="162" y="172" width="10" height="10" rx="2" transform="rotate(-27 167 177)" />
+    <rect x="345" y="202" width="8" height="8" rx="2" transform="rotate(38 349 206)" />
+    <rect x="329" y="217" width="10" height="10" rx="2" transform="rotate(-38 334 222)" />
+    <rect x="289.5" y="290.5" width="7" height="7" rx="2" transform="rotate(38 293 294)" />
+    <rect x="151" y="314" width="10" height="10" rx="2" transform="rotate(35 156 319)" />
+    <rect x="173" y="332" width="10" height="10" rx="2" transform="rotate(38 178 337)" />
+  </g>
 </svg>
