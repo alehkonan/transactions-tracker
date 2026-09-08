@@ -29,8 +29,8 @@ import type { JSX } from "react";
  * - **Phone** — a strip across the full width, as short as a line of text can be. Edge to edge
  *   costs nothing there and buys the space to say the state in words rather than as an icon to be
  *   guessed at, and a target that spans the viewport is hard to miss.
- * - **`md` and up** — a small pill in the corner, an icon with a figure beside it when there is one
- *   worth reading. The page is the thing to look at, and the state is one glance away.
+ * - **`md` and up** — a small pill in the corner with the same explicit state label. Sync state is
+ *   part of the product's trust model, so it is never reduced to an icon users have to interpret.
  *
  * The whole sentence is in the tooltip and in the accessible name at both sizes. Pressing it syncs
  * now: a retry that does not wait out the backoff, and a way to ask for fresh data without
@@ -72,14 +72,13 @@ export function SyncStatus() {
           // The strip: full width, one line tall, and only the edge it is not glued to is drawn.
           "w-full justify-center border-b px-3 py-1",
           // The pill: back to a shape the page can be seen around.
-          "md:h-8 md:w-auto md:rounded-full md:border md:px-2.5 md:py-0 md:shadow",
+          "md:h-8 md:w-auto md:rounded-full md:border md:px-3 md:py-0 md:shadow",
           view.tone === "danger" ? "text-danger" : "text-text-muted",
           "hover:text-text disabled:hover:text-inherit",
         )}
       >
         {view.icon}
-        <span className="md:hidden">{view.label}</span>
-        {view.figure != null && <span className="hidden font-mono md:inline">{view.figure}</span>}
+        <span className="font-medium">{view.label}</span>
       </button>
     </div>
   );
@@ -99,8 +98,6 @@ type StatusView = {
   icon: JSX.Element;
   /** What the strip says on a phone. Short enough to stay on one line at 320px. */
   label: string;
-  /** Shown beside the icon in the pill, when there is a number the icon cannot convey on its own. */
-  figure: string | null;
   /** The whole sentence, for the tooltip and for screen readers. */
   title: string;
   tone: "muted" | "danger";
@@ -126,7 +123,6 @@ function describe(state: StatusInput): StatusView {
         state.outboxCount > 0
           ? `Offline — ${state.outboxCount.toLocaleString()} unsynced`
           : "Offline",
-      figure: state.outboxCount > 0 ? state.outboxCount.toLocaleString() : null,
       title:
         state.outboxCount > 0
           ? `Offline — ${count(state.outboxCount)} saved on this device, waiting for a connection.`
@@ -146,7 +142,6 @@ function describe(state: StatusInput): StatusView {
       label: state.isPushing
         ? `Saving ${state.outboxCount.toLocaleString()}…`
         : `${state.outboxCount.toLocaleString()} unsynced — tap to send`,
-      figure: state.outboxCount.toLocaleString(),
       title: state.isPushing
         ? `Sending ${count(state.outboxCount)} to the server.`
         : `${count(state.outboxCount)} not on the server yet. Tap to send them now.`,
@@ -168,7 +163,6 @@ function describe(state: StatusInput): StatusView {
     return {
       icon: <RefreshCwIcon className={twJoin(ICON, "animate-spin")} />,
       label: percent == null ? "Syncing…" : `Syncing transactions ${percent}%`,
-      figure: percent == null ? null : `${percent}%`,
       title:
         percent == null
           ? "Checking for changes on the server."
@@ -182,7 +176,6 @@ function describe(state: StatusInput): StatusView {
     return {
       icon: <CloudAlertIcon className={ICON} />,
       label: "Sync failed — tap to retry",
-      figure: null,
       title: "Could not reach the server. Tap to try again.",
       tone: "danger",
       isBusy: false,
@@ -192,7 +185,6 @@ function describe(state: StatusInput): StatusView {
   return {
     icon: <CloudCheckIcon className={ICON} />,
     label: "Synced",
-    figure: null,
     title: "Everything on this device is on the server. Tap to check for changes.",
     tone: "muted",
     isBusy: false,
