@@ -34,9 +34,9 @@ export function CategoryTag(props: Props) {
       style={
         name && colorHex
           ? {
-              backgroundColor: `color-mix(in srgb, ${colorHex} 15%, transparent)`,
-              borderColor: `color-mix(in srgb, ${colorHex} 40%, transparent)`,
-              color: colorHex,
+              backgroundColor: `color-mix(in oklab, ${colorHex} 18%, transparent)`,
+              borderColor: `color-mix(in oklab, ${colorHex} 48%, transparent)`,
+              color: `color-mix(in oklab, ${colorHex} 40%, var(--color-text))`,
             }
           : undefined
       }
@@ -57,7 +57,7 @@ export function CategoryTag(props: Props) {
           onClick={onOpen}
           // The pill keeps its size; the button around it grows to a thumb-sized target on a phone,
           // since these chips are the only way to edit a category.
-          className="inline-flex min-h-11 max-w-full items-center rounded-full transition-[box-shadow] hover:shadow sm:min-h-0"
+          className="inline-flex min-h-11 max-w-full items-center rounded-full transition-shadow hover:shadow sm:min-h-0"
         >
           {tag}
         </button>

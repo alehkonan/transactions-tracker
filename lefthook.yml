@@ -6,7 +6,7 @@ pre-commit:
 
     - name: lint
       glob: "*.{js,jsx,ts,tsx}"
-      run: pnpm lint:fix {staged_files}
+      run: pnpm lint:fix --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
 
 pre-push:

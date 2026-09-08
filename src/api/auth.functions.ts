@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -5,12 +6,33 @@ import {
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
 import { createServerFn } from "@tanstack/react-start";
-import { eq, isNull } from "drizzle-orm";
+import { getRequest } from "@tanstack/react-start/server";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "~/database/get-db.server";
-import { credentialsTable, profilesTable, usersTable } from "~/database/tables";
+import {
+  credentialsTable,
+  passwordCredentialsTable,
+  profilesTable,
+  usersTable,
+} from "~/database/tables";
+import {
+  clearSignInUsernameRateLimit,
+  enforceRegistrationRateLimit,
+  enforceSignInRateLimit,
+} from "./auth-rate-limit.server";
+import { authMiddleware } from "./auth.middleware";
+import { runDatabaseTransaction, runReadDatabaseTransaction } from "./database-resilience.server";
 import { loggerMiddleware } from "./logger.middleware";
-import { createSession, destroySession } from "./session.server";
+import {
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+  getPasswordHash,
+  hashPassword,
+  isPasswordAllowed,
+  verifyPassword,
+} from "./password-credential.server";
+import { createSession, destroySession, revokeOtherSessions } from "./session.server";
 import {
   RP_NAME,
   consumeChallenge,
@@ -21,6 +43,14 @@ import {
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server";
 
 const usernameSchema = z.string().trim().min(1).max(64);
+const passwordSchema = z.string().refine(isPasswordAllowed, {
+  message: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters.`,
+});
+const passwordAuthenticationSchema = z.object({
+  username: usernameSchema,
+  password: passwordSchema,
+});
+const credentialIdSchema = z.object({ credentialId: z.string().min(1) });
 
 const transportsSchema = z.array(
   z.enum(["ble", "cable", "hybrid", "internal", "nfc", "smart-card", "usb"]),
@@ -290,4 +320,351 @@ export const signOut = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware])
   .handler(async () => {
     await destroySession();
+  });
+
+function trustedNetlifyAddress(): string | undefined {
+  if (process.env.NETLIFY !== "true") return undefined;
+
+  const value = getRequest().headers.get("x-nf-client-connection-ip")?.trim();
+  return value && isIP(value) !== 0 ? value : undefined;
+}
+
+function invalidCredentials(): Response {
+  return new Response("Invalid username or password.", { status: 400 });
+}
+
+async function adoptLegacyProfilesIfFirstUser(
+  database: Parameters<Parameters<typeof runDatabaseTransaction>[1]>[0],
+  userId: number,
+  isFirstUser: boolean,
+): Promise<void> {
+  if (isFirstUser) {
+    await database.update(profilesTable).set({ userId }).where(isNull(profilesTable.userId));
+  }
+}
+
+/** Creates an account whose initial credential is a password. */
+export const passwordSignUp = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware])
+  .validator(passwordAuthenticationSchema)
+  .handler(async ({ data }) => {
+    await enforceRegistrationRateLimit({ address: trustedNetlifyAddress() });
+
+    const [existing] = await getDb()
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.username, data.username))
+      .limit(1);
+    if (existing) throw badRequest("That username is already taken.");
+
+    const passwordHash = await hashPassword(data.password);
+    const user = await runDatabaseTransaction("auth.password_sign_up", async (database) => {
+      // The lock turns the second existence check and insert into one explicit registration decision.
+      await database.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`auth:username:${data.username}`}, 0))`,
+      );
+      const [racedExisting] = await database
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.username, data.username))
+        .limit(1);
+      if (racedExisting) throw badRequest("That username is already taken.");
+
+      const [firstExistingUser] = await database
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .limit(1);
+      const [created] = await database
+        .insert(usersTable)
+        .values({ username: data.username, webauthnUserId: generateWebauthnUserId() })
+        .returning({ id: usersTable.id, username: usersTable.username });
+      await database.insert(passwordCredentialsTable).values({ userId: created.id, passwordHash });
+      await adoptLegacyProfilesIfFirstUser(database, created.id, !firstExistingUser);
+      return created;
+    });
+
+    await createSession(user);
+    return user;
+  });
+
+/** Signs in through the password flow without revealing whether the username exists. */
+export const passwordSignIn = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware])
+  .validator(passwordAuthenticationSchema)
+  .handler(async ({ data }) => {
+    await enforceSignInRateLimit({
+      username: data.username,
+      address: trustedNetlifyAddress(),
+    });
+
+    const [record] = await runReadDatabaseTransaction("auth.password_sign_in", (database) =>
+      database
+        .select({
+          user: { id: usersTable.id, username: usersTable.username },
+          passwordHash: passwordCredentialsTable.passwordHash,
+        })
+        .from(usersTable)
+        .leftJoin(passwordCredentialsTable, eq(passwordCredentialsTable.userId, usersTable.id))
+        .where(eq(usersTable.username, data.username))
+        .limit(1),
+    );
+
+    // Always run scrypt, including for an unknown username or a passkey-only account.
+    if (!(await verifyPassword(data.password, record?.passwordHash))) throw invalidCredentials();
+
+    await clearSignInUsernameRateLimit(data.username);
+    await createSession(record.user);
+    return record.user;
+  });
+
+/** Returns non-secret metadata for every credential attached to the current account. */
+export const listCredentials = createServerFn()
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(async ({ context }) => {
+    const [password, passkeys] = await Promise.all([
+      getDb()
+        .select({
+          createdAt: passwordCredentialsTable.createdAt,
+          updatedAt: passwordCredentialsTable.updatedAt,
+        })
+        .from(passwordCredentialsTable)
+        .where(eq(passwordCredentialsTable.userId, context.user.id))
+        .limit(1),
+      getDb()
+        .select({
+          id: credentialsTable.id,
+          deviceType: credentialsTable.deviceType,
+          backedUp: credentialsTable.backedUp,
+          transports: credentialsTable.transports,
+          createdAt: credentialsTable.createdAt,
+          lastUsedAt: credentialsTable.lastUsedAt,
+        })
+        .from(credentialsTable)
+        .where(eq(credentialsTable.userId, context.user.id)),
+    ]);
+
+    return { password: password[0] ?? null, passkeys };
+  });
+
+/** Starts a registration ceremony for an additional passkey owned by the signed-in user. */
+export const startAddPasskey = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(async ({ context }) => {
+    const existing = await getDb()
+      .select({ id: credentialsTable.id, transports: credentialsTable.transports })
+      .from(credentialsTable)
+      .where(eq(credentialsTable.userId, context.user.id));
+    const { rpID } = getRelyingParty();
+    const webauthnUserId = (
+      await getDb()
+        .select({ webauthnUserId: usersTable.webauthnUserId })
+        .from(usersTable)
+        .where(eq(usersTable.id, context.user.id))
+        .limit(1)
+    )[0]?.webauthnUserId;
+    if (!webauthnUserId) throw new Response("Unauthorized", { status: 401 });
+
+    const options = await generateRegistrationOptions({
+      rpName: RP_NAME,
+      rpID,
+      userName: context.user.username,
+      userDisplayName: context.user.username,
+      userID: new Uint8Array(Buffer.from(webauthnUserId, "base64url")),
+      attestationType: "none",
+      authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+      excludeCredentials: existing.map((credential) => ({
+        id: credential.id,
+        transports: transportsSchema.safeParse(credential.transports).success
+          ? (credential.transports as AuthenticatorTransportFuture[])
+          : undefined,
+      })),
+    });
+    await storeChallenge({
+      challenge: options.challenge,
+      type: "REGISTRATION",
+      username: context.user.username,
+      webauthnUserId,
+    });
+    return options;
+  });
+
+/** Verifies and stores an additional passkey for the signed-in user. */
+export const finishAddPasskey = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(registrationResponseSchema)
+  .handler(async ({ data, context }) => {
+    const challenge = readChallenge(data.response.clientDataJSON);
+    if (!challenge) throw badRequest("Malformed registration response.");
+    const pending = await consumeChallenge(challenge, "REGISTRATION");
+    if (!pending || pending.username !== context.user.username || !pending.webauthnUserId) {
+      throw badRequest("This registration attempt expired. Please try again.");
+    }
+
+    const [user] = await getDb()
+      .select({ webauthnUserId: usersTable.webauthnUserId })
+      .from(usersTable)
+      .where(eq(usersTable.id, context.user.id))
+      .limit(1);
+    if (!user || user.webauthnUserId !== pending.webauthnUserId) {
+      throw badRequest("This registration attempt does not belong to this account.");
+    }
+
+    const { rpID, origin } = getRelyingParty();
+    const verification = await verifyRegistrationResponse({
+      response: data,
+      expectedChallenge: challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: false,
+    });
+    if (!verification.verified) throw badRequest("Could not verify that passkey.");
+
+    const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+    await runDatabaseTransaction("auth.add_passkey", async (database) => {
+      await database
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.id, context.user.id))
+        .for("update");
+      await database.insert(credentialsTable).values({
+        id: credential.id,
+        userId: context.user.id,
+        publicKey: Buffer.from(credential.publicKey).toString("base64url"),
+        counter: credential.counter,
+        transports: credential.transports,
+        deviceType: credentialDeviceType,
+        backedUp: credentialBackedUp,
+      });
+    });
+
+    return { id: credential.id };
+  });
+
+export const addPassword = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(z.object({ password: passwordSchema }))
+  .handler(async ({ data, context }) => {
+    const passwordHash = await hashPassword(data.password);
+    await runDatabaseTransaction("auth.add_password", async (database) => {
+      await database
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.id, context.user.id))
+        .for("update");
+      const [existing] = await database
+        .select({ userId: passwordCredentialsTable.userId })
+        .from(passwordCredentialsTable)
+        .where(eq(passwordCredentialsTable.userId, context.user.id))
+        .limit(1);
+      if (existing) throw badRequest("This account already has a password.");
+      await database
+        .insert(passwordCredentialsTable)
+        .values({ userId: context.user.id, passwordHash });
+    });
+  });
+
+export const changePassword = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(z.object({ currentPassword: passwordSchema, newPassword: passwordSchema }))
+  .handler(async ({ data, context }) => {
+    const currentHash = await getPasswordHash(context.user.id);
+    if (!(await verifyPassword(data.currentPassword, currentHash))) throw invalidCredentials();
+    const passwordHash = await hashPassword(data.newPassword);
+
+    await runDatabaseTransaction("auth.change_password", async (database) => {
+      await database
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.id, context.user.id))
+        .for("update");
+      const changed = await database
+        .update(passwordCredentialsTable)
+        .set({ passwordHash, updatedAt: new Date() })
+        .where(
+          and(
+            eq(passwordCredentialsTable.userId, context.user.id),
+            eq(passwordCredentialsTable.passwordHash, currentHash!),
+          ),
+        )
+        .returning({ userId: passwordCredentialsTable.userId });
+      if (changed.length === 0) throw invalidCredentials();
+    });
+    await revokeOtherSessions(context.user.id);
+  });
+
+export const removePassword = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(z.object({ currentPassword: passwordSchema }))
+  .handler(async ({ data, context }) => {
+    const currentHash = await getPasswordHash(context.user.id);
+    if (!(await verifyPassword(data.currentPassword, currentHash))) throw invalidCredentials();
+
+    await runDatabaseTransaction("auth.remove_password", async (database) => {
+      await database
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.id, context.user.id))
+        .for("update");
+      const passkey = await database
+        .select({ id: credentialsTable.id })
+        .from(credentialsTable)
+        .where(eq(credentialsTable.userId, context.user.id))
+        .limit(1);
+      if (!passkey[0]) throw badRequest("Add a passkey before removing your password.");
+      const deleted = await database
+        .delete(passwordCredentialsTable)
+        .where(
+          and(
+            eq(passwordCredentialsTable.userId, context.user.id),
+            eq(passwordCredentialsTable.passwordHash, currentHash!),
+          ),
+        )
+        .returning({ userId: passwordCredentialsTable.userId });
+      if (deleted.length === 0) throw badRequest("This account does not have a password.");
+    });
+    await revokeOtherSessions(context.user.id);
+  });
+
+export const removePasskey = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator(credentialIdSchema)
+  .handler(async ({ data, context }) => {
+    await runDatabaseTransaction("auth.remove_passkey", async (database) => {
+      await database
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.id, context.user.id))
+        .for("update");
+      const [password, otherPasskey] = await Promise.all([
+        database
+          .select({ userId: passwordCredentialsTable.userId })
+          .from(passwordCredentialsTable)
+          .where(eq(passwordCredentialsTable.userId, context.user.id))
+          .limit(1),
+        database
+          .select({ id: credentialsTable.id })
+          .from(credentialsTable)
+          .where(
+            and(
+              eq(credentialsTable.userId, context.user.id),
+              ne(credentialsTable.id, data.credentialId),
+            ),
+          )
+          .limit(1),
+      ]);
+      if (!password[0] && !otherPasskey[0]) {
+        throw badRequest("Add another credential before removing this passkey.");
+      }
+      const deleted = await database
+        .delete(credentialsTable)
+        .where(
+          and(
+            eq(credentialsTable.userId, context.user.id),
+            eq(credentialsTable.id, data.credentialId),
+          ),
+        )
+        .returning({ id: credentialsTable.id });
+      if (deleted.length === 0) throw new Response("Passkey not found.", { status: 404 });
+    });
+    await revokeOtherSessions(context.user.id);
   });

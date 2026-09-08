@@ -1,20 +1,22 @@
 {
-  "name": "Transactions tracker",
-  "short_name": "Transactions",
+  "name": "Cracker Tracker",
+  "short_name": "Cracker",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#3f8184",
-  "background_color": "#f7f4eb",
+  "theme_color": "#9c480c",
+  "background_color": "#f5e8c8",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512-maskable.png",

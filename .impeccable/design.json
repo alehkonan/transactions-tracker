@@ -1,0 +1,488 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-01T08:20:57Z",
+  "title": "Design System: Cracker Tracker",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Cocoa Ink",
+        "canonical": "oklch(0.25 0.025 55)",
+        "tonalRamp": [
+          "oklch(0.15 0.025 55)",
+          "oklch(0.27 0.025 55)",
+          "oklch(0.39 0.025 55)",
+          "oklch(0.51 0.025 55)",
+          "oklch(0.63 0.025 55)",
+          "oklch(0.75 0.025 55)",
+          "oklch(0.87 0.025 55)",
+          "oklch(0.95 0.025 55)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Wheat Stock",
+        "canonical": "oklch(0.93 0.045 86)",
+        "tonalRamp": [
+          "oklch(0.15 0.045 86)",
+          "oklch(0.27 0.045 86)",
+          "oklch(0.39 0.045 86)",
+          "oklch(0.51 0.045 86)",
+          "oklch(0.63 0.045 86)",
+          "oklch(0.75 0.045 86)",
+          "oklch(0.87 0.045 86)",
+          "oklch(0.95 0.045 86)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Toasted Ochre",
+        "canonical": "oklch(0.49 0.115 73)",
+        "tonalRamp": [
+          "oklch(0.15 0.115 73)",
+          "oklch(0.27 0.115 73)",
+          "oklch(0.39 0.115 73)",
+          "oklch(0.51 0.115 73)",
+          "oklch(0.63 0.115 73)",
+          "oklch(0.75 0.115 73)",
+          "oklch(0.87 0.115 73)",
+          "oklch(0.95 0.115 73)"
+        ]
+      },
+      "hold": {
+        "role": "secondary",
+        "displayName": "Held Mustard",
+        "canonical": "oklch(0.45 0.09 90)",
+        "tonalRamp": [
+          "oklch(0.15 0.09 90)",
+          "oklch(0.27 0.09 90)",
+          "oklch(0.39 0.09 90)",
+          "oklch(0.51 0.09 90)",
+          "oklch(0.63 0.09 90)",
+          "oklch(0.75 0.09 90)",
+          "oklch(0.87 0.09 90)",
+          "oklch(0.95 0.09 90)"
+        ]
+      },
+      "spend": {
+        "role": "secondary",
+        "displayName": "Brick Press",
+        "canonical": "oklch(0.48 0.14 35)",
+        "tonalRamp": [
+          "oklch(0.15 0.14 35)",
+          "oklch(0.27 0.14 35)",
+          "oklch(0.39 0.14 35)",
+          "oklch(0.51 0.14 35)",
+          "oklch(0.63 0.14 35)",
+          "oklch(0.75 0.14 35)",
+          "oklch(0.87 0.14 35)",
+          "oklch(0.95 0.14 35)"
+        ]
+      },
+      "graphite": {
+        "role": "secondary",
+        "displayName": "Cocoa Graphite",
+        "canonical": "oklch(0.43 0.03 55)",
+        "tonalRamp": [
+          "oklch(0.15 0.03 55)",
+          "oklch(0.27 0.03 55)",
+          "oklch(0.39 0.03 55)",
+          "oklch(0.51 0.03 55)",
+          "oklch(0.63 0.03 55)",
+          "oklch(0.75 0.03 55)",
+          "oklch(0.87 0.03 55)",
+          "oklch(0.95 0.03 55)"
+        ]
+      },
+      "gain": {
+        "role": "secondary",
+        "displayName": "Ledger Olive",
+        "canonical": "oklch(0.44 0.085 120)",
+        "tonalRamp": [
+          "oklch(0.15 0.085 120)",
+          "oklch(0.27 0.085 120)",
+          "oklch(0.39 0.085 120)",
+          "oklch(0.51 0.085 120)",
+          "oklch(0.63 0.085 120)",
+          "oklch(0.75 0.085 120)",
+          "oklch(0.87 0.085 120)",
+          "oklch(0.95 0.085 120)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Pressed Surface",
+        "canonical": "oklch(0.975 0.025 88)",
+        "tonalRamp": [
+          "oklch(0.15 0.025 88)",
+          "oklch(0.27 0.025 88)",
+          "oklch(0.39 0.025 88)",
+          "oklch(0.51 0.025 88)",
+          "oklch(0.63 0.025 88)",
+          "oklch(0.75 0.025 88)",
+          "oklch(0.87 0.025 88)",
+          "oklch(0.95 0.025 88)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Toasted Rule",
+        "canonical": "oklch(0.72 0.055 72)",
+        "tonalRamp": [
+          "oklch(0.15 0.055 72)",
+          "oklch(0.27 0.055 72)",
+          "oklch(0.39 0.055 72)",
+          "oklch(0.51 0.055 72)",
+          "oklch(0.63 0.055 72)",
+          "oklch(0.75 0.055 72)",
+          "oklch(0.87 0.055 72)",
+          "oklch(0.95 0.055 72)"
+        ]
+      },
+      "necessity-low": {
+        "role": "tertiary",
+        "displayName": "Dry Straw",
+        "canonical": "oklch(0.43 0.055 92)",
+        "tonalRamp": [
+          "oklch(0.15 0.055 92)",
+          "oklch(0.27 0.055 92)",
+          "oklch(0.39 0.055 92)",
+          "oklch(0.51 0.055 92)",
+          "oklch(0.63 0.055 92)",
+          "oklch(0.75 0.055 92)",
+          "oklch(0.87 0.055 92)",
+          "oklch(0.95 0.055 92)"
+        ]
+      },
+      "necessity-medium": {
+        "role": "tertiary",
+        "displayName": "Proof Ochre",
+        "canonical": "oklch(0.44 0.105 75)",
+        "tonalRamp": [
+          "oklch(0.15 0.105 75)",
+          "oklch(0.27 0.105 75)",
+          "oklch(0.39 0.105 75)",
+          "oklch(0.51 0.105 75)",
+          "oklch(0.63 0.105 75)",
+          "oklch(0.75 0.105 75)",
+          "oklch(0.87 0.105 75)",
+          "oklch(0.95 0.105 75)"
+        ]
+      },
+      "necessity-high": {
+        "role": "tertiary",
+        "displayName": "Baked Umber",
+        "canonical": "oklch(0.43 0.125 54)",
+        "tonalRamp": [
+          "oklch(0.15 0.125 54)",
+          "oklch(0.27 0.125 54)",
+          "oklch(0.39 0.125 54)",
+          "oklch(0.51 0.125 54)",
+          "oklch(0.63 0.125 54)",
+          "oklch(0.75 0.125 54)",
+          "oklch(0.87 0.125 54)",
+          "oklch(0.95 0.125 54)"
+        ]
+      },
+      "necessity-essential": {
+        "role": "tertiary",
+        "displayName": "Essential Brick",
+        "canonical": "oklch(0.4 0.12 35)",
+        "tonalRamp": [
+          "oklch(0.15 0.12 35)",
+          "oklch(0.27 0.12 35)",
+          "oklch(0.39 0.12 35)",
+          "oklch(0.51 0.12 35)",
+          "oklch(0.63 0.12 35)",
+          "oklch(0.75 0.12 35)",
+          "oklch(0.87 0.12 35)",
+          "oklch(0.95 0.12 35)"
+        ]
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "Night Cocoa Ink",
+        "canonical": "oklch(0.91 0.025 82)",
+        "tonalRamp": [
+          "oklch(0.15 0.025 82)",
+          "oklch(0.27 0.025 82)",
+          "oklch(0.39 0.025 82)",
+          "oklch(0.51 0.025 82)",
+          "oklch(0.63 0.025 82)",
+          "oklch(0.75 0.025 82)",
+          "oklch(0.87 0.025 82)",
+          "oklch(0.95 0.025 82)"
+        ]
+      },
+      "dark-paper": {
+        "role": "neutral",
+        "displayName": "Night Stock",
+        "canonical": "oklch(0.18 0.025 55)",
+        "tonalRamp": [
+          "oklch(0.15 0.025 55)",
+          "oklch(0.27 0.025 55)",
+          "oklch(0.39 0.025 55)",
+          "oklch(0.51 0.025 55)",
+          "oklch(0.63 0.025 55)",
+          "oklch(0.75 0.025 55)",
+          "oklch(0.87 0.025 55)",
+          "oklch(0.95 0.025 55)"
+        ]
+      },
+      "dark-accent": {
+        "role": "primary",
+        "displayName": "Low-Light Toasted Ochre",
+        "canonical": "oklch(0.76 0.115 82)",
+        "tonalRamp": [
+          "oklch(0.15 0.115 82)",
+          "oklch(0.27 0.115 82)",
+          "oklch(0.39 0.115 82)",
+          "oklch(0.51 0.115 82)",
+          "oklch(0.63 0.115 82)",
+          "oklch(0.75 0.115 82)",
+          "oklch(0.87 0.115 82)",
+          "oklch(0.95 0.115 82)"
+        ]
+      },
+      "pwa-theme": {
+        "role": "primary",
+        "displayName": "PWA Toast",
+        "canonical": "#9a651f",
+        "tonalRamp": [
+          "oklch(0.15 0.115 73)",
+          "oklch(0.27 0.115 73)",
+          "oklch(0.39 0.115 73)",
+          "oklch(0.51 0.115 73)",
+          "oklch(0.63 0.115 73)",
+          "oklch(0.75 0.115 73)",
+          "oklch(0.87 0.115 73)",
+          "oklch(0.95 0.115 73)"
+        ]
+      },
+      "pwa-background": {
+        "role": "neutral",
+        "displayName": "PWA Crumb",
+        "canonical": "#f5e8c8",
+        "tonalRamp": [
+          "oklch(0.15 0.045 86)",
+          "oklch(0.27 0.045 86)",
+          "oklch(0.39 0.045 86)",
+          "oklch(0.51 0.045 86)",
+          "oklch(0.63 0.045 86)",
+          "oklch(0.75 0.045 86)",
+          "oklch(0.87 0.045 86)",
+          "oklch(0.95 0.045 86)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Page Display",
+        "purpose": "Page titles only; hierarchy comes from weight and scale, not a decorative face."
+      },
+      "headline": {
+        "displayName": "Plate Headline",
+        "purpose": "Card and dialog titles."
+      },
+      "title": {
+        "displayName": "Section Title",
+        "purpose": "Section headings and field labels."
+      },
+      "body": {
+        "displayName": "Operating Text",
+        "purpose": "Controls, records, and general application copy."
+      },
+      "label": {
+        "displayName": "Proof Label",
+        "purpose": "Compact annotations and tooltip titles."
+      },
+      "financial": {
+        "displayName": "Registered Figures",
+        "purpose": "Balances, totals, deltas, and aligned financial comparisons."
+      }
+    },
+    "shadows": [
+      {
+        "name": "contact-proof",
+        "value": "0 1px 2px color-mix(in oklab, var(--color-ink) 12%, transparent), 0 5px 14px color-mix(in oklab, var(--color-ink) 7%, transparent)",
+        "purpose": "Toasts, create-account affordances, and low floating contact."
+      },
+      {
+        "name": "lifted-proof",
+        "value": "0 2px 4px color-mix(in oklab, var(--color-ink) 13%, transparent), 0 8px 22px color-mix(in oklab, var(--color-ink) 8%, transparent)",
+        "purpose": "Hover feedback and the persistent navigation dock."
+      },
+      {
+        "name": "floating-plate",
+        "value": "0 4px 10px color-mix(in oklab, var(--color-ink) 14%, transparent), 0 18px 40px color-mix(in oklab, var(--color-ink) 10%, transparent)",
+        "purpose": "Dropdown and popover surfaces."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-standard",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default color, border, shadow, and transform state transitions."
+      },
+      {
+        "name": "floating-out",
+        "value": "150ms cubic-bezier(0, 0, 0.2, 1)",
+        "purpose": "Popover scale and opacity transitions."
+      },
+      {
+        "name": "dialog-enter-exit",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Backdrop fade and bottom-sheet translate or desktop scale."
+      },
+      {
+        "name": "loader-spin",
+        "value": "1s linear infinite",
+        "purpose": "The 32px Toasted Ochre loading indicator."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The canonical action control: Toasted Ochre, touch-sized on mobile, and shadowed only on interaction.",
+      "html": "<button class=\"ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn-primary { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 0; border-radius: 16px; background: var(--color-accent); color: var(--color-surface); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-btn-primary:hover { box-shadow: var(--shadow); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-primary:disabled { background: var(--color-accent-muted); } @media (min-width: 640px) { .ds-btn-primary { height: 36px; } }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A pressed-surface control for neutral actions and cancellation.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-btn-secondary:hover { box-shadow: var(--shadow); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-secondary:disabled { background: var(--color-surface-muted); } @media (min-width: 640px) { .ds-btn-secondary { height: 36px; } }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "A neutral-at-rest destructive control that reveals Brick Press on hover.",
+      "html": "<button class=\"ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-btn-danger:hover { border-color: var(--color-danger); background: var(--color-danger); color: var(--color-surface); box-shadow: var(--shadow); } .ds-btn-danger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-danger:disabled { background: var(--color-surface-muted); } @media (min-width: 640px) { .ds-btn-danger { height: 36px; } }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The canonical field, aligned in height and focus treatment with buttons and select triggers.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Name</span><input class=\"ds-input\" value=\"Household\"></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 4px; color: var(--color-text); font-family: var(--font-sans); } .ds-field-label { font-size: 14px; line-height: 20px; font-weight: 700; } .ds-input { box-sizing: border-box; height: 44px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-input:hover { box-shadow: var(--shadow); } .ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } @media (min-width: 640px) { .ds-input { height: 36px; } }"
+    },
+    {
+      "name": "Category Tag",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A legible category pigment mixed into fill, border, and text rather than used as raw text color.",
+      "html": "<button class=\"ds-category-target\"><span class=\"ds-category-tag\">Groceries</span></button>",
+      "css": ".ds-category-target { display: inline-flex; min-height: 44px; max-width: 100%; align-items: center; border: 0; border-radius: 9999px; background: transparent; padding: 0; transition: box-shadow 150ms; } .ds-category-target:hover { box-shadow: var(--shadow); } .ds-category-target:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; } .ds-category-tag { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid color-mix(in oklab, #9c6728 48%, transparent); border-radius: 9999px; padding: 2px 8px; background: color-mix(in oklab, #9c6728 18%, transparent); color: color-mix(in oklab, #9c6728 40%, var(--color-text)); font-size: 12px; line-height: 16px; font-weight: 500; } @media (min-width: 640px) { .ds-category-target { min-height: 0; } }"
+    },
+    {
+      "name": "Ledger Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A flat pressed-surface container defined by tone and a dry rule rather than default elevation.",
+      "html": "<article class=\"ds-card\"><h3>Current balance</h3><strong>$12,480.00</strong><p>Available across active accounts</p></article>",
+      "css": ".ds-card { border: 1px solid var(--color-border); border-radius: 12px; padding: 8px; background: var(--color-surface); color: var(--color-text); font-family: var(--font-sans); } .ds-card h3 { margin: 0 0 8px; font-size: 14px; line-height: 20px; font-weight: 700; } .ds-card strong { display: block; font-family: var(--font-mono); font-size: 20px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-card p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 16px; }"
+    },
+    {
+      "name": "Navigation Dock",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "The floating app dock with one scarce active-ochre destination.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary\"><a class=\"ds-nav-item ds-nav-active\" href=\"#accounts\">Accounts</a><a class=\"ds-nav-item\" href=\"#transactions\">Transactions</a><a class=\"ds-nav-item\" href=\"#statistics\">Statistics</a><a class=\"ds-nav-item\" href=\"#settings\">Settings</a></nav>",
+      "css": ".ds-nav { display: inline-grid; grid-auto-flow: column; gap: 4px; border-radius: 16px; padding: 2px; background: var(--color-surface); box-shadow: var(--shadow); font-family: var(--font-sans); } .ds-nav-item { display: flex; height: 48px; align-items: center; justify-content: center; border-radius: 16px; padding: 0 12px; color: var(--color-text); text-decoration: none; font-size: 14px; } .ds-nav-active { background: var(--color-accent); color: var(--color-surface); } .ds-nav-item:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; } @media (min-width: 768px) { .ds-nav-item { height: 40px; padding: 0 16px; } }"
+    },
+    {
+      "name": "Dialog Plate",
+      "kind": "custom",
+      "refersTo": "dialog",
+      "description": "A cocoa-overlay modal rendered as a mobile bottom sheet and a centered desktop proof plate.",
+      "html": "<div class=\"ds-dialog-stage\"><div class=\"ds-dialog-backdrop\"></div><section class=\"ds-dialog\" role=\"dialog\" aria-modal=\"true\"><h2>Edit category</h2><p>Change the registered name and pigment.</p><div class=\"ds-dialog-actions\"><button>Cancel</button><button class=\"ds-dialog-save\">Save</button></div></section></div>",
+      "css": ".ds-dialog-stage { position: relative; min-height: 260px; overflow: hidden; border-radius: 12px; font-family: var(--font-sans); } .ds-dialog-backdrop { position: absolute; inset: 0; background: var(--color-overlay); } .ds-dialog { position: absolute; inset: auto 0 0; max-height: 85%; overflow: auto; border: 1px solid var(--color-border); border-radius: 12px 12px 0 0; padding: 16px; background: var(--color-surface); color: var(--color-text); } .ds-dialog h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; } .ds-dialog p { margin: 12px 0; color: var(--color-text-muted); } .ds-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; } .ds-dialog button { height: 36px; border: 1px solid var(--color-border); border-radius: 16px; padding: 0 12px; background: var(--color-surface); color: var(--color-text); } .ds-dialog .ds-dialog-save { border-color: transparent; background: var(--color-accent); color: var(--color-surface); } .ds-dialog button:hover { box-shadow: var(--shadow); } .ds-dialog button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; } @media (min-width: 640px) { .ds-dialog { inset: 50% auto auto 50%; width: min(42rem, calc(100% - 32px)); border-radius: 12px; transform: translate(-50%, -50%); } }"
+    },
+    {
+      "name": "Category Breakdown",
+      "kind": "custom",
+      "description": "The canonical ranked-bar chart: quiet furniture, category pigment, and registered financial figures.",
+      "html": "<article class=\"ds-breakdown\"><div class=\"ds-breakdown-row\"><div class=\"ds-breakdown-copy\"><span><i></i>Groceries</span><strong>$428.20</strong></div><div class=\"ds-track\"><span></span></div></div><div class=\"ds-breakdown-row\"><div class=\"ds-breakdown-copy\"><span><i></i>Transport</span><strong>$184.00</strong></div><div class=\"ds-track\"><span></span></div></div></article>",
+      "css": ".ds-breakdown { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--color-border); border-radius: 12px; padding: 8px; background: var(--color-surface); color: var(--color-text); font-family: var(--font-sans); } .ds-breakdown-copy { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 14px; line-height: 20px; } .ds-breakdown-copy span { display: flex; align-items: center; gap: 8px; } .ds-breakdown-copy i { width: 10px; height: 10px; border-radius: 9999px; background: #9c6728; } .ds-breakdown-copy strong { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; } .ds-track { height: 6px; overflow: hidden; border-radius: 9999px; background: var(--color-surface-muted); } .ds-track span { display: block; width: 72%; height: 100%; border-radius: inherit; background: #9c6728; } .ds-breakdown-row:nth-child(2) .ds-breakdown-copy i, .ds-breakdown-row:nth-child(2) .ds-track span { background: #59683b; } .ds-breakdown-row:nth-child(2) .ds-track span { width: 41%; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Proofing Sheet",
+    "overview": "Cracker Tracker is a calibrated financial proof printed on dry wheat stock. Pale crumb paper, cocoa ink, toasted ochre controls, baked umber rules, and restrained dry-press pigments make the app feel specific without competing with balances, transactions, or runway. The material character comes from color, hairline structure, sparse registration geometry, and near-imperceptible grain—not decoration laid over the data.\n\nThis is an Operate interface. Financial clarity is strict: semantic states remain unmistakable, monetary figures align, controls are comfortably targetable, and the visual hierarchy stays quieter than the records it serves. Dark mode is the same proofing world under low light, not a separate neon identity. The system explicitly rejects the generic beige finance dashboard and literal cracker or food illustration inside the application UI.",
+    "keyCharacteristics": [
+      "Warm wheat stock and pale pressed surfaces, with cocoa rather than black ink.",
+      "Toasted ochre as the scarce action and focus color.",
+      "Dry borders, occasional dashed rules, sparse registration marks, and fixed micro-grain.",
+      "A narrow, earthbound semantic palette for gain, spend, transfer, hold, warning, and necessity.",
+      "System typography for speed and familiarity; tabular monospace for financial values.",
+      "Flat ledger structure at rest, with restrained lift reserved for interaction and floating UI.",
+      "Responsive 44 px touch controls that compact to 36 px for pointer layouts."
+    ],
+    "rules": [
+      {
+        "name": "The Scarce Ink Rule",
+        "body": "Toasted ochre marks action, focus, and current location; it does not flood passive surfaces.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic Pigment Rule",
+        "body": "Gain, spend, transfer, hold, warning, necessity, and category colors communicate financial meaning before they decorate.",
+        "section": "colors"
+      },
+      {
+        "name": "The Low-Light Proof Rule",
+        "body": "Dark mode overrides the same semantic custom properties through `prefers-color-scheme`; components never hardcode a separate dark palette.",
+        "section": "colors"
+      },
+      {
+        "name": "The Figures Register Rule",
+        "body": "Monetary values use the mono stack and tabular numerals where comparison matters; prose and labels stay in system sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Ledger Rule",
+        "body": "Cards and rows are flat at rest; shadow is evidence of interaction or physical separation, never a default decoration for every container.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do preserve Cocoa Ink, Wheat Stock, Pressed Surface, and Toasted Rule as the default reading environment.",
+      "Do reserve Toasted Ochre for action, focus, selection, loading, and current location.",
+      "Do use semantic custom properties so `prefers-color-scheme: dark` changes contrast without changing meaning.",
+      "Do render monetary comparisons in the system mono stack, with tabular numerals when alignment improves scanning.",
+      "Do keep phone controls at least `44px` high and compact canonical controls to `36px` from `sm`.",
+      "Do use borders and tonal layering before shadows; use shadow only for hover or true floating depth.",
+      "Do keep charts sparse, ranked, and directly readable, with quiet furniture and semantic data pigment.",
+      "Do use the fixed category palette and preserve persisted category color IDs.",
+      "Do keep registration marks sparse and geometric, especially in icon or shell-level brand moments."
+    ],
+    "donts": [
+      "Don't introduce raw blue, neon green, generic red, pure black, or cool gray where a semantic proofing-sheet token exists.",
+      "Don't turn the system into a generic beige finance dashboard; wheat stock needs cocoa contrast, toasted rules, and calibrated pigments.",
+      "Don't use literal crackers, crumbs, food photography, biscuit perforation patterns, or other food illustration in the application UI.",
+      "Don't put every section in a shadowed card or use shadow as passive decoration.",
+      "Don't use category pigments as arbitrary accents or bypass the shared display-palette mapping.",
+      "Don't hardcode dark-mode component colors; override semantic variables at the theme boundary.",
+      "Don't use pie charts when ranked bars or aligned values communicate the comparison more clearly.",
+      "Don't let material texture reduce legibility; grain stays near-imperceptible and behind all content."
+    ]
+  }
+}

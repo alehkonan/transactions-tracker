@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
+import { SecuritySection } from "~/modules/auth/SecuritySection";
 import { readSessionHint } from "~/modules/auth/session-hint";
 import { SignOutButton } from "~/modules/auth/SignOutButton";
 import { CategoryTag } from "~/modules/categories/CategoryTag";
@@ -38,6 +39,8 @@ export const Route = createFileRoute("/settings")({
           <span className="text-text">{username ?? "Signed in"}</span>
           <SignOutButton />
         </div>
+        <hr className="border-border my-3" />
+        <SecuritySection />
         <hr className="border-border my-3" />
         <Title variant="section">Profile</Title>
         <div className="flex items-center justify-between">

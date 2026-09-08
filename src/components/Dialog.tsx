@@ -66,7 +66,7 @@ export function Dialog({
         <BaseDialog.Portal>
           <BaseDialog.Backdrop
             className={twJoin(
-              "z-dialog-backdrop fixed inset-0 bg-black/50 transition-opacity duration-150",
+              "z-dialog-backdrop bg-overlay fixed inset-0 transition-opacity duration-150",
               "data-ending-style:opacity-0 data-starting-style:opacity-0",
             )}
           />

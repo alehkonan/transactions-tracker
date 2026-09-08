@@ -29,13 +29,16 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Transactions tracker" },
+      { title: "Cracker Tracker" },
+      { name: "theme-color", content: "#9c480c" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "icon", href: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { rel: "icon", href: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
+      { rel: "icon", href: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { rel: "shortcut icon", href: "/favicon.ico" },
+      { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png", sizes: "180x180" },
     ],
   }),
   shellComponent: ({ children }) => {
@@ -64,7 +67,7 @@ export const Route = createRootRoute({
               <header
                 className={twJoin(
                   "pointer-events-none",
-                  "flex items-center justify-center px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]",
+                  "flex items-center justify-center px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]",
                   "z-navbar fixed inset-x-0 bottom-0",
                   "md:sticky md:top-0 md:bottom-auto md:p-3",
                 )}

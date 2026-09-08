@@ -1,3 +1,4 @@
+import { getCategoryDisplayColor } from "~/modules/categories/category-palette";
 import type { Color, SyncedCategory } from "~/modules/sync/sync-types";
 
 /** A category with its color resolved from the shared palette, which is all the UI ever draws. */
@@ -10,7 +11,7 @@ export type CategoryRow = {
 
 /** Joins categories to the palette and sorts them by name, as the old `getCategories` query did. */
 export function toCategoryRows(categories: SyncedCategory[], colors: Color[]): CategoryRow[] {
-  const hexById = new Map(colors.map((color) => [color.id, color.hex]));
+  const hexById = new Map(colors.map((color) => [color.id, getCategoryDisplayColor(color.id)]));
 
   return categories
     .map((category) => ({
