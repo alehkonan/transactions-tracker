@@ -8,13 +8,13 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-ink: oklch(0.91 0.025 82);
-    --color-paper: oklch(0.18 0.025 55);
+    --color-ink: oklch(0.92 0.035 88);
+    --color-paper: oklch(0.155 0.035 48);
 
-    --color-accent: oklch(0.76 0.115 82);
-    --color-accent-hover: oklch(0.82 0.11 84);
-    --color-accent-active: oklch(0.87 0.095 87);
-    --color-accent-muted: oklch(0.32 0.07 70);
+    --color-accent: oklch(0.8 0.15 80);
+    --color-accent-hover: oklch(0.85 0.14 84);
+    --color-accent-active: oklch(0.89 0.11 88);
+    --color-accent-muted: oklch(0.31 0.075 58);
 
     --color-hold: oklch(0.79 0.09 93);
     --color-hold-hover: oklch(0.84 0.08 95);
@@ -36,13 +36,13 @@
     --color-gain-active: oklch(0.84 0.075 117);
     --color-gain-muted: oklch(0.3 0.055 115);
 
-    --color-text-muted: oklch(0.7 0.035 75);
-    --color-surface: oklch(0.23 0.025 58);
-    --color-surface-hover: oklch(0.28 0.03 61);
-    --color-surface-active: oklch(0.33 0.035 64);
-    --color-surface-muted: oklch(0.205 0.022 56);
-    --color-border: oklch(0.39 0.045 67);
-    --color-overlay: color-mix(in oklab, oklch(0.08 0.02 52) 82%, transparent);
+    --color-text-muted: oklch(0.7 0.04 72);
+    --color-surface: oklch(0.215 0.04 52);
+    --color-surface-hover: oklch(0.265 0.05 56);
+    --color-surface-active: oklch(0.32 0.06 60);
+    --color-surface-muted: oklch(0.185 0.032 50);
+    --color-border: oklch(0.52 0.07 65);
+    --color-overlay: color-mix(in oklab, oklch(0.06 0.025 46) 84%, transparent);
 
     --color-necessity-low: oklch(0.77 0.065 94);
     --color-necessity-low-muted: color-mix(in oklab, oklch(0.58 0.07 91) 22%, transparent);

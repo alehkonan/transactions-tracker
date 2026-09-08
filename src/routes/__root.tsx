@@ -30,7 +30,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Cracker Tracker" },
-      { name: "theme-color", content: "#9a651f" },
+      { name: "theme-color", content: "#9c480c" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

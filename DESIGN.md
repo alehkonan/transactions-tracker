@@ -1,20 +1,20 @@
 ---
 name: Cracker Tracker
-description: A precise offline-first financial ledger printed on dry wheat stock.
+description: A precise offline-first financial ledger printed on warm cracker stock.
 colors:
-  ink: "oklch(0.25 0.025 55)"
-  paper: "oklch(0.93 0.045 86)"
-  text-muted: "oklch(0.46 0.035 62)"
-  surface: "oklch(0.975 0.025 88)"
-  surface-hover: "oklch(0.94 0.04 85)"
-  surface-active: "oklch(0.9 0.05 82)"
-  surface-muted: "oklch(0.955 0.03 87)"
-  border: "oklch(0.72 0.055 72)"
-  overlay: "color-mix(in oklab, oklch(0.25 0.025 55) 72%, transparent)"
-  accent: "oklch(0.49 0.115 73)"
-  accent-hover: "oklch(0.44 0.12 70)"
-  accent-active: "oklch(0.39 0.12 66)"
-  accent-muted: "oklch(0.84 0.075 82)"
+  ink: "oklch(0.22 0.036 48)"
+  paper: "oklch(0.945 0.052 88)"
+  text-muted: "oklch(0.43 0.04 58)"
+  surface: "oklch(0.985 0.022 92)"
+  surface-hover: "oklch(0.958 0.045 88)"
+  surface-active: "oklch(0.925 0.068 83)"
+  surface-muted: "oklch(0.97 0.034 90)"
+  border: "oklch(0.65 0.08 68)"
+  overlay: "color-mix(in oklab, oklch(0.22 0.036 48) 72%, transparent)"
+  accent: "oklch(0.47 0.132 50)"
+  accent-hover: "oklch(0.42 0.135 48)"
+  accent-active: "oklch(0.37 0.125 45)"
+  accent-muted: "oklch(0.86 0.105 80)"
   hold: "oklch(0.45 0.09 90)"
   hold-hover: "oklch(0.4 0.095 88)"
   hold-active: "oklch(0.35 0.09 85)"
@@ -46,21 +46,21 @@ colors:
   warning: "oklch(0.44 0.115 70)"
   warning-muted: "color-mix(in oklab, oklch(0.72 0.13 78) 14%, transparent)"
   warning-border: "color-mix(in oklab, oklch(0.62 0.12 72) 44%, transparent)"
-  saving-muted: "oklch(0.82 0.08 83)"
-  archived-muted: "color-mix(in oklab, oklch(0.46 0.035 62) 20%, transparent)"
-  dark-ink: "oklch(0.91 0.025 82)"
-  dark-paper: "oklch(0.18 0.025 55)"
-  dark-text-muted: "oklch(0.7 0.035 75)"
-  dark-surface: "oklch(0.23 0.025 58)"
-  dark-surface-hover: "oklch(0.28 0.03 61)"
-  dark-surface-active: "oklch(0.33 0.035 64)"
-  dark-surface-muted: "oklch(0.205 0.022 56)"
-  dark-border: "oklch(0.39 0.045 67)"
-  dark-overlay: "color-mix(in oklab, oklch(0.08 0.02 52) 82%, transparent)"
-  dark-accent: "oklch(0.76 0.115 82)"
-  dark-accent-hover: "oklch(0.82 0.11 84)"
-  dark-accent-active: "oklch(0.87 0.095 87)"
-  dark-accent-muted: "oklch(0.32 0.07 70)"
+  saving-muted: "oklch(0.86 0.095 83)"
+  archived-muted: "color-mix(in oklab, oklch(0.43 0.04 58) 20%, transparent)"
+  dark-ink: "oklch(0.92 0.035 88)"
+  dark-paper: "oklch(0.155 0.035 48)"
+  dark-text-muted: "oklch(0.7 0.04 72)"
+  dark-surface: "oklch(0.215 0.04 52)"
+  dark-surface-hover: "oklch(0.265 0.05 56)"
+  dark-surface-active: "oklch(0.32 0.06 60)"
+  dark-surface-muted: "oklch(0.185 0.032 50)"
+  dark-border: "oklch(0.52 0.07 65)"
+  dark-overlay: "color-mix(in oklab, oklch(0.06 0.025 46) 84%, transparent)"
+  dark-accent: "oklch(0.8 0.15 80)"
+  dark-accent-hover: "oklch(0.85 0.14 84)"
+  dark-accent-active: "oklch(0.89 0.11 88)"
+  dark-accent-muted: "oklch(0.31 0.075 58)"
   dark-hold: "oklch(0.79 0.09 93)"
   dark-hold-hover: "oklch(0.84 0.08 95)"
   dark-hold-active: "oklch(0.89 0.07 97)"
@@ -94,7 +94,7 @@ colors:
   dark-warning-border: "color-mix(in oklab, oklch(0.7 0.12 79) 46%, transparent)"
   dark-saving-muted: "color-mix(in oklab, oklch(0.38 0.075 82) 62%, transparent)"
   dark-archived-muted: "color-mix(in oklab, oklch(0.7 0.035 75) 30%, transparent)"
-  pwa-theme: "#9a651f"
+  pwa-theme: "#9c480c"
   pwa-background: "#f5e8c8"
 typography:
   display:
@@ -206,15 +206,15 @@ components:
 
 **Creative North Star: "The Proofing Sheet"**
 
-Cracker Tracker is a calibrated financial proof printed on dry wheat stock. Pale crumb paper, cocoa ink, toasted ochre controls, baked umber rules, and restrained dry-press pigments make the app feel specific without competing with balances, transactions, or runway. The material character comes from color, hairline structure, sparse registration geometry, and near-imperceptible grain—not decoration laid over the data.
+Cracker Tracker is a calibrated financial proof printed on warm cracker stock. Cream crumb paper, cocoa ink, caramel controls, golden baked edges, and restrained dry-press pigments are sampled from the product icon without competing with balances, transactions, or runway. The material character comes from color, hairline structure, sparse registration geometry, and near-imperceptible grain—not decoration laid over the data.
 
 This is an Operate interface. Financial clarity is strict: semantic states remain unmistakable, monetary figures align, controls are comfortably targetable, and the visual hierarchy stays quieter than the records it serves. Dark mode is the same proofing world under low light, not a separate neon identity. The system explicitly rejects the generic beige finance dashboard and literal cracker or food illustration inside the application UI.
 
 **Key Characteristics:**
 
-- Warm wheat stock and pale pressed surfaces, with cocoa rather than black ink.
-- Toasted ochre as the scarce action and focus color.
-- Dry borders, occasional dashed rules, sparse registration marks, and fixed micro-grain.
+- Warm cream stock and pale crumb surfaces, with cocoa rather than black ink.
+- Dark caramel in light mode and baked gold in dark mode as the scarce action and focus colors.
+- Dry borders, occasional dashed rules, restrained ledger marks, and fixed micro-grain.
 - A narrow, earthbound semantic palette for gain, spend, transfer, hold, warning, and necessity.
 - System typography for speed and familiarity; tabular monospace for financial values.
 - Flat ledger structure at rest, with restrained lift reserved for interaction and floating UI.
@@ -222,12 +222,12 @@ This is an Operate interface. Financial clarity is strict: semantic states remai
 
 ## Colors
 
-The palette stays inside wheat, toast, cocoa, brick, olive, and dusty press pigments; every role has a contrast-adjusted dark counterpart under `prefers-color-scheme: dark`.
+The palette starts with the icon's cream highlight, golden crumb, orange edge, and cocoa holes, then extends into brick, olive, and dusty press pigments for financial semantics. Every role has a contrast-adjusted dark counterpart under `prefers-color-scheme: dark`.
 
 ### Primary
 
-- **Toasted Ochre** (`oklch(0.49 0.115 73)`; dark `oklch(0.76 0.115 82)`): primary actions, active navigation, focus rings, carets, loading indicators, and selected chart or control accents. Hover and active states deepen in light mode and brighten in dark mode.
-- **Pale Crumb Highlight** (`oklch(0.84 0.075 82)`; dark `oklch(0.32 0.07 70)`): disabled primary actions, selection, scrollbars, and quiet accent fields.
+- **Cocoa Caramel / Baked Gold** (`oklch(0.47 0.132 50)`; dark `oklch(0.8 0.15 80)`): primary actions, active navigation, focus rings, carets, loading indicators, and selected chart or control accents. Light mode borrows the icon's dark holes for contrast; dark mode lifts the golden crumb into the foreground.
+- **Golden Crumb Highlight** (`oklch(0.86 0.105 80)`; dark `oklch(0.31 0.075 58)`): disabled primary actions, selection, scrollbars, and quiet accent fields.
 
 ### Secondary
 
@@ -244,18 +244,18 @@ The palette stays inside wheat, toast, cocoa, brick, olive, and dusty press pigm
 
 ### Neutral
 
-- **Cocoa Ink** (`oklch(0.25 0.025 55)`): primary text and the source pigment for shadows and grain.
-- **Wheat Stock** (`oklch(0.93 0.045 86)`): the application field and focus-ring offset.
-- **Pressed Surface** (`oklch(0.975 0.025 88)`): cards, fields, menus, navigation, dialogs, and tooltips.
-- **Quiet Pressed Surface** (`oklch(0.955 0.03 87)`): subdued panels, disabled secondary controls, chart tracks, and highlighted menu rows.
-- **Toasted Rule** (`oklch(0.72 0.055 72)`): borders and dividers.
-- **Muted Cocoa** (`oklch(0.46 0.035 62)`): secondary copy, axes, placeholders, and inactive controls.
-- **Night Stock / Night Surface** (`oklch(0.18 0.025 55)` / `oklch(0.23 0.025 58)`): dark-mode field and raised surface. Cocoa relationships and warm hue are preserved rather than neutralized to gray.
-- **PWA Toast / PWA Crumb** (`#9a651f` / `#f5e8c8`): static browser chrome and manifest colors. The application icon uses crumb `#F5E8C8`, ochre `#D8A94E`, cocoa rule `#5C3B25`, and deep cocoa bars `#38271D`.
+- **Cocoa Ink** (`oklch(0.22 0.036 48)`): primary text and the source pigment for shadows and grain.
+- **Cream Crumb Stock** (`oklch(0.945 0.052 88)`): the application field and focus-ring offset.
+- **Cream Highlight Surface** (`oklch(0.985 0.022 92)`): cards, fields, menus, navigation, dialogs, and tooltips.
+- **Quiet Crumb Surface** (`oklch(0.97 0.034 90)`): subdued panels, disabled secondary controls, chart tracks, and highlighted menu rows.
+- **Baked Edge Rule** (`oklch(0.65 0.08 68)`; dark `oklch(0.52 0.07 65)`): borders and dividers. It stays above 3:1 against control surfaces in both themes so fields remain identifiable without relying on shadows.
+- **Muted Cocoa** (`oklch(0.43 0.04 58)`): secondary copy, axes, placeholders, and inactive controls.
+- **Night Cocoa / Night Crust** (`oklch(0.155 0.035 48)` / `oklch(0.215 0.04 52)`): dark-mode field and raised surface. Cocoa relationships and warm hue are preserved rather than neutralized to gray.
+- **PWA Caramel / PWA Crumb** (`#9c480c` / `#f5e8c8`): static browser chrome and manifest colors. The raster icon source is `samples/cracker.png`; its dominant golden crumb is approximately `#fcc048`, its baked edge `#d88424`, its cocoa holes `#9c480c`, and its cream highlight `#fcf0cc`.
 
 ### Named Rules
 
-**The Scarce Ink Rule.** Toasted ochre marks action, focus, and current location; it does not flood passive surfaces.
+**The Scarce Ink Rule.** Cocoa caramel marks action, focus, and current location in light mode; baked gold takes that role in dark mode. Neither floods passive surfaces.
 
 **The Semantic Pigment Rule.** Gain, spend, transfer, hold, warning, necessity, and category colors communicate financial meaning before they decorate.
 
@@ -308,7 +308,7 @@ The system is flat by default. Surface tone and toasted `1px` rules establish mo
 
 The form language is a disciplined family of softened press plates. Fields, buttons, navigation items, and major action tiles use `16px` corners; cards, dialogs, menus, toasts, and floating plates use `12px`; nested options and palette wells use `8px`; compact segmented controls may use `6px`. Chips, category tags, chart tracks, color wells, and small reset actions are fully rounded.
 
-Borders are usually a single toasted rule. Dashed borders denote invitation or separation—such as create/drop affordances and horizontal rules—not uncertainty. Registration marks belong to sparse brand moments and the application icon, where square corner marks frame three ledger bars; they are never multiplied into literal biscuit perforations or food illustration.
+Borders are usually a single baked edge rule. Dashed borders denote invitation or separation—such as create/drop affordances and horizontal rules—not uncertainty. Literal cracker imagery belongs only to the application icon; the working interface carries the brand through color, grain, and edge treatment rather than decorative food motifs.
 
 ## Components
 
@@ -317,39 +317,39 @@ Borders are usually a single toasted rule. Dashed borders denote invitation or s
 Buttons are compact press controls: generous on touch, restrained under a pointer.
 
 - **Shape:** `16px` radius, `44px` mobile height, `36px` from `sm`, `12px` horizontal padding, and a `4px` icon gap.
-- **Primary:** Toasted Ochre background with Pressed Surface text; disabled state uses Pale Crumb Highlight.
-- **Secondary:** Pressed Surface, Cocoa Ink, and a `1px` Toasted Rule; disabled state shifts to Quiet Pressed Surface.
-- **Danger:** neutral at rest. Destructive meaning arrives on hover through Brick Press background/border and Pressed Surface text, avoiding a screen full of red controls.
-- **Hover / Focus:** hover adds Lifted Proof shadow; focus uses a `2px` Toasted Ochre ring with a `2px` Wheat Stock offset. Color, border, background, and shadow transitions use the default `150ms` state timing.
+- **Primary:** Cocoa Caramel background with Cream Highlight Surface text in light mode; Baked Gold with Night Crust text in dark mode. Disabled state uses Golden Crumb Highlight.
+- **Secondary:** Cream Highlight Surface, Cocoa Ink, and a `1px` Baked Edge Rule; disabled state shifts to Quiet Crumb Surface.
+- **Danger:** neutral at rest. Destructive meaning arrives on hover through Brick Press background/border and surface text, avoiding a screen full of red controls.
+- **Hover / Focus:** hover adds Lifted Proof shadow; focus uses a `2px` primary accent ring with a `2px` Cream Crumb Stock offset. Color, border, background, and shadow transitions use the default `150ms` state timing.
 
 ### Chips
 
-- **Style:** fully rounded, `2px 8px` padding, small text, Pressed Surface fill, and Toasted Rule border.
+- **Style:** fully rounded, `2px 8px` padding, small text, Cream Highlight Surface fill, and Baked Edge Rule border.
 - **Category tags:** mix the assigned category pigment at 18% into the background and 48% into the border; text mixes 40% pigment into the semantic text color so it remains legible in both themes.
 - **Interaction:** editable tags keep the visual pill compact but expand the wrapper to a `44px` minimum touch target on phones. Palette choices are `28px` circles; selection adds a `2px` text-color ring and `1.1×` scale.
 
 ### Cards / Containers
 
 - **Corner Style:** `12px`.
-- **Background:** Pressed Surface.
+- **Background:** Cream Highlight Surface.
 - **Shadow Strategy:** none at rest; refer to the Flat Ledger Rule.
-- **Border:** `1px` Toasted Rule.
+- **Border:** `1px` Baked Edge Rule.
 - **Internal Padding:** `8px` by default; richer profile and form containers use the spacing scale contextually rather than creating a second card style.
 
 ### Inputs / Fields
 
-- **Style:** `44px`/`36px` responsive height, Pressed Surface fill, Cocoa Ink, `1px` Toasted Rule, `16px` corners, and `12px` horizontal padding.
-- **Focus:** the same `2px` Toasted Ochre ring and Wheat Stock offset as buttons.
-- **Hover / Disabled:** hover adds Lifted Proof shadow; disabled secondary controls use Quiet Pressed Surface. Errors use Brick Press text below the field; supporting copy uses Muted Cocoa.
-- **Selects:** triggers match secondary buttons exactly. Popups use a `12px` Floating Plate; highlighted options use Quiet Pressed Surface and selected indicators use Toasted Ochre.
+- **Style:** `44px`/`36px` responsive height, Cream Highlight Surface fill, Cocoa Ink, `1px` Baked Edge Rule, `16px` corners, and `12px` horizontal padding.
+- **Focus:** the same `2px` primary accent ring and Cream Crumb Stock offset as buttons.
+- **Hover / Disabled:** hover adds Lifted Proof shadow; disabled secondary controls use Quiet Crumb Surface. Errors use Brick Press text below the field; supporting copy uses Muted Cocoa.
+- **Selects:** triggers match secondary buttons exactly. Popups use a `12px` Floating Plate; highlighted options use Quiet Crumb Surface and selected indicators use the primary accent.
 
 ### Navigation
 
-The navigation dock is a Pressed Surface capsule with Lifted Proof shadow and `4px` gaps. Active destinations invert to Toasted Ochre with Pressed Surface icon/text; inactive destinations use Cocoa Ink. The dock is fixed at the safe-area-aware bottom on mobile and sticky at the top from `md`; labels are hidden below `md` while icons grow from `24px` to `28px` on compact layouts.
+The navigation dock is a Cream Highlight Surface capsule with Lifted Proof shadow and `4px` gaps. Active destinations invert to Cocoa Caramel in light mode and Baked Gold in dark mode; inactive destinations use Cocoa Ink. The dock is fixed at the safe-area-aware bottom on mobile and sticky at the top from `md`; labels are hidden below `md` while icons grow from `24px` to `28px` on compact layouts.
 
 ### Dialogs
 
-Dialogs are mobile bottom sheets and desktop centered plates. The surface has a Toasted Rule, `16px` padding, and `12px` corners except the mobile sheet, whose bottom edge stays square. The cocoa overlay, backdrop fade, and popup translate/scale complete in `150ms`. Dialogs that require explicit action suppress outside press and Escape dismissal.
+Dialogs are mobile bottom sheets and desktop centered plates. The surface has a Baked Edge Rule, `16px` padding, and `12px` corners except the mobile sheet, whose bottom edge stays square. The cocoa overlay, backdrop fade, and popup translate/scale complete in `150ms`. Dialogs that require explicit action suppress outside press and Escape dismissal.
 
 ### Charts
 
@@ -357,26 +357,26 @@ Charts are ledger evidence, not dashboard ornament. Cumulative spending uses a `
 
 ### Loading and Application Icon
 
-Loading is an `32px` Toasted Ochre spinning line icon centered with generous breathing room. The application icon is a rounded crumb field holding an ochre press plate, cocoa outline, four square registration marks, and three cocoa ledger bars. It evokes the cracker commitment through material and geometry only; it is not food illustration. The manifest and document metadata use the shipped static PWA Toast and PWA Crumb colors.
+Loading is a `32px` primary-accent spinning line icon centered with generous breathing room. The application icon is the full-size illustrated cracker from `samples/cracker.png`, with a vector companion at `public/icon.svg`. Its golden crumb, baked edge, cocoa holes, and cream highlights define the application palette; the manifest and document metadata use the static PWA Caramel and PWA Crumb colors.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** preserve Cocoa Ink, Wheat Stock, Pressed Surface, and Toasted Rule as the default reading environment.
-- **Do** reserve Toasted Ochre for action, focus, selection, loading, and current location.
+- **Do** preserve Cocoa Ink, Cream Crumb Stock, Cream Highlight Surface, and Baked Edge Rule as the default reading environment.
+- **Do** reserve Cocoa Caramel/Baked Gold for action, focus, selection, loading, and current location.
 - **Do** use semantic custom properties so `prefers-color-scheme: dark` changes contrast without changing meaning.
 - **Do** render monetary comparisons in the system mono stack, with tabular numerals when alignment improves scanning.
 - **Do** keep phone controls at least `44px` high and compact canonical controls to `36px` from `sm`.
 - **Do** use borders and tonal layering before shadows; use shadow only for hover or true floating depth.
 - **Do** keep charts sparse, ranked, and directly readable, with quiet furniture and semantic data pigment.
 - **Do** use the fixed category palette and preserve persisted category color IDs.
-- **Do** keep registration marks sparse and geometric, especially in icon or shell-level brand moments.
+- **Do** keep literal cracker imagery confined to the application icon; carry its identity into the shell through semantic color.
 
 ### Don't:
 
 - **Don't** introduce raw blue, neon green, generic red, pure black, or cool gray where a semantic proofing-sheet token exists.
-- **Don't** turn the system into a generic beige finance dashboard; wheat stock needs cocoa contrast, toasted rules, and calibrated pigments.
+- **Don't** turn the system into a generic beige finance dashboard; cream crumb stock needs cocoa contrast, baked edge rules, and calibrated pigments.
 - **Don't** use literal crackers, crumbs, food photography, biscuit perforation patterns, or other food illustration in the application UI.
 - **Don't** put every section in a shadowed card or use shadow as passive decoration.
 - **Don't** use category pigments as arbitrary accents or bypass the shared display-palette mapping.

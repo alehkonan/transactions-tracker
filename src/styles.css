@@ -2,14 +2,14 @@
 @import "./styles/dark.css" layer(dark-theme);
 
 @theme {
-  /* The Proofing Sheet: wheat stock, toasted rules, cocoa ink, and dry press pigments. */
-  --color-ink: oklch(0.25 0.025 55);
-  --color-paper: oklch(0.93 0.045 86);
+  /* The Proofing Sheet: cream crumb, golden bake, caramel edge, and cocoa ink. */
+  --color-ink: oklch(0.22 0.036 48);
+  --color-paper: oklch(0.945 0.052 88);
 
-  --color-accent: oklch(0.49 0.115 73);
-  --color-accent-hover: oklch(0.44 0.12 70);
-  --color-accent-active: oklch(0.39 0.12 66);
-  --color-accent-muted: oklch(0.84 0.075 82);
+  --color-accent: oklch(0.47 0.132 50);
+  --color-accent-hover: oklch(0.42 0.135 48);
+  --color-accent-active: oklch(0.37 0.125 45);
+  --color-accent-muted: oklch(0.86 0.105 80);
 
   --color-hold: oklch(0.45 0.09 90);
   --color-hold-hover: oklch(0.4 0.095 88);
@@ -32,19 +32,19 @@
   --color-gain-muted: oklch(0.85 0.06 110);
 
   --color-text: var(--color-ink);
-  --color-text-muted: oklch(0.46 0.035 62);
+  --color-text-muted: oklch(0.43 0.04 58);
   --color-background: var(--color-paper);
 
-  --color-surface: oklch(0.975 0.025 88);
-  --color-surface-hover: oklch(0.94 0.04 85);
-  --color-surface-active: oklch(0.9 0.05 82);
-  --color-surface-muted: oklch(0.955 0.03 87);
+  --color-surface: oklch(0.985 0.022 92);
+  --color-surface-hover: oklch(0.958 0.045 88);
+  --color-surface-active: oklch(0.925 0.068 83);
+  --color-surface-muted: oklch(0.97 0.034 90);
 
   --color-danger: var(--color-spend);
   --color-danger-hover: var(--color-spend-hover);
   --color-danger-active: var(--color-spend-active);
   --color-danger-muted: var(--color-spend-muted);
-  --color-border: oklch(0.72 0.055 72);
+  --color-border: oklch(0.65 0.08 68);
   --color-overlay: color-mix(in oklab, var(--color-ink) 72%, transparent);
 
   --color-expense: var(--color-spend);
@@ -70,7 +70,7 @@
   --color-warning-muted: color-mix(in oklab, oklch(0.72 0.13 78) 14%, transparent);
   --color-warning-border: color-mix(in oklab, oklch(0.62 0.12 72) 44%, transparent);
 
-  --color-saving-muted: oklch(0.82 0.08 83);
+  --color-saving-muted: oklch(0.86 0.095 83);
   --color-archived-muted: color-mix(in oklab, var(--color-text-muted) 20%, transparent);
 
   --shadow-sm:

@@ -3,7 +3,7 @@
   "short_name": "Cracker",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#9a651f",
+  "theme_color": "#9c480c",
   "background_color": "#f5e8c8",
   "icons": [
     {
