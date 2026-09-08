@@ -18,6 +18,9 @@
   it or they are needed to diagnose a specific change.
 - Run `pnpm generate-routes` after adding or renaming routes. Never edit
   `src/routeTree.gen.ts` by hand.
+- Whenever an agent creates commits, format every commit message using
+  Conventional Commits and split the work into logically separate commits by
+  concrete change.
 
 ## Guardrails
 
