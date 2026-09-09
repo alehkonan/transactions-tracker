@@ -35,7 +35,7 @@ export function getDefaultFormValues(
 }
 
 /** Outgoing amounts (expenses, and the source leg of a transfer) are stored negative; users type a positive number and this flips its sign. */
-export function negateIfPositive(amount: string): string {
+function negateIfPositive(amount: string): string {
   const trimmed = amount.trim();
   return trimmed.startsWith("-") ? trimmed : negateMoney(trimmed);
 }
@@ -46,7 +46,7 @@ export function negateIfPositive(amount: string): string {
  * TRANSFER row's sign is which leg it is, which can't be re-derived from the
  * form when editing, so the row's existing sign is kept instead of reset by type.
  */
-export function isOutgoing(
+function isOutgoing(
   type: TransactionType,
   isEditing: boolean,
   originalIsNegative: boolean,
