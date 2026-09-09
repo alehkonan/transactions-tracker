@@ -27,10 +27,13 @@ type Props = {
   transaction?: TransactionRow;
 };
 
-const typeOptions = transactionTypeEnum.enumValues.map((value) => ({
-  value,
-  label: value.charAt(0) + value.slice(1).toLowerCase(),
-}));
+const typeOrder = { EXPENSE: 0, INCOME: 1, TRANSFER: 2 } as const;
+const typeOptions = transactionTypeEnum.enumValues
+  .toSorted((left, right) => typeOrder[left] - typeOrder[right])
+  .map((value) => ({
+    value,
+    label: value.charAt(0) + value.slice(1).toLowerCase(),
+  }));
 
 const necessityOptions = necessityLevelEnum.enumValues.map((value) => ({
   value,
@@ -39,7 +42,7 @@ const necessityOptions = necessityLevelEnum.enumValues.map((value) => ({
 
 type BalancePreviewProps = {
   account: AccountWithBalance | undefined;
-  projectedBalance: number | undefined;
+  projectedBalance: string | undefined;
 };
 
 /** Shows the selected account's current balance, and what it'll become once the typed amount is applied. */
@@ -106,7 +109,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               value={option.value}
               className={(toggleState) =>
                 twMerge(
-                  "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors sm:h-9",
+                  "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors md:h-9",
                   toggleState.pressed
                     ? transactionTypeStyles[option.value]
                     : "text-text-muted hover:bg-surface-muted",
@@ -122,30 +125,32 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
       {type !== "TRANSFER" ? (
         <>
-          <ToggleGroupControl
-            control={control}
-            name="necessityLevel"
-            label="Necessity"
-            aria-label="Necessity"
-            className="border-border bg-surface flex h-11 items-center gap-1 rounded-lg border p-1 sm:h-9"
-          >
-            {necessityOptions.map((option) => (
-              <Toggle
-                key={option.value}
-                value={option.value}
-                className={(toggleState) =>
-                  twMerge(
-                    "h-full flex-1 rounded-md border border-transparent text-sm capitalize transition-colors",
-                    toggleState.pressed
-                      ? necessityLevelStyles[option.value]
-                      : "text-text-muted hover:bg-surface-muted",
-                  )
-                }
-              >
-                {option.label}
-              </Toggle>
-            ))}
-          </ToggleGroupControl>
+          {type === "EXPENSE" && (
+            <ToggleGroupControl
+              control={control}
+              name="necessityLevel"
+              label="Necessity"
+              aria-label="Necessity"
+              className="border-border bg-surface flex items-center gap-1 rounded-lg border p-1"
+            >
+              {necessityOptions.map((option) => (
+                <Toggle
+                  key={option.value}
+                  value={option.value}
+                  className={(toggleState) =>
+                    twMerge(
+                      "min-h-11 flex-1 rounded-md border border-transparent text-sm capitalize transition-colors md:min-h-9",
+                      toggleState.pressed
+                        ? necessityLevelStyles[option.value]
+                        : "text-text-muted hover:bg-surface-muted",
+                    )
+                  }
+                >
+                  {option.label}
+                </Toggle>
+              ))}
+            </ToggleGroupControl>
+          )}
 
           <DatePickerControl
             control={control}
