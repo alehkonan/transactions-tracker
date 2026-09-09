@@ -65,20 +65,20 @@ export function SyncStatus() {
         // Draining the outbox is the more urgent half, and it pulls once it is done anyway.
         onClick={() => void (outboxCount > 0 ? pushNow() : syncNow())}
         disabled={view.isBusy}
-        aria-label={view.title}
+        aria-label={`${view.label}. ${view.title}`}
         title={view.title}
         className={twJoin(
           "bg-surface border-border flex items-center gap-1.5 text-xs",
           // The strip: full width, one line tall, and only the edge it is not glued to is drawn.
-          "w-full justify-center border-b px-3 py-1",
-          // The pill: back to a shape the page can be seen around.
-          "md:h-8 md:w-auto md:rounded-full md:border md:px-3 md:py-0 md:shadow",
+          "min-h-11 w-full justify-center border-b px-3 py-1",
+          // The pill: compact again, and bounded until there is room beside the centered navbar.
+          "md:h-8 md:min-h-0 md:w-auto md:max-w-24 md:rounded-full md:border md:px-3 md:py-0 md:shadow lg:max-w-none",
           view.tone === "danger" ? "text-danger" : "text-text-muted",
           "hover:text-text disabled:hover:text-inherit",
         )}
       >
         {view.icon}
-        <span className="font-medium">{view.label}</span>
+        <span className="min-w-0 truncate font-medium">{view.label}</span>
       </button>
     </div>
   );

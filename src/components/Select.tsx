@@ -37,6 +37,8 @@ type Props = (SingleProps | MultipleProps) & {
    * hide the chip entirely.
    */
   onReset?: () => void;
+  /** Accessible label for the reset chip. */
+  resetLabel?: string;
 };
 
 // Sentinel item id representing "no value selected" so the placeholder can be
@@ -55,6 +57,7 @@ export function Select({
   name,
   required,
   onReset,
+  resetLabel = "Reset selection",
 }: Props) {
   const normalized: SelectOption[] = options.map((option) =>
     typeof option === "string" ? { value: option, label: option } : option,
@@ -141,7 +144,7 @@ export function Select({
           <button
             type="button"
             onClick={onReset}
-            aria-label="Reset selection"
+            aria-label={resetLabel}
             className={twJoin(
               "absolute top-1/2 right-2 -translate-y-1/2",
               "bg-surface-muted hover:bg-surface-active text-text-muted hover:text-text",

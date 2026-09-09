@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
-import { format, parse } from "date-fns";
+import { format, parse, startOfMonth, startOfYear, subDays } from "date-fns";
 import { useRef, useState } from "react";
+import { Button } from "~/components/Button";
 import { DatePicker, type DatePickerActions } from "~/components/DatePicker";
 import type { DateRange } from "@daypicker/react";
 
@@ -18,7 +19,7 @@ const toDateRange = (from?: string, to?: string): DateRange => ({
   to: to ? parseDateKey(to) : undefined,
 });
 
-const filterLabel = ({ from, to }: DateRange) => {
+export const formatDateFilterLabel = ({ from, to }: DateRange) => {
   if (from && to) return `${format(from, "MMM d")} – ${format(to, "MMM d")}`;
   if (from) return `From ${format(from, "MMM d")}`;
   if (to) return `Until ${format(to, "MMM d")}`;
@@ -65,16 +66,52 @@ export function TransactionsDateRangeFilter({ from, to }: Props) {
     applyRange(EMPTY_RANGE);
   };
 
+  const applyPreset = (nextRange: DateRange) => {
+    setRange(nextRange);
+    applyRange(nextRange);
+    datePicker.current?.close();
+  };
+
+  const today = new Date();
+
   return (
-    <DatePicker
-      actionsRef={datePicker}
-      mode="range"
-      selected={range}
-      onSelect={handleSelect}
-      label={filterLabel(range)}
-      onReset={range.from || range.to ? handleReset : undefined}
-      resetOnSelect
-      disabled={{ after: new Date() }}
-    />
+    <div className="flex flex-col gap-2">
+      <DatePicker
+        actionsRef={datePicker}
+        mode="range"
+        selected={range}
+        onSelect={handleSelect}
+        label={formatDateFilterLabel(range)}
+        onReset={range.from || range.to ? handleReset : undefined}
+        resetLabel="Clear date range"
+        resetOnSelect
+        captionLayout="label"
+        disabled={{ after: today }}
+        triggerClassName="h-11 min-w-44 md:h-9"
+      />
+      <div aria-label="Quick date ranges" className="flex flex-wrap gap-1.5">
+        <Button
+          variant="secondary"
+          className="h-11 px-2 text-xs md:h-8"
+          onClick={() => applyPreset({ from: subDays(today, 29), to: today })}
+        >
+          Last 30 days
+        </Button>
+        <Button
+          variant="secondary"
+          className="h-11 px-2 text-xs md:h-8"
+          onClick={() => applyPreset({ from: startOfMonth(today), to: today })}
+        >
+          This month
+        </Button>
+        <Button
+          variant="secondary"
+          className="h-11 px-2 text-xs md:h-8"
+          onClick={() => applyPreset({ from: startOfYear(today), to: today })}
+        >
+          This year
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -152,19 +152,14 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
     overscan: 8,
   });
 
-  if (items.length === 0) {
-    return (
-      <div className="border-border bg-surface grid place-items-center rounded-xl border p-6">
-        <p>No transactions in this range. Clear the filters or add one.</p>
-      </div>
-    );
-  }
+  if (items.length === 0) return null;
 
   return (
-    <div
+    <section
       ref={containerRef}
       style={{ height }}
-      className="border-border bg-surface isolate -mx-4 h-[75dvh] overflow-auto border-y"
+      aria-label="Transactions grouped by day"
+      className="border-border bg-surface isolate -mx-4 h-[75dvh] overflow-x-hidden overflow-y-auto border-y md:mx-0 md:rounded-xl md:border"
     >
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
@@ -180,6 +175,8 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
             return (
               <div
                 key={`header-${item.day}`}
+                ref={virtualizer.measureElement}
+                data-index={virtualItem.index}
                 style={{ ...style, width: "100%" }}
                 className={twJoin(
                   "bg-surface-muted border-border border-b px-3 py-1.5",
@@ -198,11 +195,14 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
           return (
             <button
               key={row.id}
+              ref={virtualizer.measureElement}
+              data-index={virtualItem.index}
               style={{ ...style, width: "100%" }}
               type="button"
+              title="Edit transaction"
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               className={twJoin(
-                "min-h-11 min-w-0 px-3 py-1",
+                "hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-accent min-h-11 min-w-0 cursor-pointer px-3 py-1 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
                 !item.isFirstOfDay && "border-border border-t",
               )}
             >
@@ -231,6 +231,6 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

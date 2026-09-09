@@ -1,5 +1,6 @@
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { createContext, useMemo, useState, type JSX, type ReactNode } from "react";
+import { XIcon } from "lucide-react";
+import { createContext, useId, useMemo, useState, type JSX, type ReactNode } from "react";
 import { twJoin } from "tailwind-merge";
 import { Title } from "./Title";
 
@@ -13,6 +14,8 @@ type Props = {
   title: string;
   /** User has to click any action button to close the dialog */
   requireAction?: boolean;
+  /** Renders an opt-in visible close button with this accessible label. */
+  closeButtonLabel?: string;
 } & (
   | {
       /** Renders and owns its own trigger; open state is internal. */
@@ -38,10 +41,12 @@ export function Dialog({
   renderTrigger,
   title,
   requireAction,
+  closeButtonLabel,
   open: controlledOpen,
   onOpenChange,
 }: Props) {
   const [internalOpen, setInternalOpen] = useState(false);
+  const titleId = useId();
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
 
@@ -72,8 +77,9 @@ export function Dialog({
           />
           <BaseDialog.Viewport className="z-dialog fixed inset-0 flex items-end justify-center sm:items-center sm:p-4">
             <BaseDialog.Popup
+              aria-labelledby={titleId}
               className={twJoin(
-                "border-border bg-surface max-h-[85dvh] w-full overflow-y-auto rounded-t-xl border p-4 sm:w-2xl sm:rounded-xl",
+                "border-border bg-surface relative max-h-[85dvh] w-full overflow-y-auto rounded-t-xl border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:w-2xl sm:rounded-xl sm:p-4",
                 "transition-[opacity,transform] duration-150",
                 "data-ending-style:translate-y-full data-ending-style:opacity-0",
                 "data-starting-style:translate-y-full data-starting-style:opacity-0",
@@ -81,7 +87,24 @@ export function Dialog({
                 "sm:data-starting-style:translate-y-0 sm:data-starting-style:scale-95",
               )}
             >
-              <Title variant="card">{title}</Title>
+              <div id={titleId}>
+                <Title variant="card" className={closeButtonLabel ? "pr-12" : undefined}>
+                  {title}
+                </Title>
+              </div>
+              {closeButtonLabel && (
+                <BaseDialog.Close
+                  type="button"
+                  aria-label={closeButtonLabel}
+                  onClick={requireAction ? contextProps.onClose : undefined}
+                  className={twJoin(
+                    "border-border bg-surface text-text-muted hover:bg-surface-muted hover:text-text",
+                    "focus-visible:ring-accent absolute top-2 right-2 grid size-11 place-items-center rounded-xl border transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:size-9",
+                  )}
+                >
+                  <XIcon className="size-4" />
+                </BaseDialog.Close>
+              )}
               {children}
             </BaseDialog.Popup>
           </BaseDialog.Viewport>

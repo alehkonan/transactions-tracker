@@ -58,6 +58,8 @@ type Props = DayPickerProps & {
    * hide the chip entirely.
    */
   onReset?: () => void;
+  /** Accessible label for the reset chip. */
+  resetLabel?: string;
   /**
    * Imperative handle for the calendar panel, e.g. `actionsRef.current?.close()` to dismiss it
    * once `onSelect` reports a complete selection.
@@ -67,9 +69,24 @@ type Props = DayPickerProps & {
   triggerClassName?: string;
 };
 
-export function DatePicker({ label, onReset, actionsRef, triggerClassName, ...props }: Props) {
+export function DatePicker({
+  label,
+  onReset,
+  resetLabel = "Reset selection",
+  actionsRef,
+  triggerClassName,
+  captionLayout = "dropdown",
+  classNames: customClassNames,
+  ...props
+}: Props) {
   const panelId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const resolvedClassNames: Partial<ClassNames> = {
+    ...classNames,
+    [UI.CaptionLabel]:
+      captionLayout === "label" ? "text-text text-center text-sm font-semibold" : "hidden",
+    ...customClassNames,
+  };
 
   useImperativeHandle(actionsRef, () => ({
     // `hidePopover()` throws on an already-hidden popover, so only call it while it's open.
@@ -95,7 +112,7 @@ export function DatePicker({ label, onReset, actionsRef, triggerClassName, ...pr
           <button
             type="button"
             onClick={onReset}
-            aria-label="Reset selection"
+            aria-label={resetLabel}
             className={twJoin(
               "absolute top-1/2 right-2 -translate-y-1/2",
               "bg-surface-muted hover:bg-surface-active text-text-muted hover:text-text",
@@ -116,9 +133,9 @@ export function DatePicker({ label, onReset, actionsRef, triggerClassName, ...pr
         )}
       >
         <DayPicker
-          classNames={classNames}
+          classNames={resolvedClassNames}
           components={{ Chevron, DayButton }}
-          captionLayout="dropdown"
+          captionLayout={captionLayout}
           navLayout="around"
           {...props}
         />

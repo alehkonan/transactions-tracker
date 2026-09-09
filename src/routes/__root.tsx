@@ -81,8 +81,8 @@ export const Route = createRootRoute({
                 by stylesheet order rather than by what is meant. */}
             <div
               className={twJoin(
-                !isLogin && (showNavbar ? "pt-8 md:pt-0" : "pt-8 md:pt-14"),
-                showNavbar && "pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-0",
+                !isLogin && (showNavbar ? "pt-12 md:pt-0" : "pt-12 md:pt-14"),
+                showNavbar && "pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0",
               )}
             >
               {isLogin ? children : <SyncGate>{children}</SyncGate>}

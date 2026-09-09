@@ -29,8 +29,9 @@ export function TransactionsCategoryFilter({ categories, selected }: Props) {
       value={selected}
       onValueChange={handleValueChange}
       onReset={selected ? handleReset : undefined}
+      resetLabel="Clear category filter"
       placeholder="All categories"
-      className="min-w-40"
+      className="h-11 min-w-40 md:h-9"
     />
   );
 }

@@ -35,8 +35,12 @@ const navItems: NavItem[] = [
 
 export function Navbar() {
   return (
-    <nav className="pointer-events-auto">
-      <ul className={twJoin("bg-surface grid grid-flow-col-dense gap-1 rounded-2xl shadow")}>
+    <nav className="pointer-events-auto w-full md:w-auto">
+      <ul
+        className={twJoin(
+          "bg-surface grid w-full grid-cols-4 gap-1 rounded-2xl shadow md:w-auto md:grid-flow-col-dense md:grid-cols-none",
+        )}
+      >
         {navItems.map((link) => (
           <li key={link.to} className="p-0.5">
             <NavLink to={link.to} aria-label={link.label} icon={link.icon}>

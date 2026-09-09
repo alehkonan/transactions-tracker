@@ -29,8 +29,9 @@ export function TransactionsAccountFilter({ accounts, selected }: Props) {
       value={selected}
       onValueChange={handleValueChange}
       onReset={selected ? handleReset : undefined}
+      resetLabel="Clear account filter"
       placeholder="All accounts"
-      className="min-w-40"
+      className="h-11 min-w-40 md:h-9"
     />
   );
 }
