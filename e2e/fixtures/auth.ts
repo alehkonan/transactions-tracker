@@ -7,8 +7,6 @@ const E2E_PROFILE_NAME = "E2E Profile";
 export const E2E_ACCOUNT_NAME = "E2E Account";
 const E2E_TEST_PASSWORD = "E2e-Password!Round-Trip-2026";
 
-const bootGateObservations = new WeakMap<Page, Promise<boolean>>();
-
 type AuthCredentials = {
   username: string;
   password: string;
@@ -21,8 +19,6 @@ export type E2EFixtures = {
   authenticatedPage: Page;
   /** An authenticated page with one selected profile and one account. */
   onboardedPage: Page;
-  /** Resolves to whether the first-run loading gate was observed during registration. */
-  bootGateShown: Promise<boolean>;
 };
 
 /**
@@ -35,7 +31,6 @@ export const test = base.extend<E2EFixtures>({
   },
 
   authenticatedPage: async ({ authCredentials, page }, use) => {
-    await installBootGateInstrumentation(page);
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
 
@@ -46,16 +41,7 @@ export const test = base.extend<E2EFixtures>({
     await page.getByRole("button", { name: "Create account", exact: true }).last().click();
     await expect(page).toHaveURL(/\/profile$/, { timeout: 30_000 });
 
-    bootGateObservations.set(page, observeBootGate(page));
-
     await use(page);
-  },
-
-  bootGateShown: async ({ authenticatedPage }, use) => {
-    const observation = bootGateObservations.get(authenticatedPage);
-    if (!observation)
-      throw new Error("The authenticated page did not register a boot-gate observation.");
-    await use(observation);
   },
 
   onboardedPage: async ({ authenticatedPage }, use) => {
@@ -82,7 +68,8 @@ export async function completeOnboarding(page: Page): Promise<string> {
 
   await page.getByRole("link", { name: "Accounts" }).click();
   await expect(page).toHaveURL(/\/accounts$/);
-  await page.getByRole("button", { name: /Create a new account/ }).click();
+  await waitForSynced(page);
+  await page.getByRole("button", { name: "Add account", exact: true }).click();
 
   const accountDialog = page.getByRole("dialog");
   await expect(accountDialog).toBeVisible();
@@ -100,7 +87,7 @@ export async function waitForSynced(page: Page): Promise<void> {
 
 /** Creates one transaction through the real form and returns its unique comment. */
 export async function createTransaction(page: Page, comment: string): Promise<void> {
-  await page.getByRole("button", { name: "Add transaction" }).click();
+  await page.getByRole("button", { name: "Add transaction", exact: true }).first().click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -127,41 +114,6 @@ export async function contextWithStaleHints(page: Page): Promise<BrowserContext>
 
 async function chooseOption(dialog: Locator, label: string, option: string): Promise<void> {
   await dialog.getByLabel(label).selectOption({ label: option });
-}
-
-export async function installBootGateInstrumentation(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const windowWithTestState = window as typeof window & { e2eBootGateSeen?: boolean };
-    windowWithTestState.e2eBootGateSeen = sessionStorage.getItem("e2eBootGateSeen") === "true";
-
-    const markBootGate = () => {
-      if (document.body?.textContent?.includes("Loading your data…")) {
-        windowWithTestState.e2eBootGateSeen = true;
-        sessionStorage.setItem("e2eBootGateSeen", "true");
-      }
-    };
-    new MutationObserver(markBootGate).observe(document.documentElement, {
-      childList: true,
-      characterData: true,
-      subtree: true,
-    });
-    const pollingTimer = window.setInterval(markBootGate, 10);
-    window.setTimeout(() => window.clearInterval(pollingTimer), 30_000);
-    markBootGate();
-  });
-}
-
-export function observeBootGate(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const windowWithTestState = window as typeof window & { e2eBootGateSeen?: boolean };
-    const currentlyVisible = document.body?.textContent?.includes("Loading your data…") ?? false;
-    const seen = currentlyVisible || sessionStorage.getItem("e2eBootGateSeen") === "true";
-    if (seen) {
-      windowWithTestState.e2eBootGateSeen = true;
-      sessionStorage.setItem("e2eBootGateSeen", "true");
-    }
-    return seen;
-  });
 }
 
 export function uniqueUsername(testInfo: TestInfo): string {

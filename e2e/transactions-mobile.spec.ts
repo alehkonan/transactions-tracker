@@ -10,7 +10,7 @@ test("the add transaction action stays reachable above a populated mobile list",
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/transactions");
 
-  const addButton = page.getByRole("button", { name: "Add transaction", exact: true });
+  const addButton = page.getByRole("button", { name: "Add transaction", exact: true }).first();
   await addButton.click();
 
   const createDialog = page.getByRole("dialog");
@@ -19,6 +19,7 @@ test("the add transaction action stays reachable above a populated mobile list",
   await createDialog.getByLabel("Comment").fill(TRANSACTION_COMMENT);
   await createDialog.getByRole("button", { name: "Save", exact: true }).click();
 
+  await expect(createDialog).not.toBeVisible();
   await expect(page.getByText(TRANSACTION_COMMENT, { exact: false })).toBeVisible();
   await expect(addButton).toBeVisible();
   await addButton.click();
