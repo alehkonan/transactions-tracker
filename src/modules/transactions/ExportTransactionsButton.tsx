@@ -1,4 +1,5 @@
 import { Toast } from "@base-ui/react/toast";
+import { Button } from "~/components/Button";
 import { useTransactionRows } from "~/modules/transactions/useTransactionRows";
 import { toCsv } from "~/utils/to-csv";
 
@@ -52,12 +53,8 @@ export function ExportTransactionsButton() {
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleExport}
-      className="text-accent cursor-pointer text-sm hover:underline"
-    >
-      Export transactions
-    </button>
+    <Button variant="secondary" onClick={handleExport}>
+      Export CSV
+    </Button>
   );
 }

@@ -1,3 +1,4 @@
+import { PencilIcon } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { Dialog } from "~/components/Dialog";
 import { CategoryForm } from "~/modules/categories/CategoryForm";
@@ -28,7 +29,10 @@ export function CategoryTag(props: Props) {
   const tag = (
     <span
       className={twMerge(
-        "inline-block max-w-full truncate rounded-full border px-2 py-0.5 text-center text-xs font-medium whitespace-nowrap",
+        "inline-flex max-w-full items-center gap-1 truncate rounded-full border text-center font-medium whitespace-nowrap",
+        props.category
+          ? "min-h-11 px-3 py-1.5 text-sm sm:min-h-0 sm:px-2 sm:py-0.5 sm:text-xs"
+          : "px-2 py-0.5 text-xs",
         !name && "border-border text-text-muted",
       )}
       style={
@@ -42,6 +46,7 @@ export function CategoryTag(props: Props) {
       }
     >
       {name ?? "No category"}
+      {props.category && <PencilIcon className="size-3 shrink-0" aria-hidden="true" />}
     </span>
   );
 
@@ -55,9 +60,9 @@ export function CategoryTag(props: Props) {
           type="button"
           aria-label={`Edit category ${props.category.name}`}
           onClick={onOpen}
-          // The pill keeps its size; the button around it grows to a thumb-sized target on a phone,
-          // since these chips are the only way to edit a category.
-          className="inline-flex min-h-11 max-w-full items-center rounded-full transition-shadow hover:shadow sm:min-h-0"
+          // Editable chips are thumb-sized on phones because they are the only route to category editing;
+          // the visual chip itself owns that height so wrapped rows keep an honest, even rhythm.
+          className="focus-visible:ring-accent inline-flex max-w-full cursor-pointer items-center rounded-full transition-shadow hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           {tag}
         </button>

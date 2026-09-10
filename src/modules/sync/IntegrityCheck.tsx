@@ -56,31 +56,41 @@ export function IntegrityCheck() {
   const isBusy = state.phase === "checking" || state.phase === "repairing";
 
   return (
-    <div className="flex flex-col items-start gap-2">
-      <p className="text-text-muted text-sm">
-        Compares this device against the server without downloading anything.
-      </p>
-      <Button variant="secondary" onClick={() => void check()} disabled={isBusy}>
-        {state.phase === "checking" ? "Checking…" : "Check this device"}
-      </Button>
-      {view && (
-        <output
-          className={twJoin(
-            "flex items-center gap-1.5 text-sm",
-            view.tone === "danger" ? "text-danger" : "text-text-muted",
-          )}
+    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+      <div className="max-w-xl">
+        <h3 className="text-text font-bold">Data integrity</h3>
+        <p className="text-text-muted text-sm">
+          Compares this device’s local copy against the server without downloading anything.
+        </p>
+        {view && (
+          <output
+            className={twJoin(
+              "mt-2 flex items-start gap-1.5 text-sm",
+              view.tone === "danger" ? "text-danger" : "text-text-muted",
+            )}
+          >
+            {view.icon}
+            {view.message}
+          </output>
+        )}
+      </div>
+      <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto sm:justify-end">
+        <Button
+          variant="secondary"
+          className="w-full sm:w-auto"
+          onClick={() => void check()}
+          disabled={isBusy}
         >
-          {view.icon}
-          {view.message}
-        </output>
-      )}
-      {/* Only offered once something is actually wrong: it drops the local copy, which puts the app
-          back behind the loading screen for as long as a first run takes. */}
-      {state.phase === "checked" && state.report.outcome === "diverged" && (
-        <Button variant="danger" onClick={() => void redownload()}>
-          Re-download everything
+          {state.phase === "checking" ? "Checking…" : "Check this device"}
         </Button>
-      )}
+        {/* Only offered once something is actually wrong: it drops the local copy, which puts the app
+            back behind the loading screen for as long as a first run takes. */}
+        {state.phase === "checked" && state.report.outcome === "diverged" && (
+          <Button variant="danger" className="w-full sm:w-auto" onClick={() => void redownload()}>
+            Re-download everything
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
