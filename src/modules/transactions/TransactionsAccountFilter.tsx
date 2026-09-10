@@ -16,21 +16,22 @@ export function TransactionsAccountFilter({ accounts, selected }: Props) {
   const navigate = useNavigate({ from: "/transactions" });
 
   const handleValueChange = (account: string | undefined) => {
-    setTimeout(() => {
-      navigate({ search: (prev) => ({ ...prev, account }) });
-    }, 0);
+    void navigate({ search: (prev) => ({ ...prev, account }) });
   };
 
-  const handleReset = () => navigate({ search: (prev) => ({ ...prev, account: undefined }) });
-
   return (
-    <Select
-      options={accounts.map((account) => account.name)}
-      value={selected}
-      onValueChange={handleValueChange}
-      onReset={selected ? handleReset : undefined}
-      placeholder="All accounts"
-      className="min-w-40"
-    />
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <label htmlFor="transaction-account-filter" className="text-text text-sm font-bold">
+        Account
+      </label>
+      <Select
+        id="transaction-account-filter"
+        options={accounts.map((account) => account.name)}
+        value={selected}
+        onValueChange={handleValueChange}
+        placeholder="All accounts"
+        className="w-full md:min-w-40"
+      />
+    </div>
   );
 }

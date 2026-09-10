@@ -1,4 +1,3 @@
-import { PlusIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { CategoryForm } from "~/modules/categories/CategoryForm";
@@ -9,14 +8,14 @@ type Props = {
   colors: Color[];
 };
 
-/** Icon button that opens a dialog to create a new category. */
+/** Opens the dialog used to add a category to the selected profile. */
 export function CreateCategoryButton({ colors }: Props) {
   return (
     <Dialog
       title="Add category"
       renderTrigger={({ onOpen }) => (
-        <Button variant="primary" aria-label="Add category" onClick={onOpen}>
-          <PlusIcon className="size-6" />
+        <Button variant="secondary" onClick={onOpen}>
+          Add category
         </Button>
       )}
     >

@@ -20,6 +20,7 @@ import {
 import { computeMonthlySpendingTrend } from "~/modules/statistics/compute-monthly-spending-trend";
 import { DailyAverageCard } from "~/modules/statistics/DailyAverageCard";
 import { MoneyRunwayCard } from "~/modules/statistics/MoneyRunwayCard";
+import { RunwayCalculationDetails } from "~/modules/statistics/RunwayCalculationDetails";
 import { SpendingTrendCard } from "~/modules/statistics/SpendingTrendCard";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 
@@ -71,14 +72,19 @@ export const Route = createFileRoute("/statistics")({
 
     return (
       <PageContainer>
-        {/* The chart is the reason this page exists and it used to start below the fold on a
-            phone, under a screen and a half of stacked cards. Three abreast is what buys it back —
-            rather than reordering, which would have left the reading order disagreeing with the
-            visual one at one size or the other. */}
-        <div className="flex flex-col gap-4">
-          <section>
-            <div className="flex items-center justify-between gap-4 pb-2">
-              <Title variant="section">Averages</Title>
+        <main aria-labelledby="statistics-heading" className="flex flex-col gap-4">
+          <header className="flex justify-end">
+            <h1 id="statistics-heading" className="sr-only">
+              Statistics
+            </h1>
+            <p className="text-text-muted text-sm">All amounts in USD</p>
+          </header>
+          <section aria-label="Runway and daily averages">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+              <div>
+                <p className="text-sm font-semibold">Spending history</p>
+                <p className="text-text-muted text-xs">{averages.rangeLabel}</p>
+              </div>
               <AveragePeriodToggle
                 value={period}
                 onValueChange={(next) =>
@@ -86,16 +92,10 @@ export const Route = createFileRoute("/statistics")({
                 }
               />
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-              <DailyAverageCard
-                title="Income per day"
-                shortTitle="Income / day"
-                tone="income"
-                perDayUsd={averages.income.perDayUsd}
-                totalUsd={averages.income.totalUsd}
-                days={averages.days}
-                rangeLabel={averages.rangeLabel}
-              />
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
+              <div className="col-span-2 min-w-0">
+                <MoneyRunwayCard runway={averages.runway} perDayUsd={averages.expense.perDayUsd} />
+              </div>
               <DailyAverageCard
                 title="Spending per day"
                 shortTitle="Spent / day"
@@ -105,21 +105,36 @@ export const Route = createFileRoute("/statistics")({
                 days={averages.days}
                 rangeLabel={averages.rangeLabel}
               />
-              <MoneyRunwayCard runway={averages.runway} perDayUsd={averages.expense.perDayUsd} />
+              <DailyAverageCard
+                title="Income per day"
+                shortTitle="Income / day"
+                tone="income"
+                perDayUsd={averages.income.perDayUsd}
+                totalUsd={averages.income.totalUsd}
+                days={averages.days}
+                rangeLabel={averages.rangeLabel}
+              />
             </div>
+            <RunwayCalculationDetails averages={averages} />
           </section>
           <hr className="border-border" />
-          <section>
-            <div className="mb-2 flex items-center justify-between gap-4">
-              <Title variant="section">Spending trend</Title>
+          <section aria-label="Monthly spending">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <Title variant="section">Monthly spending</Title>
               {months.length > 0 && (
-                <Select
-                  options={months}
-                  value={month}
-                  onValueChange={(value) =>
-                    value && navigate({ search: (prev) => ({ ...prev, month: value }) })
-                  }
-                />
+                <div>
+                  <label htmlFor="statistics-month" className="sr-only">
+                    Month for spending chart and categories
+                  </label>
+                  <Select
+                    id="statistics-month"
+                    options={months}
+                    value={month}
+                    onValueChange={(value) =>
+                      value && navigate({ search: (prev) => ({ ...prev, month: value }) })
+                    }
+                  />
+                </div>
               )}
             </div>
             <div className="flex flex-col gap-4">
@@ -127,7 +142,7 @@ export const Route = createFileRoute("/statistics")({
               <CategoryBreakdownCard spending={categorySpending} />
             </div>
           </section>
-        </div>
+        </main>
       </PageContainer>
     );
   },

@@ -246,6 +246,8 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
 
   if (outcome.kind === "unauthorized") {
     useSyncStore.setState({ status: "unauthorized", error: toMessage(outcome.error) });
+  } else if (outcome.kind === "terminal") {
+    useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
   } else if (outcome.kind === "retryable") {
     useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
     if (outcome.phase === "push") {
@@ -286,8 +288,10 @@ async function sendPagePush(
     });
     if (!(result instanceof Response)) return { kind: "accepted", result };
     if (result.status === 401) return { kind: "unauthorized", error: result };
+    if (result.status === 409) return { kind: "terminal", error: result };
     return { kind: "retryable", error: result };
   } catch (error) {
+    if (error instanceof Response && error.status === 409) return { kind: "terminal", error };
     return { kind: "retryable", error };
   }
 }

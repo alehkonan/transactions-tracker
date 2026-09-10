@@ -1,4 +1,5 @@
 import { Card } from "~/components/Card";
+import { Title } from "~/components/Title";
 import { formatMoney } from "~/utils/format-money";
 import type { CategorySpending } from "~/modules/statistics/compute-category-spending";
 
@@ -14,6 +15,9 @@ type Props = {
 export function CategoryBreakdownCard({ spending }: Props) {
   return (
     <Card>
+      <Title variant="section" className="mb-3">
+        Spending by category
+      </Title>
       {spending.length === 0 ? (
         <p className="text-text-muted text-sm">No spending this month.</p>
       ) : (
@@ -27,9 +31,9 @@ export function CategoryBreakdownCard({ spending }: Props) {
                     className="size-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: entry.colorHex ?? "var(--color-text-muted)" }}
                   />
-                  <span className="truncate">{entry.name}</span>
+                  <span className="wrap-anywhere">{entry.name}</span>
                 </span>
-                <span className="flex shrink-0 items-baseline gap-2">
+                <span className="flex shrink-0 flex-col items-end sm:flex-row sm:items-baseline sm:gap-2">
                   <span className="text-text-muted text-xs">
                     {entry.count} {entry.count === 1 ? "transaction" : "transactions"}
                   </span>

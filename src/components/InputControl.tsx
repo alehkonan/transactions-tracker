@@ -1,4 +1,4 @@
-import { Field } from "@base-ui/react/field";
+import { useId } from "react";
 import { useController } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
 import type { ComponentProps } from "react";
@@ -12,14 +12,11 @@ type Props<
   name: TName;
   rules?: UseControllerProps<TFieldValues, TName>["rules"];
   label?: string;
-  /** Static help text, shown below the input in place of a validation error when there is none. */
+  /** Static help text, shown below the input when there is no validation error. */
   description?: string;
-} & Omit<ComponentProps<"input">, "value" | "name">;
+} & Omit<ComponentProps<"input">, "defaultValue" | "name" | "value">;
 
-/**
- * Native `<input>` wired to react-hook-form via `useController`, wrapped in a
- * `Field.Root` with an optional label and its validation error. Extra props forward to `<input>`.
- */
+/** Native input wired to react-hook-form with an associated label and message. */
 export function InputControl<
   TFieldValues extends FieldValues,
   TName extends FieldPathByValue<TFieldValues, string>,
@@ -29,29 +26,49 @@ export function InputControl<
   rules,
   label,
   description,
+  id,
   className,
   onChange,
   onBlur,
+  "aria-describedby": ariaDescribedBy,
   ...props
 }: Props<TFieldValues, TName>) {
+  const generatedId = useId();
+  const controlId = id ?? generatedId;
+  const descriptionId = `${controlId}-description`;
   const { field, fieldState } = useController({ control, name, rules });
+  const supportingText = fieldState.error?.message ?? description;
+  const describedBy =
+    [ariaDescribedBy, supportingText ? descriptionId : undefined].filter(Boolean).join(" ") ||
+    undefined;
+  const isUsername = props.autoComplete?.includes("username");
 
   return (
-    <Field.Root className="flex flex-col gap-1">
-      {label && <Field.Label className="text-text text-sm font-bold">{label}</Field.Label>}
-      <Field.Control
+    <div className="flex min-w-0 flex-col gap-1">
+      {label && (
+        <label htmlFor={controlId} className="text-text text-sm font-bold">
+          {label}
+        </label>
+      )}
+      <input
         {...props}
-        {...field}
+        id={controlId}
+        ref={field.ref}
+        name={field.name}
+        value={field.value ?? ""}
+        disabled={field.disabled || props.disabled}
+        autoCapitalize={props.autoCapitalize ?? (isUsername ? "none" : undefined)}
+        spellCheck={props.spellCheck ?? (isUsername ? false : undefined)}
+        aria-required={Boolean(rules?.required) || props.required || undefined}
+        aria-invalid={fieldState.invalid || undefined}
+        aria-describedby={describedBy}
         onChange={(event) => {
           const value =
             props.inputMode === "decimal"
               ? event.currentTarget.value.replace(/,/g, ".")
               : event.currentTarget.value;
 
-          if (value !== event.currentTarget.value) {
-            event.currentTarget.value = value;
-          }
-
+          if (value !== event.currentTarget.value) event.currentTarget.value = value;
           field.onChange(value);
           onChange?.(event);
         }}
@@ -63,16 +80,18 @@ export function InputControl<
           "border-border bg-surface text-text h-11 rounded-2xl border px-3 sm:h-9",
           "transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow",
           "focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
+          "disabled:bg-surface-muted disabled:cursor-not-allowed",
           className,
         )}
       />
-      {(fieldState.error?.message ?? description) && (
-        <Field.Description
+      {supportingText && (
+        <p
+          id={descriptionId}
           className={twMerge("text-sm", fieldState.error ? "text-danger" : "text-text-muted")}
         >
-          {fieldState.error?.message ?? description}
-        </Field.Description>
+          {supportingText}
+        </p>
       )}
-    </Field.Root>
+    </div>
   );
 }

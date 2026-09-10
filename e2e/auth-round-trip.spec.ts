@@ -1,13 +1,22 @@
 import { expect } from "@playwright/test";
 import { test } from "./fixtures/auth";
 import { test as passkeyTest } from "./fixtures/passkey-auth";
+import type { Page } from "@playwright/test";
+
+async function signOut(page: Page) {
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Sign out on this device" })
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+}
 
 test("a password account signs out and signs in again", async ({
   authCredentials,
   onboardedPage: page,
 }) => {
   await page.goto("/settings");
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/login$/, { timeout: 30_000 });
 
   await page.getByLabel("Username", { exact: true }).fill(authCredentials.username);
@@ -29,7 +38,7 @@ test("a duplicate password signup is rejected", async ({
   onboardedPage: page,
 }) => {
   await page.goto("/settings");
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/login$/, { timeout: 30_000 });
 
   await page.getByRole("button", { name: "Create account", exact: true }).click();
@@ -46,7 +55,7 @@ passkeyTest(
   "a registered discoverable passkey signs in again",
   async ({ onboardedPasskeyPage: page }) => {
     await page.goto("/settings");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await signOut(page);
     await expect(page).toHaveURL(/\/login$/, { timeout: 30_000 });
 
     await page.getByRole("button", { name: "Sign in with a passkey" }).click();

@@ -1,8 +1,9 @@
 import { FolderOpenIcon, PencilIcon, TrashIcon } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { Button } from "~/components/Button";
-import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { Dialog } from "~/components/Dialog";
+import { Popover } from "~/components/Popover";
+import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { deleteProfile } from "~/modules/profile/profile-mutations";
 import { ProfileForm } from "~/modules/profile/ProfileForm";
 import { formatMoney } from "~/utils/format-money";
@@ -15,13 +16,11 @@ type Props = {
 
 /** A profile summary with explicit open, edit, and delete actions in its footer. */
 export function ProfileCard({ profile, onOpen }: Props) {
-  const [isDeleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
 
   const handleDelete = () => {
     startDeleteTransition(async () => {
       await deleteProfile(profile.id);
-      setDeleteOpen(false);
     });
   };
 
@@ -64,20 +63,24 @@ export function ProfileCard({ profile, onOpen }: Props) {
         >
           <ProfileForm profile={profile} />
         </Dialog>
-        <Button variant="danger" disabled={isDeleting} onClick={() => setDeleteOpen(true)}>
-          <TrashIcon className="size-4" />
-          Delete
-        </Button>
+        <Popover
+          aria-label="Remove profile"
+          renderTrigger={({ onOpen: openDelete }) => (
+            <Button variant="danger" disabled={isDeleting} onClick={openDelete}>
+              <TrashIcon className="size-4" />
+              Delete
+            </Button>
+          )}
+        >
+          <PopoverConfirm
+            title="Remove profile"
+            message={`Delete profile "${profile.name}"? This also deletes all of its accounts, categories, and transactions.`}
+            confirmLabel="Delete"
+            confirmVariant="danger"
+            onConfirm={handleDelete}
+          />
+        </Popover>
       </div>
-      <ConfirmDialog
-        open={isDeleteOpen}
-        onOpenChange={setDeleteOpen}
-        title="Remove profile"
-        message={`Delete profile "${profile.name}"? This also deletes all of its accounts, categories, and transactions.`}
-        confirmLabel="Delete"
-        confirmVariant="danger"
-        onConfirm={handleDelete}
-      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ export type PullDeliveryResult =
 export type SyncRunOutcome =
   | { kind: "completed"; changedRows: number; pushed: number }
   | { kind: "unauthorized"; phase: SyncRunPhase; pushed: number; error?: unknown }
+  | { kind: "terminal"; phase: "push"; pushed: number; error: unknown }
   | { kind: "retryable"; phase: SyncRunPhase; pushed: number; error: unknown }
   | { kind: "blocked"; reason: "queued-writes" }
   | { kind: "didNotConverge"; pages: number; pushed: number };
@@ -88,6 +89,9 @@ export async function runSync(
         const outcome = await dependencies.push.drain();
         if (outcome.kind === "unauthorized") {
           return { kind: "unauthorized", phase: "push", pushed, error: outcome.error };
+        }
+        if (outcome.kind === "terminal") {
+          return { kind: "terminal", phase: "push", pushed, error: outcome.error };
         }
         if (outcome.kind === "retryable") return retryable("push", pushed, outcome.error);
         pushed = outcome.accepted;

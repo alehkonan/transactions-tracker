@@ -80,6 +80,22 @@ describe("drainOutbox", () => {
     expect(testStorage.entries).toEqual(entries);
   });
 
+  it("retains entries and surfaces a terminal protocol failure", async () => {
+    const testStorage = createStorage(entries);
+    const failure = new Error("Mutation identity mismatch.");
+
+    const outcome = await drainOutbox<Entry, string, Result>({
+      storage: testStorage.storage,
+      batchLimit: 2,
+      toPayload: (entry) => entry.value,
+      send: async () => ({ kind: "terminal", error: failure }),
+    });
+
+    expect(outcome).toEqual({ kind: "terminal", accepted: 0, error: failure });
+    expect(testStorage.dropped).toEqual([]);
+    expect(testStorage.entries).toEqual(entries);
+  });
+
   it("drops explicit confirmations but stops after a partial batch", async () => {
     const testStorage = createStorage(entries);
     const accepted: string[] = [];

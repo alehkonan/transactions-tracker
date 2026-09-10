@@ -22,7 +22,7 @@ function isAccepted(file: File, accept: string) {
   });
 }
 
-export function FileInput({ file = null, onFileChange, accept = "text/csv" }: Props) {
+export function FileInput({ file = null, onFileChange, accept = ".csv,text/csv" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
@@ -52,7 +52,7 @@ export function FileInput({ file = null, onFileChange, accept = "text/csv" }: Pr
           type="button"
           aria-label="Remove file"
           onClick={clear}
-          className="text-text-muted hover:text-text cursor-default"
+          className="text-text-muted hover:bg-surface-active hover:text-text focus-visible:ring-accent grid size-11 shrink-0 place-items-center rounded-xl focus-visible:ring-2 focus-visible:outline-none sm:size-9"
         >
           <XIcon />
         </button>
@@ -82,7 +82,8 @@ export function FileInput({ file = null, onFileChange, accept = "text/csv" }: Pr
       >
         <UploadCloudIcon className="size-8" />
         <span>
-          <span className="text-accent">Choose a file</span> or drag it here
+          <span className="text-accent">Choose a CSV file</span>
+          <span className="hidden sm:inline"> or drag it here</span>
         </span>
         <input
           id={inputId}

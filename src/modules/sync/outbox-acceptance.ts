@@ -18,11 +18,13 @@ export type OutboxStorage<
 export type OutboxDeliveryResult<Result extends { applied: readonly string[] }> =
   | { kind: "accepted"; result: Result }
   | { kind: "unauthorized"; error?: unknown }
+  | { kind: "terminal"; error: unknown }
   | { kind: "retryable"; error: unknown };
 
 export type OutboxDrainOutcome =
   | { kind: "drained"; accepted: number }
   | { kind: "unauthorized"; accepted: number; error?: unknown }
+  | { kind: "terminal"; accepted: number; error: unknown }
   | { kind: "retryable"; accepted: number; error: unknown };
 
 type OutboxAcceptanceOptions<
@@ -73,6 +75,9 @@ export async function drainOutbox<
       const delivery = await options.send(batch.map(options.toPayload));
       if (delivery.kind === "unauthorized") {
         return { kind: "unauthorized", accepted: acceptedCount, error: delivery.error };
+      }
+      if (delivery.kind === "terminal") {
+        return { kind: "terminal", accepted: acceptedCount, error: delivery.error };
       }
       if (delivery.kind === "retryable") {
         return { kind: "retryable", accepted: acceptedCount, error: delivery.error };

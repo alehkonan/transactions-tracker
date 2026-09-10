@@ -1,16 +1,17 @@
-import { Field } from "@base-ui/react/field";
 import { TrashIcon } from "lucide-react";
-import { useContext, useState, useTransition } from "react";
+import { useContext, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Button } from "~/components/Button";
-import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
+import { Popover } from "~/components/Popover";
+import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { SelectControl } from "~/components/SelectControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import { formatMoney } from "~/utils/format-money";
+import { isMoneyInput } from "~/utils/money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
 type AccountFormValues = {
@@ -54,7 +55,7 @@ function getDefaultValues(account?: AccountWithBalance): AccountFormValues {
  */
 function getProjectedBalance(account: AccountWithBalance, initialBalance: string): string {
   const typed = Number(initialBalance);
-  if (initialBalance.trim() === "" || Number.isNaN(typed)) return account.balance;
+  if (!isMoneyInput(initialBalance, { allowNegative: true })) return account.balance;
 
   const transactionsCents =
     Math.round(Number(account.balance) * 100) - Math.round(Number(account.initialBalance) * 100);
@@ -67,7 +68,6 @@ export function AccountForm({ account }: Props) {
   const { control, handleSubmit, reset, formState } = useForm<AccountFormValues>({
     defaultValues: getDefaultValues(account),
   });
-  const [isDeleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
   const initialBalance = useWatch({ control, name: "initialBalance" });
 
@@ -110,7 +110,9 @@ export function AccountForm({ account }: Props) {
           control={control}
           name="name"
           label="Name"
-          rules={{ required: true }}
+          rules={{ required: "Account name is required." }}
+          autoCapitalize="words"
+          enterKeyHint="next"
           className="w-full"
         />
         <div className="grid grid-cols-2 gap-3">
@@ -141,25 +143,37 @@ export function AccountForm({ account }: Props) {
             control={control}
             name="initialBalance"
             label="Initial balance"
+            type="text"
             inputMode="decimal"
+            enterKeyHint="done"
+            autoComplete="off"
+            rules={{
+              validate: (value) =>
+                isMoneyInput(value, { allowNegative: true }) ||
+                "Enter a balance with no more than two decimal places.",
+            }}
             className="w-full"
           />
         </div>
         {account && (
-          <Field.Root className="flex flex-col gap-1">
-            <Field.Label className="text-text text-sm font-bold">Balance</Field.Label>
-            <Field.Control
+          <div className="flex flex-col gap-1">
+            <label htmlFor="account-balance" className="text-text text-sm font-bold">
+              Balance
+            </label>
+            <input
+              id="account-balance"
               readOnly
               value={formatMoney(
                 getProjectedBalance(account, initialBalance),
                 account.currencyCode,
               )}
+              aria-describedby="account-balance-description"
               className="border-border bg-surface-muted text-text-muted h-11 w-full rounded-lg border px-2 sm:h-9"
             />
-            <Field.Description className="text-text-muted text-sm">
+            <p id="account-balance-description" className="text-text-muted text-sm">
               Initial balance plus all transactions
-            </Field.Description>
-          </Field.Root>
+            </p>
+          </div>
         )}
       </div>
       <div
@@ -168,15 +182,23 @@ export function AccountForm({ account }: Props) {
         }
       >
         {account && (
-          <Button
-            variant="danger"
-            type="button"
-            disabled={isDeleting}
-            onClick={() => setDeleteOpen(true)}
+          <Popover
+            aria-label="Remove account"
+            renderTrigger={({ onOpen }) => (
+              <Button variant="danger" type="button" disabled={isDeleting} onClick={onOpen}>
+                <TrashIcon className="size-4" />
+                Delete
+              </Button>
+            )}
           >
-            <TrashIcon className="size-4" />
-            Delete
-          </Button>
+            <PopoverConfirm
+              title="Remove account"
+              message={`Delete account "${account.name}"? This also deletes all of its transactions.`}
+              confirmLabel="Delete"
+              confirmVariant="danger"
+              onConfirm={handleDelete}
+            />
+          </Popover>
         )}
         <div className={isEditing ? "ml-auto flex gap-2" : "flex gap-2"}>
           <Button variant="secondary" type="button" onClick={onClose}>
@@ -187,17 +209,6 @@ export function AccountForm({ account }: Props) {
           </Button>
         </div>
       </div>
-      {account && (
-        <ConfirmDialog
-          open={isDeleteOpen}
-          onOpenChange={setDeleteOpen}
-          title="Remove account"
-          message={`Delete account "${account.name}"? This also deletes all of its transactions.`}
-          confirmLabel="Delete"
-          confirmVariant="danger"
-          onConfirm={handleDelete}
-        />
-      )}
     </form>
   );
 }

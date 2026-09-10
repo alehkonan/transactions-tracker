@@ -3,8 +3,7 @@ import { DialogContext } from "~/components/Dialog";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import {
-  isOutgoing,
-  negateIfPositive,
+  getSignedTransactionAmount,
   type TransactionFormValues,
 } from "~/modules/transaction-form/transaction-form-values";
 import {
@@ -30,12 +29,11 @@ export function useTransactionFormSubmit({ transaction }: Options) {
     const shared = {
       createdAt: values.createdAt,
       categoryId: values.categoryId || null,
-      necessityLevel: values.necessityLevel || "MEDIUM",
+      necessityLevel: values.type === "EXPENSE" ? values.necessityLevel : "MEDIUM",
       comment: values.comment || null,
     } satisfies Partial<TransactionInput>;
 
-    const originalIsNegative = transaction?.amount.trim().startsWith("-") ?? false;
-    const negative = isOutgoing(values.type, Boolean(transaction), originalIsNegative);
+    const signedAmount = getSignedTransactionAmount(values.amount, values.type, transaction);
 
     if (transaction) {
       // The form works from the derived row; the stored one is what a mutation edits.
@@ -46,7 +44,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
         ...shared,
         type: values.type,
         accountId: values.accountId || null,
-        amount: negative ? negateIfPositive(values.amount) : values.amount,
+        amount: signedAmount,
       });
     } else {
       // A transfer moves money between two of the user's own accounts, so it's
@@ -59,7 +57,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
                 ...shared,
                 type: "TRANSFER",
                 accountId: values.accountId || null,
-                amount: negateIfPositive(values.amount),
+                amount: signedAmount,
               },
               {
                 ...shared,
@@ -73,7 +71,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
                 ...shared,
                 type: values.type,
                 accountId: values.accountId || null,
-                amount: negative ? negateIfPositive(values.amount) : values.amount,
+                amount: signedAmount,
               },
             ];
 

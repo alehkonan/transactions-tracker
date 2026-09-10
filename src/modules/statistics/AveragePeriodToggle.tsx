@@ -1,12 +1,11 @@
-import { Toggle } from "@base-ui/react/toggle";
-import { ToggleGroup } from "@base-ui/react/toggle-group";
+import { useId } from "react";
 import { twMerge } from "tailwind-merge";
 import type { AveragePeriod } from "~/modules/statistics/compute-daily-averages";
 
-const options: { value: AveragePeriod; label: string }[] = [
-  { value: "3m", label: "3M" },
-  { value: "6m", label: "6M" },
-  { value: "1y", label: "1Y" },
+const options: { value: AveragePeriod; label: string; accessibleLabel: string }[] = [
+  { value: "3m", label: "3M", accessibleLabel: "Last 3 months" },
+  { value: "6m", label: "6M", accessibleLabel: "Last 6 months" },
+  { value: "1y", label: "1Y", accessibleLabel: "Last year" },
 ];
 
 type Props = {
@@ -14,33 +13,38 @@ type Props = {
   onValueChange: (period: AveragePeriod) => void;
 };
 
-/** Picks the trailing window the per-day averages are computed over. */
+/** Native radio group for the trailing window used by the per-day averages. */
 export function AveragePeriodToggle({ value, onValueChange }: Props) {
+  const name = useId();
+
   return (
-    <ToggleGroup
-      aria-label="Averaging period"
-      value={[value]}
-      // Base UI clears the group when the pressed item is toggled off; keep the
-      // current period instead, since exactly one has to stay selected.
-      onValueChange={([next]) => onValueChange((next as AveragePeriod) ?? value)}
-      className="border-border bg-surface flex h-11 items-center gap-1 rounded-lg border p-1 sm:h-9"
-    >
-      {options.map((option) => (
-        <Toggle
-          key={option.value}
-          value={option.value}
-          className={(toggleState) =>
-            twMerge(
-              "h-full rounded-md border border-transparent px-3 text-sm transition-colors",
-              toggleState.pressed
-                ? "bg-accent text-surface"
-                : "text-text-muted hover:bg-surface-muted",
-            )
-          }
-        >
-          {option.label}
-        </Toggle>
-      ))}
-    </ToggleGroup>
+    <fieldset className="shrink-0">
+      <legend className="sr-only">Spending history used for runway and daily averages</legend>
+      <div className="border-border bg-surface flex items-center gap-1 rounded-lg border p-1">
+        {options.map((option) => (
+          <label key={option.value} className="cursor-pointer">
+            <input
+              type="radio"
+              className="peer sr-only"
+              name={name}
+              value={option.value}
+              checked={value === option.value}
+              aria-label={option.accessibleLabel}
+              onChange={() => onValueChange(option.value)}
+            />
+            <span
+              className={twMerge(
+                "peer-focus-visible:ring-accent flex h-11 min-w-11 items-center justify-center rounded-md border border-transparent px-3 text-sm transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:outline-none sm:h-9",
+                value === option.value
+                  ? "bg-accent text-surface"
+                  : "text-text-muted hover:bg-surface-muted",
+              )}
+            >
+              {option.label}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

@@ -29,7 +29,7 @@ The runtime client keeps one connection per isolate, disables prepared statement
 
 ## Push receipts
 
-Push delivery uses a durable receipt keyed by `(user_id, mutation_id)`, written atomically with the mutation. A retry after a lost response acknowledges an existing receipt without replaying the write or conflict. Receipts are retained indefinitely because the maximum offline/retry window has not been defined; their storage growth must be measured before adding any cleanup policy.
+Push delivery uses a durable receipt keyed by `(user_id, mutation_id)`, written atomically with the mutation. New receipts bind the identity to a full-intent fingerprint and retain any immutable acceptance-time stale-base outcome, so a lost response can be replayed without repeating the write or changing its historical result. Pre-upgrade receipts remain acknowledgeable but have no reconstructable historical outcome. Receipts are retained indefinitely because the maximum offline/retry window has not been defined; their storage growth must be measured before adding any cleanup policy.
 
 Canonical rereads are scoped by user/profile, which prevents the previously identified cross-user disclosure. They still reread submitted IDs after mutation execution instead of collecting only affected rows with SQL `RETURNING`.
 
@@ -45,7 +45,7 @@ Canonical rereads are scoped by user/profile, which prevents the previously iden
 
 Structured request and phase logs identify cold/warm isolates, operation phases, row or mutation counts, durations, and sanitized PostgreSQL classifications. They are diagnostic logs, not a retained metrics system or formal service-level monitor.
 
-The client still needs a complete distinction between terminal protocol/authorization failures and retryable transport/database failures. Until then, a permanently invalid outbox entry can remain at the head of the queue and retry repeatedly. Adaptive batch splitting is intentionally not implemented because connection and lock failures are not evidence that payload size caused the failure.
+The client now treats accepted-mutation fingerprint mismatches as terminal, retains the affected outbox entry, and suppresses automatic retries for that run. It still needs a complete distinction for other terminal protocol/authorization failures; until then, another permanently invalid outbox entry can remain at the head of the queue and retry repeatedly. Adaptive batch splitting is intentionally not implemented because connection and lock failures are not evidence that payload size caused the failure.
 
 ## Background processing
 

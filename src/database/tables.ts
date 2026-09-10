@@ -4,6 +4,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   serial,
@@ -22,6 +23,7 @@ import {
   transactionTypeEnum,
   webauthnChallengeTypeEnum,
 } from "./enums";
+import type { PushConflict } from "~/modules/sync/sync-types";
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -122,6 +124,10 @@ export const authAttemptsTable = pgTable(
  * The composite key deliberately includes the user: mutation ids are client-generated and only
  * identify one user's delivery. Receipts are written in the same transaction as their mutations,
  * so a retry can distinguish a lost response after commit from work that never committed.
+ *
+ * Fingerprints and outcomes are nullable only for receipts created before immutable replay existed.
+ * A new receipt always stores its fingerprint; a null outcome on such a receipt means acceptance was
+ * conflict-free and must remain so on replay.
  */
 export const mutationReceiptsTable = pgTable(
   "mutation_receipts",
@@ -130,6 +136,8 @@ export const mutationReceiptsTable = pgTable(
       .notNull()
       .references(() => usersTable.id, { onUpdate: "cascade", onDelete: "cascade" }),
     mutationId: uuid("mutation_id").notNull(),
+    intentFingerprint: text("intent_fingerprint"),
+    conflictOutcome: jsonb("conflict_outcome").$type<PushConflict>(),
     appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.mutationId] })],

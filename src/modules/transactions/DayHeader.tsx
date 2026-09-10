@@ -29,15 +29,18 @@ function formatDay(day: string): string {
 export function DayHeader({ day, rows }: Props) {
   const totalSpentUsd = sumApproxUsd(rows.filter((row) => row.type === "EXPENSE"));
   const totalIncomeUsd = sumApproxUsd(rows.filter((row) => row.type === "INCOME"));
+  const hasSpent = Number(totalSpentUsd) > 0;
   const hasIncome = Number(totalIncomeUsd) > 0;
 
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
       <h3 className="text-text font-semibold">{formatDay(day)}</h3>
-      <span className="flex gap-4">
-        <span className="text-expense">Spent: {formatMoney(totalSpentUsd, "USD")}</span>
+      <span className="flex gap-4" title="Daily totals, approximately converted to USD">
+        {hasSpent && (
+          <span className="text-expense">≈ Spent: {formatMoney(totalSpentUsd, "USD")}</span>
+        )}
         {hasIncome && (
-          <span className="text-gain">Income: {formatMoney(totalIncomeUsd, "USD")}</span>
+          <span className="text-gain">≈ Income: {formatMoney(totalIncomeUsd, "USD")}</span>
         )}
       </span>
     </div>

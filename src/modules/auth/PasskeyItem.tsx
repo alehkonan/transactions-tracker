@@ -1,4 +1,6 @@
 import { Button } from "~/components/Button";
+import { Popover } from "~/components/Popover";
+import { PopoverConfirm } from "~/components/PopoverConfirm";
 
 type Passkey = {
   id: string;
@@ -42,9 +44,22 @@ export function PasskeyItem({ passkey, disabled, onRemove }: Props) {
           <dd className="text-text mt-0.5">{passkey.backedUp ? "Backed up" : "Not backed up"}</dd>
         </div>
       </dl>
-      <Button variant="danger" disabled={disabled} onClick={() => onRemove(passkey)}>
-        Remove
-      </Button>
+      <Popover
+        aria-label="Remove passkey"
+        renderTrigger={({ onOpen }) => (
+          <Button variant="danger" disabled={disabled} onClick={onOpen}>
+            Remove
+          </Button>
+        )}
+      >
+        <PopoverConfirm
+          title="Remove passkey"
+          message="Remove this passkey from your account? You will no longer be able to use it to sign in."
+          confirmLabel="Remove"
+          confirmVariant="danger"
+          onConfirm={() => onRemove(passkey)}
+        />
+      </Popover>
     </li>
   );
 }

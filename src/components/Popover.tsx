@@ -9,6 +9,7 @@ type PopoverContextProps = {
 
 type Props = {
   children: ReactNode;
+  "aria-label"?: string;
   renderTrigger: (props: PopoverContextProps) => JSX.Element;
 };
 
@@ -17,7 +18,7 @@ export const PopoverContext = createContext<PopoverContextProps>({
   onClose: () => undefined,
 });
 
-export function Popover({ children, renderTrigger }: Props) {
+export function Popover({ children, renderTrigger, "aria-label": ariaLabel }: Props) {
   const [open, setOpen] = useState(false);
 
   const contextProps = useMemo<PopoverContextProps>(
@@ -35,6 +36,7 @@ export function Popover({ children, renderTrigger }: Props) {
         <BasePopover.Portal>
           <BasePopover.Positioner sideOffset={4} className="z-dropdown">
             <BasePopover.Popup
+              aria-label={ariaLabel}
               className={twJoin(
                 "border-border bg-surface text-text m-0 rounded-xl border p-3 shadow-lg",
                 "transition-[opacity,transform] duration-150 ease-out",

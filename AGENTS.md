@@ -16,8 +16,16 @@
 - Lefthook runs formatting and `lint:fix` on commit, then typecheck, unit tests,
   and `knip` before push. Do not run them redundantly unless the user requests
   it or they are needed to diagnose a specific change.
+- For end-to-end workflow interactions, add stable `data-testid` hooks and use
+  `getByTestId`; reserve role/name locators for tests that explicitly verify
+  accessibility semantics.
 - Run `pnpm generate-routes` after adding or renaming routes. Never edit
   `src/routeTree.gen.ts` by hand.
+- Assume the development server is available at `http://localhost:5454/` and
+  check that URL first. Only suggest starting the server when it is unavailable.
+- Whenever an agent creates commits, format every commit message using
+  Conventional Commits and split the work into logically separate commits by
+  concrete change.
 
 ## Guardrails
 
@@ -28,6 +36,11 @@
 - Keep generated migrations and the Drizzle schema in sync. Use
   `db:generate` followed by `db:migrate`; do not use `drizzle-kit push`.
 - Use semantic Tailwind tokens from `src/styles.css`, not raw color classes.
+- Default to native HTML controls, especially for phone-first inputs and pickers.
+  Keep React wrappers thin: styling, labels, validation, and form integration only.
+- Use Base UI only when it provides genuinely complex behavior such as focus
+  management, anchored positioning, or live-region orchestration. The retained
+  primitives are Dialog, Popover, and Toast; justify expanding that set.
 - Do not alter unrelated user changes. Ask before adding dependencies or running
   destructive database or Git commands.
 

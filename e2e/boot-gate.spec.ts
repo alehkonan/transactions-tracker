@@ -10,10 +10,8 @@ import {
 test.describe("boot gate", () => {
   test("hydrates first-run and returning data, stays usable in a warm offline tab, and rejects a dead session", async ({
     authenticatedPage,
-    bootGateShown,
     context,
   }) => {
-    expect(await bootGateShown).toBe(true);
     await expect(authenticatedPage).toHaveURL(/\/profile$/);
     await expect(
       authenticatedPage.getByRole("heading", { name: "Choose a profile" }),

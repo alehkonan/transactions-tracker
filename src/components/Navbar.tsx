@@ -14,29 +14,33 @@ const navItems: NavItem[] = [
   {
     to: "/accounts",
     label: "Accounts",
-    icon: <WalletIcon className="size-7 md:size-6" />,
+    icon: <WalletIcon className="size-5 md:size-6" />,
   },
   {
     to: "/transactions",
     label: "Transactions",
-    icon: <ReceiptTextIcon className="size-7 md:size-6" />,
+    icon: <ReceiptTextIcon className="size-5 md:size-6" />,
   },
   {
     to: "/statistics",
     label: "Statistics",
-    icon: <ChartNoAxesCombinedIcon className="size-7 md:size-6" />,
+    icon: <ChartNoAxesCombinedIcon className="size-5 md:size-6" />,
   },
   {
     to: "/settings",
     label: "Settings",
-    icon: <SettingsIcon className="size-7 md:size-6" />,
+    icon: <SettingsIcon className="size-5 md:size-6" />,
   },
 ];
 
 export function Navbar() {
   return (
-    <nav className="pointer-events-auto">
-      <ul className={twJoin("bg-surface grid grid-flow-col-dense gap-1 rounded-2xl shadow")}>
+    <nav className="pointer-events-auto w-full md:w-auto">
+      <ul
+        className={twJoin(
+          "bg-surface grid w-full grid-cols-4 gap-1 rounded-2xl shadow md:w-auto md:grid-flow-col-dense md:grid-cols-none",
+        )}
+      >
         {navItems.map((link) => (
           <li key={link.to} className="p-0.5">
             <NavLink to={link.to} aria-label={link.label} icon={link.icon}>

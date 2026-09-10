@@ -159,6 +159,33 @@ describe("runSync", () => {
     expect(pulled).toBe(false);
   });
 
+  it("surfaces a terminal push without pulling", async () => {
+    const failure = new Error("Mutation identity mismatch.");
+    let pulled = false;
+
+    const outcome = await runSync(
+      "normal",
+      dependencies({
+        replica: {
+          readCursors: async () => undefined,
+          hasQueuedWrites: async () => true,
+          clearCachedRows: async () => {},
+          commitPulledPage: async () => {},
+        },
+        push: { drain: async () => ({ kind: "terminal", accepted: 0, error: failure }) },
+        remote: {
+          pull: async () => {
+            pulled = true;
+            return { kind: "accepted", result: page([]) };
+          },
+        },
+      }),
+    );
+
+    expect(outcome).toEqual({ kind: "terminal", phase: "push", pushed: 0, error: failure });
+    expect(pulled).toBe(false);
+  });
+
   it("returns explicit unauthorized and convergence outcomes", async () => {
     const unauthorized = await runSync(
       "normal",

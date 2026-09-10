@@ -21,14 +21,19 @@ export function PasswordSettings({ hasPassword, disabled, onChanged }: Props) {
             : "No password is attached to this account."}
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex w-full flex-wrap gap-2 sm:w-auto">
         {hasPassword ? (
           <>
             <Dialog
               title="Change password"
               renderTrigger={({ onOpen }) => (
-                <Button variant="secondary" disabled={disabled} onClick={onOpen}>
-                  Change
+                <Button
+                  variant="secondary"
+                  className="flex-1 sm:flex-none"
+                  disabled={disabled}
+                  onClick={onOpen}
+                >
+                  Change password
                 </Button>
               )}
             >
@@ -37,8 +42,13 @@ export function PasswordSettings({ hasPassword, disabled, onChanged }: Props) {
             <Dialog
               title="Remove password"
               renderTrigger={({ onOpen }) => (
-                <Button variant="danger" disabled={disabled} onClick={onOpen}>
-                  Remove
+                <Button
+                  variant="danger"
+                  className="flex-1 sm:flex-none"
+                  disabled={disabled}
+                  onClick={onOpen}
+                >
+                  Remove password
                 </Button>
               )}
             >
@@ -49,7 +59,12 @@ export function PasswordSettings({ hasPassword, disabled, onChanged }: Props) {
           <Dialog
             title="Add password"
             renderTrigger={({ onOpen }) => (
-              <Button variant="secondary" disabled={disabled} onClick={onOpen}>
+              <Button
+                variant="secondary"
+                className="w-full sm:w-auto"
+                disabled={disabled}
+                onClick={onOpen}
+              >
                 Add password
               </Button>
             )}

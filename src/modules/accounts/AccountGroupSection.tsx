@@ -5,7 +5,6 @@ import { ChevronDownIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { twJoin } from "tailwind-merge";
 import { Chip } from "~/components/Chip";
-import { Title } from "~/components/Title";
 import { AccountCard } from "~/modules/accounts/AccountCard";
 import { formatMoney } from "~/utils/format-money";
 import type { AccountActivity } from "~/modules/accounts/compute-account-activity";
@@ -110,32 +109,44 @@ export function AccountGroupSection({
   );
 
   const peekCount = Math.min(PEEK_COUNT, accounts.length);
+  const headingId = `${id}-accounts-heading`;
+  const panelId = `${id}-accounts-list`;
+  const hasConvertedCurrencies = accounts.some((account) => account.currencyCode !== "USD");
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={toggleCollapsed}
-        className={twJoin(
-          "mb-2 flex items-center gap-2 rounded-lg p-3",
-          "hover:bg-surface-muted transition-colors",
-        )}
-      >
-        <div className="flex items-baseline gap-2">
-          <Title variant="card">{title}</Title>
-          {totalUsd !== undefined && (
-            <Chip className={twJoin("font-mono font-medium", totalChipClassName)}>
-              {formatMoney(totalUsd, "USD")}
-            </Chip>
-          )}
-        </div>
-        <ChevronDownIcon
+    <section aria-labelledby={headingId}>
+      <h2 id={headingId}>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-controls={panelId}
           className={twJoin(
-            "text-text-muted size-4 shrink-0 transition-transform",
-            !collapsed && "rotate-180",
+            "mb-3 flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2 text-left",
+            "hover:bg-surface-muted focus-visible:ring-accent transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
           )}
-        />
-      </button>
+        >
+          <span className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
+            <span className="text-text text-xl font-semibold">{title}</span>
+            {totalUsd !== undefined && (
+              <span className="flex items-center gap-2">
+                <span className="text-text-muted text-xs font-medium">USD equivalent</span>
+                <Chip className={twJoin("font-mono font-medium", totalChipClassName)}>
+                  {hasConvertedCurrencies && "≈ "}
+                  {formatMoney(totalUsd, "USD")}
+                </Chip>
+              </span>
+            )}
+          </span>
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={twJoin(
+              "text-text-muted size-4 shrink-0 transition-transform",
+              !collapsed && "rotate-180",
+            )}
+          />
+        </button>
+      </h2>
       {/*
        * `isolate` scopes the stack's z-indexes to a new stacking context, so the raw numbers
        * below can never compete with the global z-index scale (styles.css) — see the
@@ -147,8 +158,9 @@ export function AccountGroupSection({
        * from the actual card width once columns stretch via `1fr`.
        */}
       <div
+        id={panelId}
         ref={gridRef}
-        className="isolate grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] gap-2"
+        className="isolate grid grid-cols-[repeat(auto-fill,minmax(min(18rem,100%),1fr))] gap-2"
       >
         {accounts.map((account, index) => {
           const stackIndex = Math.min(index, peekCount - 1);
@@ -181,11 +193,12 @@ export function AccountGroupSection({
                 account={account}
                 activity={activityByAccount.get(account.id)}
                 onClick={collapsed ? expand : undefined}
+                actionLabel={collapsed ? `Expand ${title} accounts` : undefined}
               />
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

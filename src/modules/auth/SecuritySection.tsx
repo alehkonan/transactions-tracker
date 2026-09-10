@@ -1,12 +1,7 @@
-import { useState } from "react";
 import { Button } from "~/components/Button";
-import { ConfirmDialog } from "~/components/ConfirmDialog";
-import { Title } from "~/components/Title";
 import { PasskeyList } from "~/modules/auth/PasskeyList";
 import { PasswordSettings } from "~/modules/auth/PasswordSettings";
 import { useSecuritySettings } from "~/modules/auth/useSecuritySettings";
-
-type SelectedPasskey = { id: string };
 
 export function SecuritySection() {
   const {
@@ -19,28 +14,29 @@ export function SecuritySection() {
     addPasskey,
     deletePasskey,
   } = useSecuritySettings();
-  const [selectedPasskey, setSelectedPasskey] = useState<SelectedPasskey | null>(null);
 
   return (
-    <section aria-label="Security">
-      <div className="flex items-center justify-between gap-2">
-        <Title variant="section">Security</Title>
+    <div className="p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="max-w-xl">
+          <h3 className="text-text font-bold">Sign-in methods</h3>
+          <p className="text-text-muted text-sm">
+            Credential details come directly from the server and are never stored on this device.
+          </p>
+        </div>
         {credentials && (
           <Button
             variant="secondary"
             disabled={isLoading || isMutating}
             onClick={() => void refresh()}
           >
-            Refresh
+            Refresh security details
           </Button>
         )}
       </div>
-      <p className="text-text-muted mt-1 text-sm">
-        Credential details come directly from the server and are never stored on this device.
-      </p>
 
       {!isOnline ? (
-        <div className="border-border bg-surface-muted mt-3 rounded-xl border p-3">
+        <div className="border-border bg-surface-muted mt-4 rounded-xl border p-3">
           <p className="text-text font-bold">Connect to manage account security</p>
           <p className="text-text-muted mt-1 text-sm">
             The rest of settings remains available offline. Security details require a connection so
@@ -48,35 +44,39 @@ export function SecuritySection() {
           </p>
         </div>
       ) : isLoading && !credentials ? (
-        <output className="text-text-muted mt-3 block text-sm">Loading security details…</output>
+        <output className="text-text-muted mt-4 block text-sm">Loading security details…</output>
       ) : !credentials ? (
-        <div className="mt-3" role="alert">
+        <div className="mt-4" role="alert">
           <p className="text-danger text-sm">{error ?? "Could not load security details."}</p>
           <Button variant="secondary" className="mt-2" onClick={() => void refresh()}>
             Try again
           </Button>
         </div>
       ) : (
-        <div className="mt-3 flex flex-col gap-4">
+        <div className="mt-4 flex flex-col gap-4">
           {error && (
             <p className="text-danger text-sm" role="alert">
               {error}
             </p>
           )}
           <div>
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
               <div>
                 <p className="text-text font-bold">Passkeys</p>
-                <p className="text-text-muted text-sm">Use a device or security key to sign in.</p>
+                <p className="text-text-muted text-sm">
+                  Use a device or security key to sign in.
+                  {credentials.passkeys.length > 0 &&
+                    ` ${credentials.passkeys.length.toLocaleString()} ${credentials.passkeys.length === 1 ? "passkey" : "passkeys"} attached.`}
+                </p>
               </div>
-              <Button variant="primary" disabled={isMutating} onClick={() => void addPasskey()}>
+              <Button variant="secondary" disabled={isMutating} onClick={() => void addPasskey()}>
                 {isMutating ? "Working…" : "Add passkey"}
               </Button>
             </div>
             <PasskeyList
               passkeys={credentials.passkeys}
               disabled={isMutating}
-              onRemove={setSelectedPasskey}
+              onRemove={(passkey) => void deletePasskey(passkey.id)}
             />
           </div>
           <div className="border-border border-t pt-4">
@@ -88,21 +88,6 @@ export function SecuritySection() {
           </div>
         </div>
       )}
-
-      <ConfirmDialog
-        open={selectedPasskey != null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedPasskey(null);
-        }}
-        title="Remove passkey"
-        message="Remove this passkey from your account? You will no longer be able to use it to sign in."
-        confirmLabel="Remove"
-        confirmVariant="danger"
-        onConfirm={() => {
-          if (selectedPasskey) void deletePasskey(selectedPasskey.id);
-          setSelectedPasskey(null);
-        }}
-      />
-    </section>
+    </div>
   );
 }

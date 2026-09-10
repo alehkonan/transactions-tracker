@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { twJoin } from "tailwind-merge";
 import { PageContainer } from "~/components/PageContainer";
 import { accountTypeStyles } from "~/modules/accounts/account-type-tag";
 import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
@@ -55,22 +56,47 @@ export const Route = createFileRoute("/accounts")({
     );
     // Keyed by account id, so the rows of other profiles in the store simply never get looked up.
     const activityByAccount = useMemo(() => computeAccountActivity(transactions), [transactions]);
+    const activeGroups = groups.filter(
+      (group) => group.id !== "archived" && group.accounts.length > 0,
+    );
+    const archivedGroup = groups.find(
+      (group) => group.id === "archived" && group.accounts.length > 0,
+    );
 
     return (
       <PageContainer>
-        <div className="flex flex-col gap-6">
-          {groups.map((group) => {
-            if (!group.accounts.length) return null;
-            return (
-              <AccountGroupSection
-                key={group.title}
-                {...group}
-                activityByAccount={activityByAccount}
-              />
-            );
-          })}
-          <CreateAccountButton />
-        </div>
+        <main aria-labelledby="accounts-heading" className="py-2 md:py-6">
+          <div className="flex flex-col gap-8">
+            <h1 id="accounts-heading" className="sr-only">
+              Accounts
+            </h1>
+
+            {activeGroups.length > 0 && (
+              <div
+                className={twJoin(
+                  "grid items-start gap-8",
+                  activeGroups.length > 1 && "lg:grid-cols-2",
+                )}
+              >
+                {activeGroups.map((group) => (
+                  <AccountGroupSection
+                    key={group.id}
+                    {...group}
+                    activityByAccount={activityByAccount}
+                  />
+                ))}
+              </div>
+            )}
+
+            {archivedGroup && (
+              <AccountGroupSection {...archivedGroup} activityByAccount={activityByAccount} />
+            )}
+
+            <div className="w-full sm:max-w-sm">
+              <CreateAccountButton />
+            </div>
+          </div>
+        </main>
       </PageContainer>
     );
   },

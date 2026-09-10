@@ -1,80 +1,140 @@
 import { useNavigate } from "@tanstack/react-router";
-import { format, parse } from "date-fns";
-import { useRef, useState } from "react";
-import { DatePicker, type DatePickerActions } from "~/components/DatePicker";
-import type { DateRange } from "@daypicker/react";
+import { format, startOfMonth, startOfYear, subDays } from "date-fns";
+import { useEffect, useId, useState } from "react";
+import { Button } from "~/components/Button";
 
 type Props = {
   from?: string;
   to?: string;
 };
 
-const EMPTY_RANGE: DateRange = { from: undefined, to: undefined };
+type DateRange = {
+  from?: Date;
+  to?: Date;
+};
 
-const parseDateKey = (dateKey: string) => parse(dateKey, "yyyy-MM-dd", new Date());
+type DateRangeValues = {
+  from: string;
+  to: string;
+};
 
-const toDateRange = (from?: string, to?: string): DateRange => ({
-  from: from ? parseDateKey(from) : undefined,
-  to: to ? parseDateKey(to) : undefined,
-});
-
-const filterLabel = ({ from, to }: DateRange) => {
+export const formatDateFilterLabel = ({ from, to }: DateRange) => {
   if (from && to) return `${format(from, "MMM d")} – ${format(to, "MMM d")}`;
   if (from) return `From ${format(from, "MMM d")}`;
   if (to) return `Until ${format(to, "MMM d")}`;
   return "Filter by date";
 };
 
-/**
- * Date-range quick filter for the transactions table; drives the `from`/`to` route search params.
- * The half-picked range lives in local state and is only pushed to the params — reloading the
- * table — once both ends are chosen, so picking a start date doesn't filter on it alone.
- */
+const toDateKey = (date: Date) => format(date, "yyyy-MM-dd");
+
+function getRangeError({ from, to }: DateRangeValues, today: string) {
+  if (from > today || to > today) return "Dates cannot be in the future.";
+  if (from && to && from > to) return "End date must be on or after start date.";
+  return undefined;
+}
+
+/** Two native date boundaries that drive the transaction route search params. */
 export function TransactionsDateRangeFilter({ from, to }: Props) {
   const navigate = useNavigate({ from: "/transactions" });
-  const datePicker = useRef<DatePickerActions>(null);
-  const [range, setRange] = useState(() => toDateRange(from, to));
-  const [applied, setApplied] = useState({ from, to });
+  const errorId = useId();
+  const [values, setValues] = useState<DateRangeValues>({ from: from ?? "", to: to ?? "" });
+  const today = new Date();
+  const todayKey = toDateKey(today);
+  const error = getRangeError(values, todayKey);
 
-  // Re-sync the in-progress range when the params change from the outside (back/forward, a link).
-  if (applied.from !== from || applied.to !== to) {
-    setApplied({ from, to });
-    setRange(toDateRange(from, to));
-  }
+  useEffect(() => {
+    setValues({ from: from ?? "", to: to ?? "" });
+  }, [from, to]);
 
-  const applyRange = (next: DateRange) =>
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        from: next.from && format(next.from, "yyyy-MM-dd"),
-        to: next.to && format(next.to, "yyyy-MM-dd"),
+  const applyRange = (next: DateRangeValues) => {
+    void navigate({
+      search: (previous) => ({
+        ...previous,
+        from: next.from || undefined,
+        to: next.to || undefined,
       }),
     });
-
-  const handleSelect = (next: DateRange | undefined) => {
-    const nextRange = next ?? EMPTY_RANGE;
-    setRange(nextRange);
-    // A range with only one end is still being picked — leave the table alone until it's complete.
-    if (!nextRange.from || !nextRange.to) return;
-    applyRange(nextRange);
-    datePicker.current?.close();
   };
 
-  const handleReset = () => {
-    setRange(EMPTY_RANGE);
-    applyRange(EMPTY_RANGE);
+  const updateBoundary = (boundary: keyof DateRangeValues, value: string) => {
+    const next = { ...values, [boundary]: value };
+    setValues(next);
+    if (!getRangeError(next, todayKey)) applyRange(next);
+  };
+
+  const applyPreset = (next: DateRangeValues) => {
+    setValues(next);
+    applyRange(next);
+  };
+
+  const clear = () => {
+    const next = { from: "", to: "" };
+    setValues(next);
+    applyRange(next);
   };
 
   return (
-    <DatePicker
-      actionsRef={datePicker}
-      mode="range"
-      selected={range}
-      onSelect={handleSelect}
-      label={filterLabel(range)}
-      onReset={range.from || range.to ? handleReset : undefined}
-      resetOnSelect
-      disabled={{ after: new Date() }}
-    />
+    <fieldset className="flex w-full min-w-0 flex-col gap-2">
+      <legend className="text-text text-sm font-bold">Date range</legend>
+      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+        <label className="text-text-muted flex min-w-0 flex-col gap-1 text-xs font-semibold">
+          From
+          <input
+            type="date"
+            value={values.from}
+            max={todayKey}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={error ? errorId : undefined}
+            onChange={(event) => updateBoundary("from", event.currentTarget.value)}
+            className="border-border bg-surface text-text focus-visible:ring-accent h-11 w-full min-w-0 rounded-2xl border px-3 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:h-9"
+          />
+        </label>
+        <label className="text-text-muted flex min-w-0 flex-col gap-1 text-xs font-semibold">
+          To
+          <input
+            type="date"
+            value={values.to}
+            max={todayKey}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={error ? errorId : undefined}
+            onChange={(event) => updateBoundary("to", event.currentTarget.value)}
+            className="border-border bg-surface text-text focus-visible:ring-accent h-11 w-full min-w-0 rounded-2xl border px-3 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:h-9"
+          />
+        </label>
+      </div>
+      {error && (
+        <p id={errorId} role="alert" className="text-danger text-sm">
+          {error}
+        </p>
+      )}
+      <div aria-label="Quick date ranges" className="flex flex-wrap gap-1.5">
+        <Button
+          variant="secondary"
+          className="h-11 px-2 text-xs md:h-8"
+          onClick={() => applyPreset({ from: toDateKey(subDays(today, 29)), to: todayKey })}
+        >
+          Last 30 days
+        </Button>
+        <Button
+          variant="secondary"
+          className="h-11 px-2 text-xs md:h-8"
+          onClick={() => applyPreset({ from: toDateKey(startOfMonth(today)), to: todayKey })}
+        >
+          This month
+        </Button>
+        <Button
+          variant="secondary"
+          className="h-11 px-2 text-xs md:h-8"
+          onClick={() => applyPreset({ from: toDateKey(startOfYear(today)), to: todayKey })}
+        >
+          This year
+        </Button>
+        {(values.from || values.to) && (
+          <Button variant="secondary" className="h-11 px-2 text-xs md:h-8" onClick={clear}>
+            Clear dates
+          </Button>
+        )}
+      </div>
+    </fieldset>
   );
 }

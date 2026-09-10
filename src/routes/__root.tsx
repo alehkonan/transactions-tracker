@@ -60,7 +60,7 @@ export const Route = createRootRoute({
         <head>
           <HeadContent />
         </head>
-        <body className="bg-background text-text min-h-dvh font-sans">
+        <body className="bg-background text-text flex h-dvh flex-col overflow-hidden font-sans">
           <Toast.Provider>
             <ServiceWorkerRegistration />
             {showNavbar && (
@@ -81,8 +81,9 @@ export const Route = createRootRoute({
                 by stylesheet order rather than by what is meant. */}
             <div
               className={twJoin(
-                !isLogin && (showNavbar ? "pt-8 md:pt-0" : "pt-8 md:pt-14"),
-                showNavbar && "pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-0",
+                "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto",
+                !isLogin && (showNavbar ? "pt-12 md:pt-0" : "pt-12 md:pt-14"),
+                showNavbar && "pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0",
               )}
             >
               {isLogin ? children : <SyncGate>{children}</SyncGate>}

@@ -12,6 +12,7 @@ import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
 import { runReadDatabaseTransaction } from "./database-resilience.server";
 import { loggerMiddleware } from "./logger.middleware";
+import { mutationIntentMismatchResponse } from "./mutation-receipts.server";
 import { executePush } from "./push-execution.server";
 import {
   logSyncEvent,
@@ -507,7 +508,7 @@ export const pushChanges = createServerFn({ method: "POST" })
         }),
       );
     } catch (error) {
-      const response = retryableSyncResponse(error);
+      const response = mutationIntentMismatchResponse(error) ?? retryableSyncResponse(error);
       if (response) throw response;
       throw error;
     }

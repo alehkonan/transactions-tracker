@@ -54,7 +54,7 @@ export function SyncGate({ children }: Props) {
 
   if (status === "error") {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
         <Title variant="card">Could not load your data</Title>
         <p className="text-text-muted max-w-sm text-sm">{error}</p>
         <Button variant="primary" onClick={() => void syncNow()}>
@@ -65,7 +65,7 @@ export function SyncGate({ children }: Props) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6">
       <LoaderCircleIcon className="text-text-muted size-8 animate-spin" aria-label="Loading" />
       <p className="text-text-muted text-sm">Loading your data…</p>
     </div>
