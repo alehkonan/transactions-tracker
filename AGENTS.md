@@ -16,6 +16,9 @@
 - Lefthook runs formatting and `lint:fix` on commit, then typecheck, unit tests,
   and `knip` before push. Do not run them redundantly unless the user requests
   it or they are needed to diagnose a specific change.
+- For end-to-end workflow interactions, add stable `data-testid` hooks and use
+  `getByTestId`; reserve role/name locators for tests that explicitly verify
+  accessibility semantics.
 - Run `pnpm generate-routes` after adding or renaming routes. Never edit
   `src/routeTree.gen.ts` by hand.
 - Assume the development server is available at `http://localhost:5454/` and
