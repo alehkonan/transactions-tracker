@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test";
-import { test } from "./fixtures/auth";
+import { createTransaction, E2E_ACCOUNT_NAME, test } from "./fixtures/auth";
 
 const TRANSACTION_COMMENT = "Mobile add action remains reachable";
+const FILTER_LAYOUT_COMMENT = "Clearing filters restores the ledger height";
 
 test("the add transaction action stays reachable above a populated mobile list", async ({
   onboardedPage: page,
@@ -23,4 +24,31 @@ test("the add transaction action stays reachable above a populated mobile list",
   await expect(addButton).toBeVisible();
   await addButton.click();
   await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("clearing filters restores the mobile transaction list height", async ({
+  onboardedPage: page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/transactions");
+  await createTransaction(page, FILTER_LAYOUT_COMMENT);
+
+  const list = page.getByRole("region", { name: "Transactions grouped by day" });
+  const listHeight = () =>
+    list.evaluate((element) => Math.round(element.getBoundingClientRect().height));
+  const initialHeight = await listHeight();
+
+  await page.getByRole("button", { name: "Transaction filters", exact: true }).click();
+  const filtersDialog = page.getByRole("dialog", { name: "Filters" });
+  await filtersDialog.getByText("All accounts", { exact: true }).click();
+  await page.getByRole("option", { name: E2E_ACCOUNT_NAME, exact: true }).click();
+  await filtersDialog.getByRole("button", { name: "Close filters" }).click();
+
+  await expect(
+    page.getByRole("button", { name: `Remove ${E2E_ACCOUNT_NAME} filter` }),
+  ).toBeVisible();
+  await expect.poll(listHeight).toBeLessThan(initialHeight);
+
+  await page.getByRole("button", { name: "Clear all", exact: true }).click();
+  await expect.poll(listHeight).toBe(initialHeight);
 });

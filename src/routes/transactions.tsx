@@ -148,10 +148,10 @@ export const Route = createFileRoute("/transactions")({
       );
 
     return (
-      <PageContainer>
+      <PageContainer className="flex min-h-0 w-full flex-1">
         <main
           aria-labelledby="transactions-heading"
-          className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-2 md:py-6"
+          className="mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 py-2 md:py-6"
         >
           <header className="flex items-end justify-between gap-4">
             <div>
@@ -218,38 +218,40 @@ export const Route = createFileRoute("/transactions")({
             </div>
           </div>
 
-          {activeFilters.length > 0 && (
-            <div
-              aria-label="Active transaction filters"
-              className="flex flex-wrap items-center gap-2"
-            >
-              {activeFilters.map((filter) => (
-                <button
-                  key={filter.key}
-                  type="button"
-                  onClick={() => void filter.onClear()}
-                  aria-label={`Remove ${filter.label} filter`}
-                  className="border-border bg-surface-muted text-text hover:bg-surface-active focus-visible:ring-accent inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none md:min-h-8"
-                >
-                  <span className="max-w-56 truncate">{filter.label}</span>
-                  <XIcon className="size-3.5 shrink-0" />
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => void clearFilters()}
-                className="text-text-muted hover:text-text focus-visible:ring-accent min-h-11 rounded-full px-2 text-sm underline decoration-current underline-offset-4 focus-visible:ring-2 focus-visible:outline-none md:min-h-8"
+          <div className="flex min-h-0 flex-col gap-4">
+            {activeFilters.length > 0 && (
+              <div
+                aria-label="Active transaction filters"
+                className="flex flex-wrap items-center gap-2"
               >
-                Clear all
-              </button>
-            </div>
-          )}
+                {activeFilters.map((filter) => (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => void filter.onClear()}
+                    aria-label={`Remove ${filter.label} filter`}
+                    className="border-border bg-surface-muted text-text hover:bg-surface-active focus-visible:ring-accent inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none md:min-h-8"
+                  >
+                    <span className="max-w-56 truncate">{filter.label}</span>
+                    <XIcon className="size-3.5 shrink-0" />
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => void clearFilters()}
+                  className="text-text-muted hover:text-text focus-visible:ring-accent min-h-11 rounded-full px-2 text-sm underline decoration-current underline-offset-4 focus-visible:ring-2 focus-visible:outline-none md:min-h-8"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
 
-          {transactions.length > 0 ? (
-            <TransactionsList rowsByDay={transactionsByDay} onRowClick={setEditingTransaction} />
-          ) : (
-            emptyState
-          )}
+            {transactions.length > 0 ? (
+              <TransactionsList rowsByDay={transactionsByDay} onRowClick={setEditingTransaction} />
+            ) : (
+              emptyState
+            )}
+          </div>
 
           <Dialog title="Add transaction" open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <TransactionForm accounts={accounts} categories={categories} />

@@ -1,13 +1,13 @@
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { format } from "date-fns";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { twJoin } from "tailwind-merge";
 import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { ApproxUsdTag } from "~/modules/transactions/ApproxUsdTag";
 import { DayHeader } from "~/modules/transactions/DayHeader";
 import { transactionTypeIcons } from "~/modules/transactions/transaction-type-tag";
 import { formatMoney } from "~/utils/format-money";
-import type { CSSProperties, RefObject } from "react";
+import type { CSSProperties } from "react";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type Props = {
@@ -43,61 +43,6 @@ function detailLine(row: TransactionRow): string {
     .join(" · ");
 }
 
-/** Never shrink below this, however little room a short viewport leaves. */
-const MIN_HEIGHT = 240;
-
-/**
- * How much room the page keeps below `element`: every ancestor's bottom padding, and anything
- * placed after it — here the page container's own padding and the `pb-24` the shell reserves for
- * the fixed navbar.
- *
- * Walked rather than read off `document.documentElement.scrollHeight`, which never reports less
- * than the viewport: once the list had shrunk, the slack under it counted as reserved space and it
- * could never grow back. `body` is excluded for the same reason — it carries `min-h-dvh`, so its
- * box is the viewport's, not the content's.
- */
-function measureReservedBelow(element: HTMLElement): number {
-  let reserved = 0;
-
-  for (let node = element; node.parentElement && node.parentElement !== document.body;) {
-    const parent = node.parentElement;
-    reserved += parent.getBoundingClientRect().bottom - node.getBoundingClientRect().bottom;
-    node = parent;
-  }
-
-  return reserved;
-}
-
-function useAvailableHeight(ref: RefObject<HTMLElement | null>): number | undefined {
-  const [height, setHeight] = useState<number>();
-
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const measure = () => {
-      const top = element.getBoundingClientRect().top + window.scrollY;
-      const available = window.innerHeight - top - measureReservedBelow(element);
-      setHeight(Math.max(MIN_HEIGHT, available));
-    };
-
-    measure();
-    // The body, because everything that can move this element's top is inside it — the filter row
-    // wrapping, the sync strip changing height. Applying the measurement resizes the body in turn,
-    // which re-runs this to the same answer and settles there.
-    const observer = new ResizeObserver(measure);
-    observer.observe(document.body);
-    window.addEventListener("resize", measure);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [ref]);
-
-  return height;
-}
-
 function toListItems(rowsByDay: Map<string, TransactionRow[]>): ListItem[] {
   const items: ListItem[] = [];
   for (const [day, rows] of rowsByDay) {
@@ -117,8 +62,7 @@ function toListItems(rowsByDay: Map<string, TransactionRow[]>): ListItem[] {
  * virtualised the same way, since the row count is the same row count.
  */
 export function TransactionsList({ rowsByDay, onRowClick }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const height = useAvailableHeight(containerRef);
+  const containerRef = useRef<HTMLElement>(null);
 
   const items = useMemo(() => toListItems(rowsByDay), [rowsByDay]);
   const dayIndexes = useMemo(
@@ -157,9 +101,8 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
   return (
     <section
       ref={containerRef}
-      style={{ height }}
       aria-label="Transactions grouped by day"
-      className="border-border bg-surface isolate -mx-4 h-[75dvh] overflow-x-hidden overflow-y-auto border-y md:mx-0 md:rounded-xl md:border"
+      className="border-border bg-surface isolate -mx-4 min-h-60 flex-1 overflow-x-hidden overflow-y-auto border-y md:mx-0 md:rounded-xl md:border"
     >
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
