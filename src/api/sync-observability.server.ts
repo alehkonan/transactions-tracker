@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
+import { format } from "date-fns";
 import type { Mutation } from "~/modules/sync/sync-types";
 
 const MAX_PHASE_RECORDS = 100;
@@ -33,6 +34,63 @@ type ErrorDetails = {
 
 const requestLogStorage = new AsyncLocalStorage<RequestLogContext>();
 
+function text(value: LogFields[string]): string | undefined {
+  // Keep log values on one line and prevent injected terminal escape sequences.
+  // oxlint-disable-next-line no-control-regex
+  const controlCharacters = /[\u0000-\u001f\u007f-\u009f]/g;
+  return typeof value === "string" ? value.replace(controlCharacters, " ") : JSON.stringify(value);
+}
+
+function formatConsoleRecord(record: LogFields, color: boolean): string {
+  const paint = (label: string, code: number) =>
+    color ? `\u001b[${code}m${label}\u001b[0m` : label;
+  const parts = [
+    paint(format(new Date(String(record.timestamp)), "yyyy-MM-dd HH:mm:ss:SSS"), 90),
+    paint(
+      String(record.level).toUpperCase(),
+      record.level === "error" ? 31 : record.level === "warn" ? 33 : 32,
+    ),
+    paint(String(text(record.operation ?? "runtime")), 36),
+    String(text(record.event)),
+  ];
+  if (record.phase != null) parts.push(paint(String(text(record.phase)), 36));
+  if (record.method != null) parts.push(String(text(record.method)));
+  if (typeof record.status === "number") {
+    parts.push(
+      paint(String(record.status), record.status >= 500 ? 31 : record.status >= 400 ? 33 : 32),
+    );
+  }
+  if (typeof record.durationMs === "number") {
+    parts.push(
+      paint(
+        `${record.durationMs} ms`,
+        record.durationMs >= 1000 ? 31 : record.durationMs >= 250 ? 33 : 32,
+      ),
+    );
+  }
+  if (record.cold === true) parts.push(paint("cold start", 33));
+
+  const displayed = new Set([
+    "timestamp",
+    "level",
+    "operation",
+    "event",
+    "phase",
+    "method",
+    "status",
+    "durationMs",
+    "cold",
+  ]);
+  for (const [key, value] of Object.entries(record)) {
+    if (value === undefined || displayed.has(key)) continue;
+    // Generated server-function URLs add noise; the operation identifies the handler.
+    if (key === "pathname" && typeof value === "string" && value.startsWith("/_serverFn/"))
+      continue;
+    parts.push(paint(`${key}=${text(value)}`, key.endsWith("Id") ? 90 : 37));
+  }
+  return parts.join(" · ");
+}
+
 function emit(level: "error" | "info" | "warn", event: string, fields: LogFields = {}): void {
   const context = requestLogStorage.getStore();
   const record = {
@@ -52,7 +110,13 @@ function emit(level: "error" | "info" | "warn", event: string, fields: LogFields
         }),
     ...fields,
   };
-  const line = JSON.stringify(record);
+  const stream = level === "info" ? process.stdout : process.stderr;
+  const color =
+    Boolean(stream.isTTY) && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb";
+  const line =
+    process.env.NODE_ENV === "production"
+      ? JSON.stringify(record)
+      : formatConsoleRecord(record, color);
 
   if (level === "error") console.error(line);
   else if (level === "warn") console.warn(line);
