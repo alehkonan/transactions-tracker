@@ -1,20 +1,26 @@
+import { useId } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { twJoin } from "tailwind-merge";
 import { Card } from "~/components/Card";
 import { Title } from "~/components/Title";
+import { pickMoneyTicks } from "~/modules/statistics/spending-trend-ticks";
 import { formatMoney } from "~/utils/format-money";
 import type { TooltipContentProps } from "recharts";
 import type { SpendingTrendPoint } from "~/modules/statistics/compute-monthly-spending-trend";
 
 const formatUsd = (value: number) => formatMoney(String(value), "USD");
 
-/** `$2,500` → `$2.5k` — an axis label, not a quote, so one decimal and a `k` are enough. */
+const compactUsd = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
+  currencyDisplay: "narrowSymbol",
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
 function formatUsdCompact(value: number) {
-  if (value >= 1000) {
-    const thousands = value / 1000;
-    return `$${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}k`;
-  }
-  return `$${value}`;
+  if (value >= 1e15) return `$${value.toExponential(1)}`;
+  return value >= 1000 ? compactUsd.format(value) : formatUsd(value);
 }
 
 /**
@@ -28,12 +34,6 @@ function pickWeekTicks(year: number, monthIndex: number, daysInMonth: number) {
   }
   if (ticks.at(-1) !== daysInMonth) ticks.push(daysInMonth);
   return ticks;
-}
-
-/** $500-spaced ticks from 0 up to the smallest multiple of 500 that covers `maxValue`. */
-function pickMoneyTicks(maxValue: number, step = 500) {
-  const top = Math.ceil(Math.max(maxValue, step) / step) * step;
-  return Array.from({ length: top / step + 1 }, (_, i) => i * step);
 }
 
 type TickProps = { x?: string | number; y?: string | number; payload?: { value: number } };
@@ -64,16 +64,6 @@ const renderUsdTick = ({ x, y, payload }: TickProps) => (
   </text>
 );
 
-const renderChartTooltip = ({ active, payload, label }: TooltipContentProps) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <Card>
-      <Title variant="tooltip">{`Day ${label}`}</Title>
-      <p className="text-danger text-sm font-semibold">{formatUsd(Number(payload[0]?.value))}</p>
-    </Card>
-  );
-};
-
 type Props = {
   hasSpendingData: boolean;
   month: string;
@@ -81,7 +71,17 @@ type Props = {
 };
 
 export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
+  const summaryId = useId();
   const [year, monthNum] = month.split("-").map(Number);
+  const monthLabel = new Date(year, monthNum - 1, 1).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const formatDay = (day: number) =>
+    new Date(year, monthNum - 1, day).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
   // A current-month series must not run flat into the future — the cumulative total stops at
   // today and the axis stops with it, so the line reads as "spending so far" rather than
   // "spending stopped". Past months keep their full shape.
@@ -93,10 +93,36 @@ export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
     Math.max(0, ...visibleTrend.map((point) => point.cumulativeUsd)),
   );
 
+  const total = visibleTrend.at(-1)?.cumulativeUsd ?? 0;
+  const chartName = `Cumulative spending for ${monthLabel} in USD`;
+  const renderChartTooltip = ({ active, payload, label }: TooltipContentProps) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <Card>
+        <Title variant="tooltip">{`Spent through ${formatDay(Number(label))}`}</Title>
+        <p className="text-danger font-mono text-sm font-semibold tabular-nums">
+          {formatUsd(Number(payload[0]?.value))}
+        </p>
+      </Card>
+    );
+  };
+
   return (
     <Card>
-      {!hasSpendingData ? (
-        <p className="text-text-muted text-sm">No spending data yet.</p>
+      <div id={summaryId} className="mb-3 text-sm">
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span>
+            {monthLabel} {isCurrentMonth ? "month-to-date" : "total"}:
+          </span>
+          <span className="font-mono font-semibold tabular-nums">{formatUsd(total)}</span>
+        </p>
+        <p className="text-text-muted">
+          Running total, not daily spending.
+          {isCurrentMonth && ` Through ${formatDay(now.getDate())}.`}
+        </p>
+      </div>
+      {!hasSpendingData || visibleTrend.length === 0 ? (
+        <p className="text-text-muted text-sm">No spending data for {monthLabel}.</p>
       ) : (
         <div
           className={twJoin(
@@ -111,7 +137,13 @@ export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
           )}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={visibleTrend} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+            <AreaChart
+              data={visibleTrend}
+              margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+              accessibilityLayer
+              aria-label={chartName}
+              aria-describedby={summaryId}
+            >
               <defs>
                 <linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--color-danger)" stopOpacity={0.4} />
@@ -129,7 +161,7 @@ export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                width={44}
+                width={68}
                 domain={[0, moneyTicks.at(-1) ?? 0]}
                 ticks={moneyTicks}
                 tick={renderUsdTick}
@@ -145,6 +177,27 @@ export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
               />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+      )}
+      {hasSpendingData && visibleTrend.length > 0 && (
+        <div className="sr-only">
+          <table>
+            <caption>{chartName}. Running total at the end of each day.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Spent through date (USD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleTrend.map((point) => (
+                <tr key={point.day}>
+                  <th scope="row">{formatDay(point.day)}</th>
+                  <td>{formatUsd(point.cumulativeUsd)} USD</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </Card>
