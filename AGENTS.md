@@ -33,6 +33,11 @@
 - Keep generated migrations and the Drizzle schema in sync. Use
   `db:generate` followed by `db:migrate`; do not use `drizzle-kit push`.
 - Use semantic Tailwind tokens from `src/styles.css`, not raw color classes.
+- Default to native HTML controls, especially for phone-first inputs and pickers.
+  Keep React wrappers thin: styling, labels, validation, and form integration only.
+- Use Base UI only when it provides genuinely complex behavior such as focus
+  management, anchored positioning, or live-region orchestration. The retained
+  primitives are Dialog, Popover, and Toast; justify expanding that set.
 - Do not alter unrelated user changes. Ask before adding dependencies or running
   destructive database or Git commands.
 
