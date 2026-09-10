@@ -12,7 +12,7 @@ export function UploadStep() {
     <div className="flex flex-col gap-4">
       <FileInput
         file={file}
-        accept="text/csv"
+        accept=".csv,text/csv"
         onFileChange={(nextFile) => {
           if (nextFile) actions.selectFile(nextFile);
           else actions.clearFile();

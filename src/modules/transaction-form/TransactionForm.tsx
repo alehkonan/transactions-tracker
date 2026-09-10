@@ -1,12 +1,11 @@
-import { Toggle } from "@base-ui/react/toggle";
 import { ArrowDownIcon } from "lucide-react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
-import { DatePickerControl } from "~/components/DatePickerControl";
+import { DateTimeControl } from "~/components/DateTimeControl";
 import { InputControl } from "~/components/InputControl";
+import { RadioGroupControl } from "~/components/RadioGroupControl";
 import { SelectControl } from "~/components/SelectControl";
 import { TextareaControl } from "~/components/TextareaControl";
-import { ToggleGroupControl } from "~/components/ToggleGroupControl";
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
 import { DeleteTransactionButton } from "~/modules/transaction-form/DeleteTransactionButton";
 import { useTransactionForm } from "~/modules/transaction-form/useTransactionForm";
@@ -16,6 +15,7 @@ import {
   transactionTypeStyles,
 } from "~/modules/transactions/transaction-type-tag";
 import { formatMoney } from "~/utils/format-money";
+import { isMoneyInput } from "~/utils/money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
@@ -39,6 +39,14 @@ const necessityOptions = necessityLevelEnum.enumValues.map((value) => ({
   value,
   label: value.charAt(0) + value.slice(1).toLowerCase(),
 }));
+
+function validatePositiveAmount(value: string) {
+  if (!value.trim()) return "Amount is required.";
+  return (
+    (isMoneyInput(value) && Number(value) > 0) ||
+    "Enter a positive amount with no more than two decimal places."
+  );
+}
 
 type BalancePreviewProps = {
   account: AccountWithBalance | undefined;
@@ -95,70 +103,64 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-2">
-      <ToggleGroupControl
+      <RadioGroupControl
         control={control}
         name="type"
-        aria-label="Type"
-        className="border-border bg-surface flex gap-1 rounded-lg border p-1"
-      >
-        {typeOptions.map((option) => {
+        label="Type"
+        hideLabel
+        options={typeOptions.map((option) => {
           const Icon = transactionTypeIcons[option.value];
-          return (
-            <Toggle
-              key={option.value}
-              value={option.value}
-              className={(toggleState) =>
-                twMerge(
-                  "flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent text-sm transition-colors md:h-9",
-                  toggleState.pressed
-                    ? transactionTypeStyles[option.value]
-                    : "text-text-muted hover:bg-surface-muted",
-                )
-              }
-            >
-              <Icon className="size-4" />
-              {option.label}
-            </Toggle>
-          );
+          return {
+            value: option.value,
+            label: option.label,
+            content: (
+              <>
+                <Icon className="size-4" />
+                {option.label}
+              </>
+            ),
+          };
         })}
-      </ToggleGroupControl>
+        className="border-border bg-surface flex gap-1 rounded-lg border p-1"
+        optionClassName={(option, checked) =>
+          twMerge(
+            "h-11 gap-1.5 rounded-md border border-transparent text-sm transition-colors md:h-9",
+            checked
+              ? transactionTypeStyles[option.value as keyof typeof transactionTypeStyles]
+              : "text-text-muted hover:bg-surface-muted",
+          )
+        }
+      />
 
       {type !== "TRANSFER" ? (
         <>
           {type === "EXPENSE" && (
-            <ToggleGroupControl
+            <RadioGroupControl
               control={control}
               name="necessityLevel"
               label="Necessity"
-              aria-label="Necessity"
+              options={necessityOptions}
               className="border-border bg-surface flex items-center gap-1 rounded-lg border p-1"
-            >
-              {necessityOptions.map((option) => (
-                <Toggle
-                  key={option.value}
-                  value={option.value}
-                  className={(toggleState) =>
-                    twMerge(
-                      "min-h-11 flex-1 rounded-md border border-transparent text-sm capitalize transition-colors md:min-h-9",
-                      toggleState.pressed
-                        ? necessityLevelStyles[option.value]
-                        : "text-text-muted hover:bg-surface-muted",
-                    )
-                  }
-                >
-                  {option.label}
-                </Toggle>
-              ))}
-            </ToggleGroupControl>
+              optionClassName={(option, checked) =>
+                twMerge(
+                  "min-h-11 rounded-md border border-transparent text-sm capitalize transition-colors md:min-h-9",
+                  checked
+                    ? necessityLevelStyles[option.value as keyof typeof necessityLevelStyles]
+                    : "text-text-muted hover:bg-surface-muted",
+                )
+              }
+            />
           )}
 
-          <DatePickerControl
+          <DateTimeControl
             control={control}
             name="createdAt"
             label="Date & time"
-            // Money that has not moved yet isn't a transaction this app knows how to hold: it
-            // would count against balances and averages as though it had already been spent.
-            disabled={{ after: new Date() }}
+            max={new Date()}
+            rules={{
+              validate: (value) =>
+                value.getTime() <= Date.now() || "Date and time cannot be in the future.",
+            }}
           />
 
           <SelectControl
@@ -171,11 +173,15 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
           />
         </>
       ) : (
-        <DatePickerControl
+        <DateTimeControl
           control={control}
           name="createdAt"
           label="Date & time"
-          disabled={{ after: new Date() }}
+          max={new Date()}
+          rules={{
+            validate: (value) =>
+              value.getTime() <= Date.now() || "Date and time cannot be in the future.",
+          }}
         />
       )}
 
@@ -199,11 +205,11 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 control={control}
                 name="amount"
                 label="Amount"
-                rules={{ required: "Amount is required." }}
-                type="number"
+                rules={{ validate: validatePositiveAmount }}
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                min="0.01"
+                enterKeyHint="next"
+                autoComplete="off"
                 className="w-full"
               />
             </div>
@@ -229,11 +235,11 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 control={control}
                 name="toAmount"
                 label="Amount"
-                rules={{ required: "Amount is required." }}
-                type="number"
+                rules={{ validate: validatePositiveAmount }}
+                type="text"
                 inputMode="decimal"
-                step="0.01"
-                min="0.01"
+                enterKeyHint="next"
+                autoComplete="off"
                 className="w-full"
                 onChange={markToAmountTouched}
               />
@@ -258,11 +264,11 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             control={control}
             name="amount"
             label="Amount"
-            rules={{ required: "Amount is required." }}
-            type="number"
+            rules={{ validate: validatePositiveAmount }}
+            type="text"
             inputMode="decimal"
-            step="0.01"
-            min="0.01"
+            enterKeyHint="next"
+            autoComplete="off"
             className="w-full"
           />
         </div>
@@ -273,6 +279,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         name="comment"
         label="Comment"
         rows={2}
+        enterKeyHint="done"
         className="w-full"
       />
 

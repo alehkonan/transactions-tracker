@@ -16,22 +16,22 @@ export function TransactionsCategoryFilter({ categories, selected }: Props) {
   const navigate = useNavigate({ from: "/transactions" });
 
   const handleValueChange = (category: string | undefined) => {
-    setTimeout(() => {
-      navigate({ search: (prev) => ({ ...prev, category }) });
-    }, 0);
+    void navigate({ search: (prev) => ({ ...prev, category }) });
   };
 
-  const handleReset = () => navigate({ search: (prev) => ({ ...prev, category: undefined }) });
-
   return (
-    <Select
-      options={categories.map((category) => category.name)}
-      value={selected}
-      onValueChange={handleValueChange}
-      onReset={selected ? handleReset : undefined}
-      resetLabel="Clear category filter"
-      placeholder="All categories"
-      className="h-11 min-w-40 md:h-9"
-    />
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <label htmlFor="transaction-category-filter" className="text-text text-sm font-bold">
+        Category
+      </label>
+      <Select
+        id="transaction-category-filter"
+        options={categories.map((category) => category.name)}
+        value={selected}
+        onValueChange={handleValueChange}
+        placeholder="All categories"
+        className="w-full md:min-w-40"
+      />
+    </div>
   );
 }

@@ -1,12 +1,12 @@
-import { Field } from "@base-ui/react/field";
 import { TrashIcon } from "lucide-react";
-import { useContext, useState, useTransition } from "react";
+import { useContext, useId, useTransition } from "react";
 import { useController, useForm } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
-import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
+import { Popover } from "~/components/Popover";
+import { PopoverConfirm } from "~/components/PopoverConfirm";
 import {
   createCategory,
   deleteCategory,
@@ -43,12 +43,12 @@ export function CategoryForm({ colors, category }: Props) {
   const { control, handleSubmit, reset, formState } = useForm<CategoryFormValues>({
     defaultValues: getDefaultValues(category),
   });
+  const colorErrorId = useId();
   const { field: colorField, fieldState: colorState } = useController({
     control,
     name: "colorId",
     rules: { validate: (colorId) => colorId != null || "Pick a color." },
   });
-  const [isDeleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, startDeleteTransition] = useTransition();
 
   const handleDelete = () => {
@@ -78,49 +78,75 @@ export function CategoryForm({ colors, category }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-3">
-      <InputControl control={control} name="name" label="Name" rules={{ required: true }} />
-      <Field.Root className="flex flex-col gap-1">
-        <Field.Label className="text-text text-sm font-bold">Color</Field.Label>
+      <InputControl
+        control={control}
+        name="name"
+        label="Name"
+        rules={{ required: "Category name is required." }}
+        autoCapitalize="words"
+        enterKeyHint="next"
+      />
+      <fieldset className="flex flex-col gap-1">
+        <legend className="text-text text-sm font-bold">Color</legend>
         {colors.length === 0 ? (
           <p className="text-text-muted text-sm">No colors in the palette yet.</p>
         ) : (
           <div className="border-border bg-surface flex max-h-40 flex-wrap gap-2 overflow-y-auto rounded-lg border p-2">
-            {colors.map((color) => (
-              <button
+            {colors.map((color, index) => (
+              <label
                 key={color.id}
-                type="button"
-                aria-label={`Color option ${color.id}`}
-                aria-pressed={color.id === colorField.value}
-                onClick={() => colorField.onChange(color.id)}
-                onBlur={colorField.onBlur}
-                className={twMerge(
-                  "size-7 rounded-full border-2 transition-transform",
-                  color.id === colorField.value
-                    ? "border-text scale-110"
-                    : "border-transparent hover:scale-110",
-                )}
-                style={{ backgroundColor: getCategoryDisplayColor(color.id) }}
-              />
+                className="grid size-11 cursor-pointer place-items-center rounded-full sm:size-9"
+              >
+                <input
+                  ref={index === 0 ? colorField.ref : undefined}
+                  type="radio"
+                  name={colorField.name}
+                  value={color.id}
+                  checked={color.id === colorField.value}
+                  aria-label={`Color option ${color.id}`}
+                  aria-describedby={colorState.error ? colorErrorId : undefined}
+                  onChange={() => colorField.onChange(color.id)}
+                  onBlur={colorField.onBlur}
+                  className="peer sr-only"
+                />
+                <span
+                  className={twMerge(
+                    "peer-focus-visible:ring-accent block size-7 rounded-full border-2 transition-transform peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:outline-none",
+                    color.id === colorField.value
+                      ? "border-text scale-110"
+                      : "border-transparent hover:scale-110",
+                  )}
+                  style={{ backgroundColor: getCategoryDisplayColor(color.id) }}
+                />
+              </label>
             ))}
           </div>
         )}
         {colorState.error && (
-          <Field.Description className="text-danger text-sm">
+          <p id={colorErrorId} className="text-danger text-sm">
             {colorState.error.message}
-          </Field.Description>
+          </p>
         )}
-      </Field.Root>
+      </fieldset>
       <div className="flex items-center justify-between gap-2">
         {category && (
-          <Button
-            variant="danger"
-            type="button"
-            disabled={isDeleting}
-            onClick={() => setDeleteOpen(true)}
+          <Popover
+            aria-label="Remove category"
+            renderTrigger={({ onOpen }) => (
+              <Button variant="danger" type="button" disabled={isDeleting} onClick={onOpen}>
+                <TrashIcon className="size-4" />
+                Delete
+              </Button>
+            )}
           >
-            <TrashIcon className="size-4" />
-            Delete
-          </Button>
+            <PopoverConfirm
+              title="Remove category"
+              message={`Delete category "${category.name}"? Transactions using it will lose their category.`}
+              confirmLabel="Delete"
+              confirmVariant="danger"
+              onConfirm={handleDelete}
+            />
+          </Popover>
         )}
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" type="button" onClick={onClose}>
@@ -131,17 +157,6 @@ export function CategoryForm({ colors, category }: Props) {
           </Button>
         </div>
       </div>
-      {category && (
-        <ConfirmDialog
-          open={isDeleteOpen}
-          onOpenChange={setDeleteOpen}
-          title="Remove category"
-          message={`Delete category "${category.name}"? Transactions using it will lose their category.`}
-          confirmLabel="Delete"
-          confirmVariant="danger"
-          onConfirm={handleDelete}
-        />
-      )}
     </form>
   );
 }

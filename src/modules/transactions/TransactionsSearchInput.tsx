@@ -18,6 +18,9 @@ export function TransactionsSearchInput({ value, onValueChange }: Props) {
         id="transaction-search"
         name="transaction-search"
         type="search"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
         aria-keyshortcuts="/"
         value={value}
         onChange={(event) => onValueChange(event.target.value)}

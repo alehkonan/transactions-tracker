@@ -126,8 +126,7 @@ export async function contextWithStaleHints(page: Page): Promise<BrowserContext>
 }
 
 async function chooseOption(dialog: Locator, label: string, option: string): Promise<void> {
-  await dialog.getByLabel(label).click();
-  await dialog.page().getByRole("option", { name: option, exact: true }).click();
+  await dialog.getByLabel(label).selectOption({ label: option });
 }
 
 export async function installBootGateInstrumentation(page: Page): Promise<void> {

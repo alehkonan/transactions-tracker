@@ -1,11 +1,7 @@
-import { useState } from "react";
 import { Button } from "~/components/Button";
-import { ConfirmDialog } from "~/components/ConfirmDialog";
 import { PasskeyList } from "~/modules/auth/PasskeyList";
 import { PasswordSettings } from "~/modules/auth/PasswordSettings";
 import { useSecuritySettings } from "~/modules/auth/useSecuritySettings";
-
-type SelectedPasskey = { id: string };
 
 export function SecuritySection() {
   const {
@@ -18,7 +14,6 @@ export function SecuritySection() {
     addPasskey,
     deletePasskey,
   } = useSecuritySettings();
-  const [selectedPasskey, setSelectedPasskey] = useState<SelectedPasskey | null>(null);
 
   return (
     <div className="p-4">
@@ -81,7 +76,7 @@ export function SecuritySection() {
             <PasskeyList
               passkeys={credentials.passkeys}
               disabled={isMutating}
-              onRemove={setSelectedPasskey}
+              onRemove={(passkey) => void deletePasskey(passkey.id)}
             />
           </div>
           <div className="border-border border-t pt-4">
@@ -93,21 +88,6 @@ export function SecuritySection() {
           </div>
         </div>
       )}
-
-      <ConfirmDialog
-        open={selectedPasskey != null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedPasskey(null);
-        }}
-        title="Remove passkey"
-        message="Remove this passkey from your account? You will no longer be able to use it to sign in."
-        confirmLabel="Remove"
-        confirmVariant="danger"
-        onConfirm={() => {
-          if (selectedPasskey) void deletePasskey(selectedPasskey.id);
-          setSelectedPasskey(null);
-        }}
-      />
     </div>
   );
 }

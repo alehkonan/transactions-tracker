@@ -3,7 +3,8 @@ import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { signOut } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
-import { ConfirmDialog } from "~/components/ConfirmDialog";
+import { Popover } from "~/components/Popover";
+import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { resetLocalData } from "~/modules/sync/sync-engine";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 
@@ -12,7 +13,6 @@ export function SignOutButton() {
   const toastManager = Toast.useToastManager();
   const outboxCount = useSyncStore((state) => state.outboxCount);
   const [isPending, setIsPending] = useState(false);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   const handleSignOut = async () => {
     setIsPending(true);
@@ -39,20 +39,26 @@ export function SignOutButton() {
     ? `${outboxCount.toLocaleString()} unsynced ${changeLabel} exist only on this device. Signing out now permanently removes them along with the local copy.`
     : "Signing out removes this account’s local data from this browser. Data already on the server will download again after your next sign-in.";
 
+  const confirmationTitle = hasUnsyncedChanges
+    ? "Unsynced changes will be lost"
+    : "Sign out on this device";
+
   return (
-    <>
-      <Button variant="danger" onClick={() => setIsConfirmOpen(true)} disabled={isPending}>
-        {isPending ? "Signing out…" : "Sign out"}
-      </Button>
-      <ConfirmDialog
-        open={isConfirmOpen}
-        onOpenChange={setIsConfirmOpen}
-        title={hasUnsyncedChanges ? "Unsynced changes will be lost" : "Sign out on this device"}
+    <Popover
+      aria-label={confirmationTitle}
+      renderTrigger={({ onOpen }) => (
+        <Button variant="danger" onClick={onOpen} disabled={isPending}>
+          {isPending ? "Signing out…" : "Sign out"}
+        </Button>
+      )}
+    >
+      <PopoverConfirm
+        title={confirmationTitle}
         message={confirmationMessage}
         confirmLabel={hasUnsyncedChanges ? "Sign out anyway" : "Sign out"}
         confirmVariant="danger"
         onConfirm={() => void handleSignOut()}
       />
-    </>
+    </Popover>
   );
 }

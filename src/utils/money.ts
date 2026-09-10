@@ -6,6 +6,18 @@
  * cannot drift.
  */
 
+type MoneyInputOptions = {
+  allowNegative?: boolean;
+};
+
+const unsignedMoneyInput = /^(?:\d{1,12}(?:\.\d{1,2})?|\.\d{1,2})$/;
+const signedMoneyInput = /^-?(?:\d{1,12}(?:\.\d{1,2})?|\.\d{1,2})$/;
+
+/** Whether a user-entered string fits PostgreSQL `numeric(14,2)` without coercion or rounding. */
+export function isMoneyInput(value: string, { allowNegative = false }: MoneyInputOptions = {}) {
+  return (allowNegative ? signedMoneyInput : unsignedMoneyInput).test(value.trim());
+}
+
 /** Sums decimal money strings via integer cents, so a long list of them stays exact. */
 export function sumMoney(amounts: string[]): string {
   const totalCents = amounts.reduce((sum, amount) => sum + Math.round(Number(amount) * 100), 0);

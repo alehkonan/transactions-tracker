@@ -50,6 +50,25 @@ describe("calculateAccountBalancePreview", () => {
     ).toBe("29.90");
   });
 
+  it("does not preview values that cannot be stored as money", () => {
+    expect(
+      calculateAccountBalancePreview({
+        balance: "100.00",
+        selectedAccountId: "account-a",
+        amount: "0x10",
+        type: "EXPENSE",
+      }),
+    ).toBeUndefined();
+    expect(
+      calculateAccountBalancePreview({
+        balance: "100.00",
+        selectedAccountId: "account-a",
+        amount: "1.234",
+        type: "EXPENSE",
+      }),
+    ).toBeUndefined();
+  });
+
   it("preserves the original transfer leg sign while editing", () => {
     expect(
       calculateAccountBalancePreview({

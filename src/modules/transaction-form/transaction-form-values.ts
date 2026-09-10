@@ -1,5 +1,5 @@
 import { necessityLevelEnum, transactionTypeEnum } from "~/database/enums";
-import { negateMoney, sumMoney } from "~/utils/money";
+import { isMoneyInput, negateMoney, sumMoney } from "~/utils/money";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
 type NecessityLevel = (typeof necessityLevelEnum.enumValues)[number];
@@ -90,7 +90,7 @@ export function calculateAccountBalancePreview({
   transaction,
 }: AccountBalancePreviewOptions): string | undefined {
   const trimmedAmount = amount.trim();
-  if (!trimmedAmount || !Number.isFinite(Number(trimmedAmount))) return undefined;
+  if (!isMoneyInput(trimmedAmount) || Number(trimmedAmount) <= 0) return undefined;
 
   const signedAmount = getSignedTransactionAmount(trimmedAmount, type, transaction);
   const originalAmount =

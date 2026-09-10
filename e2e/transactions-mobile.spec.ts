@@ -14,8 +14,7 @@ test("the add transaction action stays reachable above a populated mobile list",
   await addButton.click();
 
   const createDialog = page.getByRole("dialog");
-  await createDialog.getByLabel("Account").click();
-  await page.getByRole("option", { name: /E2E Account \(USD\)/ }).click();
+  await createDialog.getByLabel("Account").selectOption({ label: `${E2E_ACCOUNT_NAME} (USD)` });
   await createDialog.getByLabel("Amount").fill("12.34");
   await createDialog.getByLabel("Comment").fill(TRANSACTION_COMMENT);
   await createDialog.getByRole("button", { name: "Save", exact: true }).click();
@@ -40,8 +39,7 @@ test("clearing filters restores the mobile transaction list height", async ({
 
   await page.getByRole("button", { name: "Transaction filters", exact: true }).click();
   const filtersDialog = page.getByRole("dialog", { name: "Filters" });
-  await filtersDialog.getByText("All accounts", { exact: true }).click();
-  await page.getByRole("option", { name: E2E_ACCOUNT_NAME, exact: true }).click();
+  await filtersDialog.getByLabel("Account").selectOption({ label: E2E_ACCOUNT_NAME });
   await filtersDialog.getByRole("button", { name: "Close filters" }).click();
 
   await expect(

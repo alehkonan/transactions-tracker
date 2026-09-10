@@ -153,8 +153,3 @@ a {
 hr {
   border-top-style: dashed;
 }
-
-.popover {
-  position-area: bottom;
-  position-try-fallbacks: flip-inline, flip-block;
-}

@@ -48,6 +48,8 @@ export function ProfileForm({ profile }: Props) {
         name="name"
         label="Profile name"
         placeholder="Profile name"
+        autoCapitalize="words"
+        enterKeyHint="done"
         rules={{ validate: (value) => value.trim().length > 0 || "Profile name is required." }}
       />
       <div className="flex justify-end gap-2">
