@@ -3,7 +3,7 @@ import { useController } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
 import type { Control, FieldPathByValue, FieldValues, UseControllerProps } from "react-hook-form";
 
-export type RadioOption = {
+type RadioOption = {
   value: string;
   label: string;
   content?: ReactNode;

@@ -250,29 +250,35 @@ describe("statistics summary", () => {
       }
       await act(async () => renderToggle());
 
-      const group = container.querySelector('[role="group"]')!;
-      expect(group.getAttribute("aria-label")).toMatch(
+      const group = container.querySelector("fieldset")!;
+      expect(text(group.querySelector("legend")!)).toMatch(
         /spending history.*runway and daily averages/i,
       );
-      const buttons = [...group.querySelectorAll("button")];
-      expect(buttons.map((button) => button.textContent)).toEqual(["3M", "6M", "1Y"]);
-      expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
-        "3M: last 3 months",
-        "6M: last 6 months",
-        "1Y: last year",
+      const radios = [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+      expect(radios.map((radio) => radio.labels?.[0]?.textContent)).toEqual(["3M", "6M", "1Y"]);
+      expect(radios.map((radio) => radio.getAttribute("aria-label"))).toEqual([
+        "Last 3 months",
+        "Last 6 months",
+        "Last year",
       ]);
-      expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
+      expect(radios.filter((radio) => radio.checked)).toHaveLength(1);
+      expect(radios[0].checked).toBe(true);
 
       const index = (["3m", "6m", "1y"] as const).indexOf(period);
-      await act(async () => buttons[index].click());
-      expect(onValueChange).toHaveBeenLastCalledWith(period);
+      const target = radios[index];
+      if (!target.checked) {
+        await act(async () => target.click());
+        expect(onValueChange).toHaveBeenLastCalledWith(period);
+      }
       expect(value).toBe(period);
-      expect(group.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
-      expect(buttons[index].getAttribute("aria-pressed")).toBe("true");
-      await act(async () => buttons[index].click());
-      expect(onValueChange).toHaveBeenLastCalledWith(period);
-      expect(group.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
-      expect(buttons[index].getAttribute("aria-pressed")).toBe("true");
+      expect(radios.filter((radio) => radio.checked)).toHaveLength(1);
+      expect(target.checked).toBe(true);
+
+      const changeCount = onValueChange.mock.calls.length;
+      await act(async () => target.click());
+      expect(onValueChange).toHaveBeenCalledTimes(changeCount);
+      expect(radios.filter((radio) => radio.checked)).toHaveLength(1);
+      expect(target.checked).toBe(true);
     },
   );
 });

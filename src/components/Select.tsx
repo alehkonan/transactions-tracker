@@ -1,7 +1,7 @@
 import { twMerge } from "tailwind-merge";
 import type { ComponentProps } from "react";
 
-export type SelectOption = {
+type SelectOption = {
   value: string;
   label: string;
 };
