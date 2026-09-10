@@ -18,6 +18,8 @@
   it or they are needed to diagnose a specific change.
 - Run `pnpm generate-routes` after adding or renaming routes. Never edit
   `src/routeTree.gen.ts` by hand.
+- Assume the development server is available at `http://localhost:5454/` and
+  check that URL first. Only suggest starting the server when it is unavailable.
 - Whenever an agent creates commits, format every commit message using
   Conventional Commits and split the work into logically separate commits by
   concrete change.
