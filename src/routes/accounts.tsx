@@ -67,10 +67,7 @@ export const Route = createFileRoute("/accounts")({
       <PageContainer>
         <main aria-labelledby="accounts-heading" className="py-2 md:py-6">
           <div className="flex flex-col gap-8">
-            <h1
-              id="accounts-heading"
-              className="text-text font-display text-2xl font-bold md:text-3xl"
-            >
+            <h1 id="accounts-heading" className="sr-only">
               Accounts
             </h1>
 

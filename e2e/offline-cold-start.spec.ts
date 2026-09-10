@@ -24,5 +24,7 @@ test("opens a warm app after a cold reload without a connection", async ({
 
   // The route chunk is lazy-loaded, so this also proves the complete client asset graph was cached.
   await page.getByRole("link", { name: "Statistics" }).click();
-  await expect(page.getByRole("heading", { name: "Statistics" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Statistics", includeHidden: true }),
+  ).toBeAttached();
 });

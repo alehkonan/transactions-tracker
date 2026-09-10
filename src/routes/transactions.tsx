@@ -153,15 +153,13 @@ export const Route = createFileRoute("/transactions")({
           aria-labelledby="transactions-heading"
           className="mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 py-2 md:py-6"
         >
-          <header className="flex items-end justify-between gap-4">
-            <div>
-              <h1 id="transactions-heading" className="text-text text-2xl font-bold md:text-3xl">
-                Transactions
-              </h1>
-              <p aria-live="polite" className="text-text-muted mt-1 text-sm">
-                {transactionCountLabel}
-              </p>
-            </div>
+          <header>
+            <h1 id="transactions-heading" className="sr-only">
+              Transactions
+            </h1>
+            <p aria-live="polite" className="text-text-muted text-sm">
+              {transactionCountLabel}
+            </p>
           </header>
 
           <div className="flex items-center gap-2">

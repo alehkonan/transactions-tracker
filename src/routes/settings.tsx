@@ -27,10 +27,12 @@ export const Route = createFileRoute("/settings")({
 
     return (
       <PageContainer>
-        <main className="mx-auto max-w-4xl py-2 sm:py-6">
+        <main aria-labelledby="settings-heading" className="mx-auto max-w-4xl py-2 sm:py-6">
           <header className="mb-8">
-            <Title variant="page">Settings</Title>
-            <p className="text-text-muted mt-2 max-w-2xl">
+            <h1 id="settings-heading" className="sr-only">
+              Settings
+            </h1>
+            <p className="text-text-muted max-w-2xl">
               Manage your account, active profile, and the financial data stored on this device.
             </p>
           </header>

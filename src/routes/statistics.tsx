@@ -72,9 +72,11 @@ export const Route = createFileRoute("/statistics")({
 
     return (
       <PageContainer>
-        <main className="flex flex-col gap-4">
-          <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <Title variant="page">Statistics</Title>
+        <main aria-labelledby="statistics-heading" className="flex flex-col gap-4">
+          <header className="flex justify-end">
+            <h1 id="statistics-heading" className="sr-only">
+              Statistics
+            </h1>
             <p className="text-text-muted text-sm">All amounts in USD</p>
           </header>
           <section aria-label="Runway and daily averages">
