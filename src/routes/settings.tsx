@@ -54,7 +54,7 @@ export const Route = createFileRoute("/settings")({
                     <h3 className="text-text font-bold">Username</h3>
                     <p className="text-text-muted text-sm">The account currently signed in.</p>
                   </div>
-                  <span className="text-text max-w-[50%] min-w-0 text-right font-medium break-words">
+                  <span className="text-text max-w-[50%] min-w-0 text-right font-medium wrap-break-word">
                     {username ?? "Signed in"}
                   </span>
                 </div>
