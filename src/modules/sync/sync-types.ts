@@ -227,7 +227,7 @@ type SerializeDates<T> = T extends Date
 export type AcceptanceCanonicalRow = SerializeDates<SyncedRows[SyncedTable][number]>;
 
 /** What the canonical entity represented when a stale-base mutation was accepted. */
-export type AcceptanceOutcomeClassification =
+type AcceptanceOutcomeClassification =
   | "intent-applied"
   | "canonical-deleted"
   | "canonical-diverged";
