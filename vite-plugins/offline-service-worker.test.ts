@@ -15,47 +15,37 @@ afterEach(async () => {
   );
 });
 
+async function generateWorker(): Promise<string> {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "transactions-tracker-worker-"));
+  temporaryDirectories.push(temporaryRoot);
+  const outputDirectory = join(temporaryRoot, "client");
+  await fs.mkdir(outputDirectory);
+
+  const plugin = offlineServiceWorker();
+  if (typeof plugin.configResolved !== "function" || typeof plugin.writeBundle !== "function") {
+    throw new Error("The offline service-worker plugin is missing its build hooks.");
+  }
+
+  Reflect.apply(plugin.configResolved, undefined, [
+    { root: process.cwd(), build: { outDir: "dist" } } as ResolvedConfig,
+  ]);
+  await Reflect.apply(plugin.writeBundle, undefined, [{ dir: outputDirectory }, {}]);
+
+  return fs.readFile(join(outputDirectory, "sw.js"), "utf8");
+}
+
 describe("offlineServiceWorker", () => {
-  it("inlines the portable acceptance kernel without application imports", async () => {
-    const temporaryRoot = await mkdtemp(join(tmpdir(), "transactions-tracker-worker-"));
-    temporaryDirectories.push(temporaryRoot);
-    const outputDirectory = join(temporaryRoot, "client");
-    await fs.mkdir(outputDirectory);
+  it("inlines the portable acceptance kernel without module syntax or placeholders", async () => {
+    const worker = await generateWorker();
 
-    const plugin = offlineServiceWorker();
-    if (typeof plugin.configResolved !== "function" || typeof plugin.writeBundle !== "function") {
-      throw new Error("The offline service-worker plugin is missing its build hooks.");
-    }
-
-    Reflect.apply(plugin.configResolved, undefined, [
-      { root: process.cwd(), build: { outDir: "dist" } } as ResolvedConfig,
-    ]);
-    await Reflect.apply(plugin.writeBundle, undefined, [{ dir: outputDirectory }, {}]);
-
-    const worker = await fs.readFile(join(outputDirectory, "sw.js"), "utf8");
     expect(worker).toContain("__outboxAcceptanceKernel");
     expect(worker).toContain("The server confirmed none of the pushed changes.");
-    expect(worker).not.toContain("__OUTBOX_ACCEPTANCE_KERNEL__");
-    expect(worker).not.toMatch(/(?:^|\n)\s*import\s/);
+    expect(worker).not.toMatch(/__[A-Z][A-Z0-9_]*__/);
+    expect(worker).not.toMatch(/(?:^|\n)\s*(?:import|export)\s/m);
   });
 
-  it("emits a classic script that executes at the worker top level", async () => {
-    const temporaryRoot = await mkdtemp(join(tmpdir(), "transactions-tracker-worker-"));
-    temporaryDirectories.push(temporaryRoot);
-    const outputDirectory = join(temporaryRoot, "client");
-    await fs.mkdir(outputDirectory);
-
-    const plugin = offlineServiceWorker();
-    if (typeof plugin.configResolved !== "function" || typeof plugin.writeBundle !== "function") {
-      throw new Error("The offline service-worker plugin is missing its build hooks.");
-    }
-
-    Reflect.apply(plugin.configResolved, undefined, [
-      { root: process.cwd(), build: { outDir: "dist" } } as ResolvedConfig,
-    ]);
-    await Reflect.apply(plugin.writeBundle, undefined, [{ dir: outputDirectory }, {}]);
-
-    const worker = await fs.readFile(join(outputDirectory, "sw.js"), "utf8");
+  it("emits a classic script with an available kernel and safe event handlers", async () => {
+    const worker = await generateWorker();
     const listeners: string[] = [];
     const context = createContext({
       URL,
@@ -71,6 +61,13 @@ describe("offlineServiceWorker", () => {
     });
 
     expect(() => new Script(worker, { filename: "sw.js" }).runInContext(context)).not.toThrow();
-    expect(listeners).toEqual(["install", "activate", "fetch", "sync"]);
+    expect(
+      new Script("__outboxAcceptanceKernel.drainOutbox", {
+        filename: "kernel-check.js",
+      }).runInContext(context),
+    ).toBeTypeOf("function");
+    expect(listeners).toEqual(["install", "activate", "fetch"]);
+    expect(worker).not.toContain('fetch("/api/push"');
+    expect(worker).not.toContain("indexedDB.open");
   });
 });
