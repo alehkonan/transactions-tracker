@@ -1,6 +1,11 @@
 // This file is a template. Vite stamps the build id, precache list and portable acceptance kernel
 // into the copy emitted to dist/client. Keeping the worker standalone avoids application imports.
 const BUILD_ID = __BUILD_ID__;
+const DATABASE_NAME = __DATABASE_NAME__;
+const DATABASE_VERSION = __DATABASE_VERSION__;
+if (typeof DATABASE_NAME !== "string" || !Number.isInteger(DATABASE_VERSION)) {
+  throw new Error("The service worker has an invalid IndexedDB contract.");
+}
 const CACHE_PREFIX = "transactions-tracker-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const PRECACHE = ["/", ...__PRECACHE__];

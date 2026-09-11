@@ -40,6 +40,8 @@ describe("offlineServiceWorker", () => {
 
     expect(worker).toContain("__outboxAcceptanceKernel");
     expect(worker).toContain("The server confirmed none of the pushed changes.");
+    expect(worker).toContain('const DATABASE_NAME = "transactions-tracker";');
+    expect(worker).toContain("const DATABASE_VERSION = 3;");
     expect(worker).not.toMatch(/__[A-Z][A-Z0-9_]*__/);
     expect(worker).not.toMatch(/(?:^|\n)\s*(?:import|export)\s/m);
   });

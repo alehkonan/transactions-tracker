@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import { basename, resolve } from "node:path";
 import { transformWithOxc, type Plugin, type ResolvedConfig } from "vite";
+import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "../src/modules/sync/indexed-db-contract";
 
 const OUTBOX_ACCEPTANCE_MARKER = "/* __OUTBOX_ACCEPTANCE_KERNEL__ */";
 
@@ -45,6 +46,8 @@ return { drainOutbox };
       const worker = template
         .replace(OUTBOX_ACCEPTANCE_MARKER, standaloneKernel)
         .replace("__BUILD_ID__", JSON.stringify(`build-${Date.now()}`))
+        .replace("__DATABASE_NAME__", JSON.stringify(INDEXED_DB_NAME))
+        .replace("__DATABASE_VERSION__", String(INDEXED_DB_VERSION))
         .replace("__PRECACHE__", JSON.stringify(precache));
 
       await fs.writeFile(resolve(outDir, "sw.js"), worker);
