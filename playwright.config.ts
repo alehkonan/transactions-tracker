@@ -4,14 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 loadEnvFile(".env");
 
 const isPwaRun = process.argv.includes("--project=pwa") || process.env.PLAYWRIGHT_PWA === "true";
-const requiredE2eEnvironment = ["E2E_TEST_USERNAME", "E2E_TEST_PASSWORD"] as const;
-const missingE2eEnvironment = requiredE2eEnvironment.filter((name) => !process.env[name]?.trim());
-
-if (missingE2eEnvironment.length > 0) {
-  throw new Error(
-    `Playwright E2E configuration error: set ${missingE2eEnvironment.join(", ")} before running the suite.`,
-  );
-}
+const pwaTestPattern = /(?:offline-cold-start|pwa-startup)\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -29,7 +22,7 @@ export default defineConfig({
     ? [
         {
           name: "pwa",
-          testMatch: /offline-cold-start\.spec\.ts/,
+          testMatch: pwaTestPattern,
           use: {
             ...devices["Desktop Chrome"],
             baseURL: "http://localhost:5455",
@@ -40,17 +33,17 @@ export default defineConfig({
     : [
         {
           name: "chromium",
-          testIgnore: /offline-cold-start\.spec\.ts/,
+          testIgnore: pwaTestPattern,
           use: { ...devices["Desktop Chrome"] },
         },
         {
           name: "firefox",
-          testIgnore: /offline-cold-start\.spec\.ts/,
+          testIgnore: pwaTestPattern,
           use: { ...devices["Desktop Firefox"] },
         },
         {
           name: "webkit",
-          testIgnore: /offline-cold-start\.spec\.ts/,
+          testIgnore: pwaTestPattern,
           use: { ...devices["Desktop Safari"] },
         },
       ],
@@ -59,7 +52,8 @@ export default defineConfig({
     ? {
         command: "pnpm build && pnpm preview --port 5455 --strictPort",
         url: "http://localhost:5455",
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: false,
+        timeout: 120_000,
       }
     : {
         command: "pnpm dev -- --strictPort",
