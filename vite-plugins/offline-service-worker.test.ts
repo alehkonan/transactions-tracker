@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Script, createContext } from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
 import { offlineServiceWorker } from "./offline-service-worker";
 import type { ResolvedConfig } from "vite";
@@ -36,5 +37,40 @@ describe("offlineServiceWorker", () => {
     expect(worker).toContain("The server confirmed none of the pushed changes.");
     expect(worker).not.toContain("__OUTBOX_ACCEPTANCE_KERNEL__");
     expect(worker).not.toMatch(/(?:^|\n)\s*import\s/);
+  });
+
+  it("emits a classic script that executes at the worker top level", async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "transactions-tracker-worker-"));
+    temporaryDirectories.push(temporaryRoot);
+    const outputDirectory = join(temporaryRoot, "client");
+    await fs.mkdir(outputDirectory);
+
+    const plugin = offlineServiceWorker();
+    if (typeof plugin.configResolved !== "function" || typeof plugin.writeBundle !== "function") {
+      throw new Error("The offline service-worker plugin is missing its build hooks.");
+    }
+
+    Reflect.apply(plugin.configResolved, undefined, [
+      { root: process.cwd(), build: { outDir: "dist" } } as ResolvedConfig,
+    ]);
+    await Reflect.apply(plugin.writeBundle, undefined, [{ dir: outputDirectory }, {}]);
+
+    const worker = await fs.readFile(join(outputDirectory, "sw.js"), "utf8");
+    const listeners: string[] = [];
+    const context = createContext({
+      URL,
+      fetch: () => Promise.reject(new Error("Network is unavailable in the parse smoke test.")),
+      indexedDB: {},
+      navigator: {},
+      caches: {},
+      self: {
+        location: { origin: "https://example.test" },
+        addEventListener: (type: string) => listeners.push(type),
+        skipWaiting: () => undefined,
+      },
+    });
+
+    expect(() => new Script(worker, { filename: "sw.js" }).runInContext(context)).not.toThrow();
+    expect(listeners).toEqual(["install", "activate", "fetch", "sync"]);
   });
 });
