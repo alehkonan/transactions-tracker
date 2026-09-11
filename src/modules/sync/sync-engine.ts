@@ -1,18 +1,23 @@
 import { checkIntegrity, pullChanges, pushChanges } from "~/api/sync.functions";
 import {
+  assertCurrentReplicaContext,
+  captureReplicaContext,
+  captureSyncContext,
   clearLocalRows,
-  deleteLocalDatabase,
   readLocalCursors,
   readLocalSnapshot,
+  replaceLocalReplica,
+  subscribeToReplicaInvalidation,
   writeLocalPage,
 } from "./idb";
 import { compareIntegrity, localIntegrity } from "./integrity";
-import { outboxStorage, readOutboxState } from "./outbox";
+import { createOutboxStorage, readOutboxState } from "./outbox";
 import {
   drainOutbox,
   type OutboxDeliveryResult,
   type OutboxDrainOutcome,
 } from "./outbox-acceptance";
+import { replicaContextFromDescriptor, type ReplicaContext } from "./replica-identity";
 import {
   runSync,
   type PullDeliveryResult,
@@ -24,6 +29,7 @@ import {
   applyServerRows,
   clearWorkingSet,
   refreshOutboxState,
+  replaceOutboxState,
   replaceRows,
   resetSyncState,
   useSyncStore,
@@ -137,13 +143,16 @@ export function announceLocalWrite(): void {
  */
 async function hydrateFromLocal(): Promise<void> {
   const snapshot = await readLocalSnapshot();
+  const replicaContext = replicaContextFromDescriptor(snapshot.descriptor);
+  await assertCurrentReplicaContext(replicaContext);
 
   replaceRows(snapshot.rows, snapshot.colors, snapshot.usdRates);
+  replaceOutboxState(snapshot.outbox);
   useSyncStore.setState((state) => ({
     // A cursor is what says the local copy is a complete picture rather than a partial one.
     isHydrated: state.isHydrated || snapshot.cursors != null,
+    lastSyncedAt: snapshot.lastSyncedAt,
   }));
-  await refreshOutboxState();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -172,8 +181,8 @@ function toMessage(error: unknown): string {
  * next merge writes back to it, so dropping one and keeping the other would restore exactly the
  * divergence being repaired.
  */
-async function dropLocalCopy(): Promise<void> {
-  await clearLocalRows();
+async function dropLocalCopy(replicaContext: ReplicaContext): Promise<void> {
+  await clearLocalRows(replicaContext);
   clearWorkingSet();
 }
 
@@ -193,16 +202,21 @@ async function pullPage(
   }
 }
 
-async function commitPulledPage(result: PullChangesResult): Promise<void> {
-  await writeLocalPage({
+async function commitPulledPage(
+  replicaContext: ReplicaContext,
+  result: PullChangesResult,
+): Promise<void> {
+  await writeLocalPage(replicaContext, {
     rows: result.rows,
     cursors: result.nextCursors,
+    pending: result.pending,
     colors: result.colors,
     usdRates: result.usdRates,
   });
 }
 
-async function applyPulledPage(page: SyncRunPage): Promise<void> {
+async function applyPulledPage(replicaContext: ReplicaContext, page: SyncRunPage): Promise<void> {
+  await assertCurrentReplicaContext(replicaContext);
   const { result } = page;
   applyServerRows(result.rows, result.colors);
   useSyncStore.setState((state) => ({
@@ -217,19 +231,32 @@ async function applyPulledPage(page: SyncRunPage): Promise<void> {
 }
 
 async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
-  useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
+  let replicaContext: ReplicaContext;
+  try {
+    replicaContext = await captureSyncContext();
+  } catch (error) {
+    useSyncStore.setState({ status: "error", error: toMessage(error) });
+    return { kind: "retryable", phase: "pull", pushed: 0, error };
+  }
 
+  useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
   const outcome = await runSync(mode, {
     remote: { pull: pullPage },
     replica: {
-      readCursors: readLocalCursors,
-      hasQueuedWrites: async () => (await readOutboxState()).count > 0,
-      clearCachedRows: dropLocalCopy,
-      commitPulledPage: commitPulledPage,
+      readCursors: () => readLocalCursors(replicaContext),
+      hasQueuedWrites: async () => (await readOutboxState(replicaContext)).count > 0,
+      clearCachedRows: () => dropLocalCopy(replicaContext),
+      commitPulledPage: (result) => commitPulledPage(replicaContext, result),
     },
-    push: { drain: drainPageOutbox },
-    onPage: applyPulledPage,
+    push: { drain: () => drainPageOutbox(replicaContext) },
+    onPage: (page) => applyPulledPage(replicaContext, page),
   });
+
+  try {
+    await assertCurrentReplicaContext(replicaContext);
+  } catch {
+    return outcome;
+  }
 
   if (outcome.kind === "completed") {
     if (outcome.pushed > 0) failedPushes = 0;
@@ -296,8 +323,11 @@ async function sendPagePush(
   }
 }
 
-async function applyAcceptedPageBatch(result: PushChangesResult): Promise<void> {
-  await refreshOutboxState();
+async function applyAcceptedPageBatch(
+  replicaContext: ReplicaContext,
+  result: PushChangesResult,
+): Promise<void> {
+  await refreshOutboxState(replicaContext);
   applyServerRows(result.canonicalRows, result.colors);
   announce({ type: "changed" });
 
@@ -306,15 +336,15 @@ async function applyAcceptedPageBatch(result: PushChangesResult): Promise<void> 
   }
 }
 
-async function drainPageOutbox(): Promise<OutboxDrainOutcome> {
+async function drainPageOutbox(replicaContext: ReplicaContext): Promise<OutboxDrainOutcome> {
   useSyncStore.setState({ isPushing: true });
   try {
     return await drainOutbox({
-      storage: outboxStorage,
+      storage: createOutboxStorage(replicaContext),
       batchLimit: PUSH_BATCH_LIMIT,
       toPayload: ({ seq: _seq, ...mutation }) => mutation,
       send: sendPagePush,
-      onAccepted: applyAcceptedPageBatch,
+      onAccepted: (result) => applyAcceptedPageBatch(replicaContext, result),
     });
   } finally {
     useSyncStore.setState({ isPushing: false });
@@ -373,6 +403,7 @@ export type IntegrityReport =
  */
 export function verifyIntegrity(): Promise<IntegrityReport> {
   return runExclusive(async () => {
+    const replicaContext = await captureSyncContext();
     const before = useSyncStore.getState();
     if (!before.isHydrated || before.outboxCount > 0 || before.pending.length > 0) {
       return { outcome: "unsettled" };
@@ -380,6 +411,7 @@ export function verifyIntegrity(): Promise<IntegrityReport> {
 
     const server: IntegrityResult | Response = await checkIntegrity();
     if (!isSyncResult(server)) throw server;
+    await assertCurrentReplicaContext(replicaContext);
 
     // Folded after the answer arrives rather than before it, so the local side of the comparison is
     // the more recent of the two — a peer tab's write landing mid-call reads as data the server has
@@ -477,6 +509,17 @@ export function startSyncTriggers(): () => void {
     void syncNow();
   };
 
+  const stopWatchingReplica = subscribeToReplicaInvalidation(() => {
+    bootPromise = undefined;
+    clearTimeout(pushTimer);
+    pushTimer = undefined;
+    resetSyncState();
+    useSyncStore.setState({
+      status: "error",
+      error: "Local storage changed in another tab. Reload to continue safely.",
+    });
+  });
+
   let reloadTimer: ReturnType<typeof setTimeout> | undefined;
   const onPeerMessage = (event: MessageEvent<SyncMessage>) => {
     if (event.data?.type === "reset") {
@@ -499,6 +542,7 @@ export function startSyncTriggers(): () => void {
   return () => {
     clearInterval(staleness);
     clearTimeout(reloadTimer);
+    stopWatchingReplica();
     document.removeEventListener("visibilitychange", onVisibilityChange);
     window.removeEventListener("online", onOnline);
     window.removeEventListener("offline", onOffline);
@@ -548,13 +592,16 @@ export function bootSync(): Promise<SyncRunOutcome> {
  * where keeping a cache of somebody's finances around is not a convenience. A session that merely
  * expires keeps its copy, so coming back is still instant.
  */
-export async function resetLocalData(): Promise<void> {
-  bootPromise = undefined;
-  clearTimeout(pushTimer);
-  pushTimer = undefined;
-  failedPushes = 0;
-  resetSyncState();
-  await deleteLocalDatabase();
-  // Any other tab is now showing data that no longer exists on this device.
-  announce({ type: "reset" });
+export function resetLocalData(): Promise<void> {
+  return runExclusive(async () => {
+    bootPromise = undefined;
+    clearTimeout(pushTimer);
+    pushTimer = undefined;
+    failedPushes = 0;
+    const replicaContext = await captureReplicaContext({ allowRecovery: true });
+    await replaceLocalReplica(replicaContext);
+    resetSyncState();
+    // Any other tab is now showing data that no longer exists on this device.
+    announce({ type: "reset" });
+  });
 }

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { readOutboxState, rowKey } from "./outbox";
+import type { ReplicaContext } from "./replica-identity";
 import type {
   Color,
   PushConflict,
@@ -191,11 +192,15 @@ export function clearWorkingSet(): void {
   });
 }
 
-/** Re-reads how much is queued, and which rows a pull therefore has to leave alone. */
-export async function refreshOutboxState(): Promise<void> {
-  const { count, rowKeys } = await readOutboxState();
-  pendingRowKeys = rowKeys;
-  useSyncStore.setState({ outboxCount: count });
+/** Publishes queue state captured consistently with a local snapshot or guarded read. */
+export function replaceOutboxState(state: { count: number; rowKeys: Set<string> }): void {
+  pendingRowKeys = state.rowKeys;
+  useSyncStore.setState({ outboxCount: state.count });
+}
+
+/** Re-reads how much is queued, fenced when an asynchronous operation supplies its context. */
+export async function refreshOutboxState(expected?: ReplicaContext): Promise<void> {
+  replaceOutboxState(await readOutboxState(expected));
 }
 
 /** Marks a batch of conflicts as reported, so it is not shown again. */

@@ -1,43 +1,75 @@
+import { uuidV7 } from "~/utils/uuid-v7";
+import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
+import {
+  classifyLegacyOwnership,
+  replicaContextFromDescriptor,
+  type ReplicaContext,
+  type ReplicaDescriptor,
+  type ReplicaIdentity,
+} from "./replica-identity";
 import { SYNCED_TABLES } from "./sync-types";
-import type { Color, Mutation, SyncCursors, SyncedRow, SyncedRows } from "./sync-types";
-
-/**
- * IndexedDB persistence for the replicated working set, and for the writes that have not reached the
- * server yet.
- *
- * Persistence only, not a query layer: the whole dataset is read into memory at boot and every
- * read, filter and statistic runs against that (see `useSyncStore`). So there are no secondary
- * indexes here — just one object store per synced table keyed by uuid, a `meta` store for the
- * cursors and the reference data that rides along with a pull, and the append-only `outbox`.
- *
- * Client-only. Nothing here runs at module scope, so importing it during SSR is inert.
- */
-
-const DATABASE_NAME = "transactions-tracker";
-
-/**
- * Bumping this wipes every store and forces a full re-pull, which is the intended migration
- * strategy: the local copy is a cache of the server's rows, so throwing it away is always safe and
- * always cheaper than writing an upgrade path for it.
- *
- * The outbox is the one exception to "always safe", since unpushed writes exist nowhere else. It
- * arrived with version 2 and was empty by definition until then; from here on, a bump has to drain
- * the outbox before it wipes.
- */
-const DATABASE_VERSION = 2;
+import type {
+  Color,
+  Mutation,
+  SyncCursors,
+  SyncedRow,
+  SyncedRows,
+  SyncedTable,
+} from "./sync-types";
 
 const META_STORE = "meta";
+const DESCRIPTOR_KEY = "replicaDescriptor";
+const CURSORS_KEY = "cursors";
+const COLORS_KEY = "colors";
+const USD_RATES_KEY = "usdRates";
+const SELECTED_PROFILE_KEY = "selectedProfileId";
+const LOCAL_REVISION_KEY = "localRevision";
+const COMPLETE_TABLES_KEY = "completeTables";
+const LAST_SYNCED_AT_KEY = "lastSyncedAt";
 
 /** The queue of local writes waiting to be pushed, in the order they were made. */
 export const OUTBOX_STORE = "outbox";
 
-/** Everything the store needs to come up without the network. */
+export type OutboxSnapshot = {
+  count: number;
+  rowKeys: Set<string>;
+  entries: SequencedMutation[];
+};
+
+/** Everything needed to open one internally consistent local workspace. */
 export type LocalSnapshot = {
+  descriptor: ReplicaDescriptor;
   rows: SyncedRows;
   cursors: SyncCursors | undefined;
   colors: Color[];
   usdRates: Record<string, number>;
+  selectedProfileId: string | null;
+  localRevision: number;
+  completeTables: SyncedTable[];
+  lastSyncedAt: number | null;
+  outbox: OutboxSnapshot;
 };
+
+export class ReplicaContextChangedError extends Error {
+  constructor() {
+    super("The local replica changed while the operation was in progress.");
+    this.name = "ReplicaContextChangedError";
+  }
+}
+
+export class ReplicaRecoveryRequiredError extends Error {
+  constructor() {
+    super("The legacy local replica requires recovery before it can be bound or synchronized.");
+    this.name = "ReplicaRecoveryRequiredError";
+  }
+}
+
+export class ReplicaIdentityRequiredError extends Error {
+  constructor() {
+    super("The local replica must be bound to a server-confirmed identity before synchronization.");
+    this.name = "ReplicaIdentityRequiredError";
+  }
+}
 
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -54,77 +86,298 @@ function whenComplete(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-let databasePromise: Promise<IDBDatabase> | undefined;
-
-export function openDatabase(): Promise<IDBDatabase> {
-  databasePromise ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-
-    request.addEventListener("upgradeneeded", () => {
-      const database = request.result;
-      // Recreated from scratch on every version bump, hence "bump ⇒ wipe + re-pull". Snapshotted
-      // first: `objectStoreNames` is live, and deleting while walking it would skip entries.
-      for (const name of Array.from(database.objectStoreNames)) database.deleteObjectStore(name);
-      for (const table of SYNCED_TABLES) database.createObjectStore(table, { keyPath: "id" });
-      database.createObjectStore(META_STORE);
-      // Keyed by an auto-incrementing sequence, which is the whole point of the store: the order
-      // writes were made in is what makes "create the account, then its transactions" pushable.
-      database.createObjectStore(OUTBOX_STORE, { keyPath: "seq", autoIncrement: true });
-    });
-
-    request.addEventListener("success", () => resolve(request.result));
-    request.addEventListener("error", () => reject(request.error));
-    // Another tab is holding the old version open; it will get its own upgrade when it reloads.
-    request.addEventListener("blocked", () =>
-      reject(new Error("The local database is blocked by another tab.")),
-    );
-  });
-
-  return databasePromise;
-}
-
-/** Reads the whole local copy in one transaction, so the store never hydrates from a torn read. */
-export async function readLocalSnapshot(): Promise<LocalSnapshot> {
-  const database = await openDatabase();
-  const transaction = database.transaction([...SYNCED_TABLES, META_STORE], "readonly");
-
-  const [profiles, accounts, categories, transactions, cursors, colors, usdRates] =
-    await Promise.all([
-      promisify(transaction.objectStore("profiles").getAll()),
-      promisify(transaction.objectStore("accounts").getAll()),
-      promisify(transaction.objectStore("categories").getAll()),
-      promisify(transaction.objectStore("transactions").getAll()),
-      promisify(transaction.objectStore(META_STORE).get("cursors")),
-      promisify(transaction.objectStore(META_STORE).get("colors")),
-      promisify(transaction.objectStore(META_STORE).get("usdRates")),
-    ]);
-
+function createDescriptor(
+  legacyOwnership: ReplicaDescriptor["legacyOwnership"],
+): ReplicaDescriptor {
   return {
-    rows: { profiles, accounts, categories, transactions },
-    cursors: cursors as SyncCursors | undefined,
-    colors: (colors as Color[] | undefined) ?? [],
-    usdRates: (usdRates as Record<string, number> | undefined) ?? {},
+    replicaId: uuidV7(),
+    identity: null,
+    lifecycle: "active",
+    legacyOwnership,
   };
 }
 
-/**
- * The pull position, on its own.
- *
- * Read from disk rather than from the store because this database is shared with every other tab on
- * the same browser: one of them may have pulled while this tab sat idle, and starting a pull from
- * the store's older copy would re-download everything the other one already has.
- */
-export async function readLocalCursors(): Promise<SyncCursors | undefined> {
-  const database = await openDatabase();
-  const store = database.transaction(META_STORE, "readonly").objectStore(META_STORE);
-
-  return (await promisify(store.get("cursors"))) as SyncCursors | undefined;
+function createMissingStores(database: IDBDatabase): void {
+  for (const table of SYNCED_TABLES) {
+    if (!database.objectStoreNames.contains(table)) {
+      database.createObjectStore(table, { keyPath: "id" });
+    }
+  }
+  if (!database.objectStoreNames.contains(META_STORE)) database.createObjectStore(META_STORE);
+  if (!database.objectStoreNames.contains(OUTBOX_STORE)) {
+    database.createObjectStore(OUTBOX_STORE, { keyPath: "seq", autoIncrement: true });
+  }
 }
 
-/**
- * Writes rows into their stores: an ordinary row is upserted by id, and a tombstone deletes its row
- * outright, since the cursor — not the tombstone — is what remembers that the deletion was seen.
- */
+/** Initializes v3 metadata from v2 rows without modifying any existing row or queue entry. */
+function initializeV3Metadata(transaction: IDBTransaction): void {
+  const meta = transaction.objectStore(META_STORE);
+  const descriptorRequest = meta.get(DESCRIPTOR_KEY);
+  descriptorRequest.addEventListener("success", () => {
+    if (descriptorRequest.result != null) return;
+
+    const requests = {
+      profiles: transaction.objectStore("profiles").getAll(),
+      accounts: transaction.objectStore("accounts").getAll(),
+      categories: transaction.objectStore("categories").getAll(),
+      transactions: transaction.objectStore("transactions").getAll(),
+      outbox: transaction.objectStore(OUTBOX_STORE).getAll(),
+      cursors: meta.get(CURSORS_KEY),
+    };
+    let remaining = Object.keys(requests).length;
+    const finish = () => {
+      remaining--;
+      if (remaining > 0) return;
+
+      const legacyOwnership = classifyLegacyOwnership({
+        profiles: requests.profiles.result,
+        accounts: requests.accounts.result,
+        categories: requests.categories.result,
+        transactions: requests.transactions.result,
+        outbox: requests.outbox.result,
+      });
+      const cursors = requests.cursors.result as SyncCursors | undefined;
+      meta.put(createDescriptor(legacyOwnership), DESCRIPTOR_KEY);
+      meta.put(0, LOCAL_REVISION_KEY);
+      meta.put(cursors == null ? [] : Object.keys(cursors), COMPLETE_TABLES_KEY);
+    };
+
+    for (const request of Object.values(requests)) {
+      request.addEventListener("success", finish);
+      request.addEventListener("error", () => transaction.abort());
+    }
+  });
+  descriptorRequest.addEventListener("error", () => transaction.abort());
+}
+
+let databasePromise: Promise<IDBDatabase> | undefined;
+const invalidationListeners = new Set<() => void>();
+
+function invalidateDatabase(database: IDBDatabase): void {
+  database.close();
+  databasePromise = undefined;
+  for (const listener of invalidationListeners) listener();
+}
+
+/** Called when another context upgrades or replaces the database behind this page. */
+export function subscribeToReplicaInvalidation(listener: () => void): () => void {
+  invalidationListeners.add(listener);
+  return () => invalidationListeners.delete(listener);
+}
+
+export function openDatabase(): Promise<IDBDatabase> {
+  if (databasePromise) return databasePromise;
+
+  let opening: Promise<IDBDatabase>;
+  opening = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(INDEXED_DB_NAME, INDEXED_DB_VERSION);
+    let blocked = false;
+
+    request.addEventListener("upgradeneeded", (event) => {
+      createMissingStores(request.result);
+      if (event.oldVersion < 3) initializeV3Metadata(request.transaction!);
+    });
+    request.addEventListener("success", () => {
+      if (blocked) {
+        request.result.close();
+        return;
+      }
+      const database = request.result;
+      database.addEventListener("versionchange", () => invalidateDatabase(database));
+      resolve(database);
+    });
+    request.addEventListener("error", () => reject(request.error));
+    request.addEventListener("blocked", () => {
+      blocked = true;
+      reject(new Error("The local database upgrade is blocked by another tab."));
+    });
+  });
+
+  databasePromise = opening;
+  void opening.catch(() => {
+    if (databasePromise === opening) databasePromise = undefined;
+  });
+  return opening;
+}
+
+function effectiveContext(descriptor: ReplicaDescriptor): ReplicaContext {
+  return replicaContextFromDescriptor(descriptor);
+}
+
+function assertExpectedContext(
+  descriptor: ReplicaDescriptor | undefined,
+  expected: ReplicaContext,
+  allowRecovery = false,
+): asserts descriptor is ReplicaDescriptor {
+  if (descriptor == null || descriptor.lifecycle !== "active") {
+    throw new ReplicaContextChangedError();
+  }
+  if (descriptor.legacyOwnership.kind === "recovery-required" && !allowRecovery) {
+    throw new ReplicaRecoveryRequiredError();
+  }
+  const actual = effectiveContext(descriptor);
+  if (actual.replicaId !== expected.replicaId || actual.ownerUserId !== expected.ownerUserId) {
+    throw new ReplicaContextChangedError();
+  }
+}
+
+function guardedTransaction(
+  stores: readonly string[],
+  expected: ReplicaContext,
+  mutate: (transaction: IDBTransaction, descriptor: ReplicaDescriptor) => void,
+  options: { allowRecovery?: boolean } = {},
+): Promise<void> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(
+          Array.from(new Set([...stores, META_STORE])),
+          "readwrite",
+        );
+        let failure: unknown;
+        const descriptorRequest = transaction.objectStore(META_STORE).get(DESCRIPTOR_KEY);
+
+        descriptorRequest.addEventListener("success", () => {
+          try {
+            const descriptor = descriptorRequest.result as ReplicaDescriptor | undefined;
+            assertExpectedContext(descriptor, expected, options.allowRecovery);
+            mutate(transaction, descriptor);
+          } catch (error) {
+            failure = error;
+            transaction.abort();
+          }
+        });
+        descriptorRequest.addEventListener("error", () => {
+          failure = descriptorRequest.error;
+          transaction.abort();
+        });
+        transaction.addEventListener("complete", () => resolve());
+        transaction.addEventListener("error", () => reject(failure ?? transaction.error));
+        transaction.addEventListener("abort", () => reject(failure ?? transaction.error));
+      }),
+  );
+}
+
+export async function readReplicaDescriptor(): Promise<ReplicaDescriptor> {
+  const database = await openDatabase();
+  const descriptor = (await promisify(
+    database.transaction(META_STORE, "readonly").objectStore(META_STORE).get(DESCRIPTOR_KEY),
+  )) as ReplicaDescriptor | undefined;
+  if (!descriptor) throw new Error("The local replica descriptor is missing.");
+  return descriptor;
+}
+
+export async function captureReplicaContext(
+  options: { allowRecovery?: boolean } = {},
+): Promise<ReplicaContext> {
+  const descriptor = await readReplicaDescriptor();
+  if (descriptor.lifecycle !== "active") throw new ReplicaContextChangedError();
+  if (descriptor.legacyOwnership.kind === "recovery-required" && !options.allowRecovery) {
+    throw new ReplicaRecoveryRequiredError();
+  }
+  return effectiveContext(descriptor);
+}
+
+/** Sync requires durable server-confirmed ownership; a legacy candidate is not authorization. */
+export async function captureSyncContext(): Promise<ReplicaContext> {
+  const descriptor = await readReplicaDescriptor();
+  if (descriptor.lifecycle !== "active") throw new ReplicaContextChangedError();
+  if (descriptor.legacyOwnership.kind === "recovery-required") {
+    throw new ReplicaRecoveryRequiredError();
+  }
+  if (descriptor.identity == null) throw new ReplicaIdentityRequiredError();
+  return effectiveContext(descriptor);
+}
+
+/** Rechecks a captured context immediately before publishing non-durable state. */
+export async function assertCurrentReplicaContext(expected: ReplicaContext): Promise<void> {
+  assertExpectedContext(await readReplicaDescriptor(), expected);
+}
+
+/** Reads rows, durable metadata, selection, and queue state from one transaction. */
+export async function readLocalSnapshot(): Promise<LocalSnapshot> {
+  const database = await openDatabase();
+  const transaction = database.transaction(
+    [...SYNCED_TABLES, META_STORE, OUTBOX_STORE],
+    "readonly",
+  );
+  const meta = transaction.objectStore(META_STORE);
+  const outboxRequest = transaction.objectStore(OUTBOX_STORE).getAll();
+  const [
+    profiles,
+    accounts,
+    categories,
+    transactions,
+    descriptor,
+    cursors,
+    colors,
+    usdRates,
+    selectedProfileId,
+    localRevision,
+    completeTables,
+    lastSyncedAt,
+    outbox,
+  ] = await Promise.all([
+    promisify(transaction.objectStore("profiles").getAll()),
+    promisify(transaction.objectStore("accounts").getAll()),
+    promisify(transaction.objectStore("categories").getAll()),
+    promisify(transaction.objectStore("transactions").getAll()),
+    promisify(meta.get(DESCRIPTOR_KEY)),
+    promisify(meta.get(CURSORS_KEY)),
+    promisify(meta.get(COLORS_KEY)),
+    promisify(meta.get(USD_RATES_KEY)),
+    promisify(meta.get(SELECTED_PROFILE_KEY)),
+    promisify(meta.get(LOCAL_REVISION_KEY)),
+    promisify(meta.get(COMPLETE_TABLES_KEY)),
+    promisify(meta.get(LAST_SYNCED_AT_KEY)),
+    promisify(outboxRequest),
+  ]);
+  await whenComplete(transaction);
+
+  if (!descriptor) throw new Error("The local replica descriptor is missing.");
+  const liveProfileIds = new Set(
+    (profiles as SyncedRows["profiles"])
+      .filter((profile) => profile.deletedAt == null)
+      .map((profile) => profile.id),
+  );
+  const selected =
+    typeof selectedProfileId === "string" && liveProfileIds.has(selectedProfileId)
+      ? selectedProfileId
+      : null;
+  const entries = outbox as SequencedMutation[];
+
+  return {
+    descriptor: descriptor as ReplicaDescriptor,
+    rows: { profiles, accounts, categories, transactions } as SyncedRows,
+    cursors: cursors as SyncCursors | undefined,
+    colors: (colors as Color[] | undefined) ?? [],
+    usdRates: (usdRates as Record<string, number> | undefined) ?? {},
+    selectedProfileId: selected,
+    localRevision: (localRevision as number | undefined) ?? 0,
+    completeTables: (completeTables as SyncedTable[] | undefined) ?? [],
+    lastSyncedAt: (lastSyncedAt as number | undefined) ?? null,
+    outbox: {
+      count: entries.length,
+      rowKeys: new Set(entries.map((entry) => `${entry.table}:${entry.rowId}`)),
+      entries,
+    },
+  };
+}
+
+export async function readLocalCursors(
+  expected?: ReplicaContext,
+): Promise<SyncCursors | undefined> {
+  const database = await openDatabase();
+  const transaction = database.transaction(META_STORE, "readonly");
+  const store = transaction.objectStore(META_STORE);
+  const [descriptor, cursors] = await Promise.all([
+    promisify(store.get(DESCRIPTOR_KEY)),
+    promisify(store.get(CURSORS_KEY)),
+  ]);
+  if (expected) assertExpectedContext(descriptor as ReplicaDescriptor | undefined, expected);
+  return cursors as SyncCursors | undefined;
+}
+
 type SequencedMutation = Mutation & { seq: number };
 
 export function filterQueuedServerRows(
@@ -150,17 +403,14 @@ function putRows(
   for (const table of SYNCED_TABLES) {
     const incoming = unprotectedRows[table] as SyncedRow[] | undefined;
     if (!incoming?.length) continue;
-
     const store = transaction.objectStore(table);
     for (const row of incoming) {
-      if (protectedRowKeys.has(`${table}:${row.id}`)) continue;
       if (row.deletedAt) store.delete(row.id);
       else store.put(row);
     }
   }
 }
 
-/** Reads pending writes in the same transaction before applying server rows. */
 function putServerRows(
   transaction: IDBTransaction,
   rows: Partial<SyncedRows>,
@@ -181,109 +431,197 @@ function putServerRows(
 type PulledPage = {
   rows: SyncedRows;
   cursors: SyncCursors;
+  pending: SyncedTable[];
   colors: Color[];
   usdRates: Record<string, number> | null;
 };
 
-/**
- * Applies one pulled page, atomically.
- *
- * The cursors land in the same transaction as the rows they describe, so a pull interrupted halfway
- * can never leave a cursor claiming rows the client does not actually hold.
- */
-export async function writeLocalPage(page: PulledPage): Promise<void> {
-  const database = await openDatabase();
-  const transaction = database.transaction(
-    [...SYNCED_TABLES, META_STORE, OUTBOX_STORE],
-    "readwrite",
-  );
-
-  putServerRows(transaction, page.rows);
-
-  const meta = transaction.objectStore(META_STORE);
-  meta.put(page.cursors, "cursors");
-  meta.put(page.colors, "colors");
-  if (page.usdRates) meta.put(page.usdRates, "usdRates");
-
-  await whenComplete(transaction);
+export function writeLocalPage(expected: ReplicaContext, page: PulledPage): Promise<void> {
+  return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
+    putServerRows(transaction, page.rows);
+    const meta = transaction.objectStore(META_STORE);
+    meta.put(page.cursors, CURSORS_KEY);
+    meta.put(page.colors, COLORS_KEY);
+    if (page.usdRates) meta.put(page.usdRates, USD_RATES_KEY);
+    meta.put(
+      SYNCED_TABLES.filter((table) => !page.pending.includes(table)),
+      COMPLETE_TABLES_KEY,
+    );
+    if (page.pending.length === 0) meta.put(Date.now(), LAST_SYNCED_AT_KEY);
+  });
 }
 
-/**
- * Persists a local write and its outbox entries together.
- *
- * One transaction for both halves is the point: a row saved without its entry is a change that
- * silently never reaches the server, and an entry without its row is a change the device making it
- * cannot see. Either alone is worse than neither.
- */
-export async function writeLocalMutations(
+/** Persists rows, queue entries, and the next local revision under one identity fence. */
+export function writeLocalMutations(
+  expected: ReplicaContext,
   rows: Partial<SyncedRows>,
   mutations: Mutation[],
 ): Promise<void> {
-  const database = await openDatabase();
-  const transaction = database.transaction([...SYNCED_TABLES, OUTBOX_STORE], "readwrite");
+  return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
+    putRows(transaction, rows);
+    const outbox = transaction.objectStore(OUTBOX_STORE);
+    for (const mutation of mutations) outbox.add(mutation);
 
-  putRows(transaction, rows);
-
-  const outbox = transaction.objectStore(OUTBOX_STORE);
-  // `seq` is the store's key path and auto-increments, so it is deliberately not set here.
-  for (const mutation of mutations) outbox.add(mutation);
-
-  await whenComplete(transaction);
+    const meta = transaction.objectStore(META_STORE);
+    const revisionRequest = meta.get(LOCAL_REVISION_KEY);
+    revisionRequest.addEventListener("success", () => {
+      meta.put(((revisionRequest.result as number | undefined) ?? 0) + 1, LOCAL_REVISION_KEY);
+    });
+    revisionRequest.addEventListener("error", () => transaction.abort());
+  });
 }
 
-/** Settles accepted page writes and canonical rows in one IndexedDB transaction. */
-export async function settleAcceptedPush(
+export function dropOutboxEntries(
+  expected: ReplicaContext,
   seqs: readonly number[],
+): Promise<void> {
+  return guardedTransaction([OUTBOX_STORE], expected, (transaction) => {
+    const outbox = transaction.objectStore(OUTBOX_STORE);
+    for (const seq of seqs) outbox.delete(seq);
+  });
+}
+
+/** Settles only the original seq/mutation-id pairs under the context that sent them. */
+export function settleAcceptedPush(
+  expected: ReplicaContext,
+  seqs: readonly number[],
+  acceptedMutationIds: readonly string[],
   rows: Partial<SyncedRows>,
   colors: Color[],
 ): Promise<void> {
-  const database = await openDatabase();
-  const transaction = database.transaction(
-    [...SYNCED_TABLES, META_STORE, OUTBOX_STORE],
-    "readwrite",
-  );
-  const outbox = transaction.objectStore(OUTBOX_STORE);
-  for (const seq of seqs) outbox.delete(seq);
-
-  putServerRows(transaction, rows, new Set(seqs));
-  transaction.objectStore(META_STORE).put(colors, "colors");
-
-  await whenComplete(transaction);
+  return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
+    const accepted = new Set(acceptedMutationIds);
+    const outbox = transaction.objectStore(OUTBOX_STORE);
+    for (const seq of seqs) {
+      const request = outbox.get(seq);
+      request.addEventListener("success", () => {
+        const entry = request.result as SequencedMutation | undefined;
+        if (!entry || !accepted.has(entry.mutationId)) {
+          transaction.abort();
+          return;
+        }
+        outbox.delete(seq);
+      });
+      request.addEventListener("error", () => transaction.abort());
+    }
+    putServerRows(transaction, rows, new Set(seqs));
+    transaction.objectStore(META_STORE).put(colors, COLORS_KEY);
+  });
 }
 
-/**
- * Empties the replicated stores and forgets where the pull got to, so the next one starts from
- * nothing — the repair for a copy that has diverged, or that is too far behind for a delta pull to
- * catch up (see `isCursorStale`).
- *
- * The outbox is deliberately left alone. It is the one store here that is not a cache of the
- * server's rows: dropping it would throw away writes that exist nowhere else. The palette and the
- * rates stay too, so a re-pull that has not landed yet still renders in colour.
- */
-export async function clearLocalRows(): Promise<void> {
-  const database = await openDatabase();
-  const transaction = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
-
-  for (const table of SYNCED_TABLES) transaction.objectStore(table).clear();
-  transaction.objectStore(META_STORE).delete("cursors");
-
-  await whenComplete(transaction);
+export function clearLocalRows(expected: ReplicaContext): Promise<void> {
+  return guardedTransaction(SYNCED_TABLES, expected, (transaction) => {
+    for (const table of SYNCED_TABLES) transaction.objectStore(table).clear();
+    const meta = transaction.objectStore(META_STORE);
+    meta.delete(CURSORS_KEY);
+    meta.delete(SELECTED_PROFILE_KEY);
+    meta.put([], COMPLETE_TABLES_KEY);
+    meta.delete(LAST_SYNCED_AT_KEY);
+  });
 }
 
-/**
- * Deletes the local copy outright — used when the browser changes hands (an explicit sign-out, or a
- * different account signing in), where financial data lingering in IndexedDB would be a leak.
- */
+export function selectLocalProfile(
+  expected: ReplicaContext,
+  selectedProfileId: string | null,
+): Promise<void> {
+  return guardedTransaction(["profiles"], expected, (transaction) => {
+    const meta = transaction.objectStore(META_STORE);
+    if (selectedProfileId == null) {
+      meta.delete(SELECTED_PROFILE_KEY);
+      return;
+    }
+    const request = transaction.objectStore("profiles").get(selectedProfileId);
+    request.addEventListener("success", () => {
+      const profile = request.result as SyncedRows["profiles"][number] | undefined;
+      if (!profile || profile.deletedAt != null) transaction.abort();
+      else meta.put(selectedProfileId, SELECTED_PROFILE_KEY);
+    });
+    request.addEventListener("error", () => transaction.abort());
+  });
+}
+
+export function bindReplicaIdentity(
+  expected: ReplicaContext,
+  identity: Omit<ReplicaIdentity, "replicaId">,
+): Promise<void> {
+  return guardedTransaction([], expected, (transaction, descriptor) => {
+    if (descriptor.legacyOwnership.kind === "recovery-required") {
+      throw new ReplicaRecoveryRequiredError();
+    }
+    if (
+      (descriptor.identity != null && descriptor.identity.ownerUserId !== identity.ownerUserId) ||
+      (descriptor.legacyOwnership.kind === "candidate" &&
+        descriptor.legacyOwnership.ownerUserId !== identity.ownerUserId)
+    ) {
+      throw new ReplicaContextChangedError();
+    }
+    transaction.objectStore(META_STORE).put(
+      {
+        ...descriptor,
+        identity: { ...identity, replicaId: descriptor.replicaId },
+        legacyOwnership: { kind: "migrated" },
+      } satisfies ReplicaDescriptor,
+      DESCRIPTOR_KEY,
+    );
+  });
+}
+
+/** Clears one replica and installs a fresh unbound incarnation in the same transaction. */
+export function replaceLocalReplica(expected: ReplicaContext): Promise<ReplicaContext> {
+  const descriptor = createDescriptor({ kind: "unbound" });
+  return guardedTransaction(
+    [...SYNCED_TABLES, OUTBOX_STORE],
+    expected,
+    (transaction) => {
+      for (const table of SYNCED_TABLES) transaction.objectStore(table).clear();
+      transaction.objectStore(OUTBOX_STORE).clear();
+      const meta = transaction.objectStore(META_STORE);
+      meta.clear();
+      meta.put(descriptor, DESCRIPTOR_KEY);
+      meta.put(0, LOCAL_REVISION_KEY);
+      meta.put([], COMPLETE_TABLES_KEY);
+    },
+    { allowRecovery: true },
+  ).then(() => effectiveContext(descriptor));
+}
+
+export type LocalRecoveryExport = {
+  formatVersion: 1;
+  database: { name: string; version: number };
+  exportedAt: string;
+  descriptor: ReplicaDescriptor;
+  metadata: Omit<LocalSnapshot, "descriptor" | "rows" | "outbox">;
+  rows: SyncedRows;
+  outbox: SequencedMutation[];
+};
+
+/** Returns local financial data for an explicit device-only recovery download. */
+export async function createLocalRecoveryExport(): Promise<LocalRecoveryExport> {
+  const snapshot = await readLocalSnapshot();
+  const { descriptor, rows, outbox: outboxState, ...metadata } = snapshot;
+  return {
+    formatVersion: 1,
+    database: { name: INDEXED_DB_NAME, version: INDEXED_DB_VERSION },
+    exportedAt: new Date().toISOString(),
+    descriptor,
+    metadata,
+    rows,
+    outbox: outboxState.entries,
+  };
+}
+
+/** Legacy deletion helper; blocked deletion is an error and rejected opens are retryable. */
 export async function deleteLocalDatabase(): Promise<void> {
   const database = await openDatabase().catch(() => undefined);
   database?.close();
   databasePromise = undefined;
 
   await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(DATABASE_NAME);
+    const request = indexedDB.deleteDatabase(INDEXED_DB_NAME);
     request.addEventListener("success", () => resolve());
     request.addEventListener("error", () => reject(request.error));
-    // Only reachable if another tab still holds a connection; the wipe lands when it closes.
-    request.addEventListener("blocked", () => resolve());
+    request.addEventListener("blocked", () =>
+      reject(new Error("Deleting the local database is blocked by another tab.")),
+    );
   });
 }
