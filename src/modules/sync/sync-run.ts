@@ -13,12 +13,13 @@ type SyncRunPhase = "push" | "pull";
 export type PullDeliveryResult =
   | { kind: "accepted"; result: PullChangesResult }
   | { kind: "unauthorized"; error?: unknown }
+  | { kind: "terminal"; error: unknown }
   | { kind: "retryable"; error: unknown };
 
 export type SyncRunOutcome =
   | { kind: "completed"; changedRows: number; pushed: number }
   | { kind: "unauthorized"; phase: SyncRunPhase; pushed: number; error?: unknown }
-  | { kind: "terminal"; phase: "push"; pushed: number; error: unknown }
+  | { kind: "terminal"; phase: SyncRunPhase; pushed: number; error: unknown }
   | { kind: "retryable"; phase: SyncRunPhase; pushed: number; error: unknown }
   | { kind: "blocked"; reason: "queued-writes" }
   | { kind: "didNotConverge"; pages: number; pushed: number };
@@ -126,6 +127,9 @@ export async function runSync(
     }
     if (delivery.kind === "unauthorized") {
       return { kind: "unauthorized", phase: "pull", pushed, error: delivery.error };
+    }
+    if (delivery.kind === "terminal") {
+      return { kind: "terminal", phase: "pull", pushed, error: delivery.error };
     }
     if (delivery.kind === "retryable") return retryable("pull", pushed, delivery.error);
 

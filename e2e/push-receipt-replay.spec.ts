@@ -9,23 +9,43 @@ import {
   usersTable,
 } from "../src/database/tables";
 import { test } from "./fixtures/auth";
-import type { Mutation, PushChangesResult } from "../src/modules/sync/sync-types";
+import type {
+  HttpPushChangesResult,
+  Mutation,
+  PushChangesResult,
+} from "../src/modules/sync/sync-types";
 import type { Page } from "@playwright/test";
 
-type PushResponse = {
+type PushResponse<Body = PushChangesResult> = {
   status: number;
-  body: PushChangesResult;
+  body: Body;
 };
 
 async function pushThroughServerFunction(page: Page, mutation: Mutation): Promise<PushResponse> {
   return page.evaluate(async (submittedMutation) => {
-    const modulePath = "/src/api/sync.functions.ts";
-    const { pushChanges } = (await import(/* @vite-ignore */ modulePath)) as {
+    const syncModulePath = "/src/api/sync.functions.ts";
+    const authModulePath = "/src/api/auth.functions.ts";
+    const { pushChanges } = (await import(/* @vite-ignore */ syncModulePath)) as {
       pushChanges(options: {
-        data: { mutations: Mutation[] };
+        data: {
+          protocolVersion: 2;
+          expectedOwnerUserId: number;
+          mutations: Mutation[];
+        };
       }): Promise<PushChangesResult | Response>;
     };
-    const result = await pushChanges({ data: { mutations: [submittedMutation] } });
+    const { getSyncIdentity } = (await import(/* @vite-ignore */ authModulePath)) as {
+      getSyncIdentity(): Promise<{ id: number; username: string } | Response>;
+    };
+    const identity = await getSyncIdentity();
+    if (identity instanceof Response) throw new Error("Could not resolve the authenticated user.");
+    const result = await pushChanges({
+      data: {
+        protocolVersion: 2,
+        expectedOwnerUserId: identity.id,
+        mutations: [submittedMutation],
+      },
+    });
 
     if (result instanceof Response) {
       return { status: result.status, body: (await result.json()) as PushChangesResult };
@@ -40,18 +60,32 @@ async function pushBatchThroughHttp<Body>(
   mutations: Mutation[],
 ): Promise<{ status: number; body: Body }> {
   return page.evaluate(async (submittedMutations) => {
+    const authModulePath = "/src/api/auth.functions.ts";
+    const { getSyncIdentity } = (await import(/* @vite-ignore */ authModulePath)) as {
+      getSyncIdentity(): Promise<{ id: number; username: string } | Response>;
+    };
+    const identity = await getSyncIdentity();
+    if (identity instanceof Response) throw new Error("Could not resolve the authenticated user.");
+
     const response = await fetch("/api/push", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mutations: submittedMutations }),
+      body: JSON.stringify({
+        protocolVersion: 2,
+        expectedOwnerUserId: identity.id,
+        mutations: submittedMutations,
+      }),
     });
 
     return { status: response.status, body: (await response.json()) as Body };
   }, mutations);
 }
 
-async function pushThroughHttp(page: Page, mutation: Mutation): Promise<PushResponse> {
-  return pushBatchThroughHttp<PushChangesResult>(page, [mutation]);
+async function pushThroughHttp(
+  page: Page,
+  mutation: Mutation,
+): Promise<PushResponse<HttpPushChangesResult>> {
+  return pushBatchThroughHttp<HttpPushChangesResult>(page, [mutation]);
 }
 
 test("identical retries replay the immutable stale-base outcome across authenticated transports", async ({

@@ -64,7 +64,20 @@ export type SyncCursor = {
 
 export type SyncCursors = Partial<Record<SyncedTable, SyncCursor>>;
 
-export type PullChangesResult = {
+/** Version of the owner-aware wire protocol. This is independent of the IndexedDB schema version. */
+export const SYNC_PROTOCOL_VERSION = 2 as const;
+
+export type ReplicaSyncContext = {
+  protocolVersion: typeof SYNC_PROTOCOL_VERSION;
+  expectedOwnerUserId: number;
+};
+
+export type SyncSuccessContext = {
+  protocolVersion: typeof SYNC_PROTOCOL_VERSION;
+  ownerUserId: number;
+};
+
+export type PullChangesResult = SyncSuccessContext & {
   rows: SyncedRows;
   nextCursors: SyncCursors;
   /**
@@ -111,7 +124,9 @@ export type TableIntegrity = {
   checksum: string;
 };
 
-export type IntegrityResult = Record<SyncedTable, TableIntegrity>;
+export type IntegritySnapshot = Record<SyncedTable, TableIntegrity>;
+
+export type IntegrityResult = SyncSuccessContext & IntegritySnapshot;
 
 /**
  * When a local copy is too far behind to trust, and has to be thrown away and pulled afresh.
@@ -260,7 +275,7 @@ export type PushConflict = {
   canonicalRow: AcceptanceCanonicalRow | null;
 };
 
-export type PushChangesResult = {
+export type PushChangesResult = SyncSuccessContext & {
   /** The `mutationId`s that were applied — what the client drops from its outbox. */
   applied: string[];
   /** The affected rows as the server now holds them, server-stamped `updatedAt` included. */
@@ -269,3 +284,6 @@ export type PushChangesResult = {
   /** The palette, refreshed: a push may have minted colors for categories that carried a hex. */
   colors: Color[];
 };
+
+/** The plain HTTP route uses JSON rather than the RPC transport, so every Date is an ISO string. */
+export type HttpPushChangesResult = SerializeDates<PushChangesResult>;

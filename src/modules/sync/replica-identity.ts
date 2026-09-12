@@ -30,6 +30,8 @@ export type ReplicaContext = {
   ownerUserId: number | null;
 };
 
+export type BoundReplicaContext = ReplicaContext & { ownerUserId: number };
+
 type LegacyProfile = { id: string; userId: number | null };
 type LegacyOwnedRow = { id: string; profileId: string | null };
 type LegacyTransaction = LegacyOwnedRow & {

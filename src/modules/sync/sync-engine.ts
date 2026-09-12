@@ -17,14 +17,19 @@ import {
   type OutboxDeliveryResult,
   type OutboxDrainOutcome,
 } from "./outbox-acceptance";
-import { replicaContextFromDescriptor, type ReplicaContext } from "./replica-identity";
+import {
+  replicaContextFromDescriptor,
+  type BoundReplicaContext,
+  type ReplicaContext,
+} from "./replica-identity";
+import { isTerminalSyncError, readSyncResponseError } from "./sync-errors";
 import {
   runSync,
   type PullDeliveryResult,
   type SyncRunOutcome,
   type SyncRunPage,
 } from "./sync-run";
-import { PUSH_BATCH_LIMIT } from "./sync-types";
+import { PUSH_BATCH_LIMIT, SYNC_PROTOCOL_VERSION } from "./sync-types";
 import {
   applyServerRows,
   clearWorkingSet,
@@ -168,6 +173,19 @@ function isSyncResult<T>(value: T | Response): value is T {
   return typeof value === "object" && value != null && !(value instanceof Response);
 }
 
+async function classifyRejectedSyncResponse(
+  response: Response,
+): Promise<
+  | { kind: "unauthorized"; error: unknown }
+  | { kind: "terminal"; error: unknown }
+  | { kind: "retryable"; error: unknown }
+> {
+  const error = await readSyncResponseError(response);
+  if (error.code === "UNAUTHORIZED") return { kind: "unauthorized", error };
+  if (isTerminalSyncError(error)) return { kind: "terminal", error };
+  return { kind: "retryable", error };
+}
+
 function toMessage(error: unknown): string {
   if (error instanceof Response) return `The server rejected the request (${error.status}).`;
   if (error instanceof Error) return error.message;
@@ -187,17 +205,31 @@ async function dropLocalCopy(replicaContext: ReplicaContext): Promise<void> {
 }
 
 async function pullPage(
+  replicaContext: BoundReplicaContext,
   cursors: SyncCursors | undefined,
   withCounts: boolean,
 ): Promise<PullDeliveryResult> {
   try {
     const result: PullChangesResult | Response = await pullChanges({
-      data: { cursors, withCounts },
+      data: {
+        protocolVersion: SYNC_PROTOCOL_VERSION,
+        expectedOwnerUserId: replicaContext.ownerUserId,
+        cursors,
+        withCounts,
+      },
     });
-    if (!(result instanceof Response)) return { kind: "accepted", result };
-    if (result.status === 401) return { kind: "unauthorized", error: result };
-    return { kind: "retryable", error: result };
+    if (!(result instanceof Response)) {
+      if (
+        result.protocolVersion !== SYNC_PROTOCOL_VERSION ||
+        result.ownerUserId !== replicaContext.ownerUserId
+      ) {
+        return { kind: "terminal", error: new Error("The sync response owner did not match.") };
+      }
+      return { kind: "accepted", result };
+    }
+    return classifyRejectedSyncResponse(result);
   } catch (error) {
+    if (error instanceof Response) return classifyRejectedSyncResponse(error);
     return { kind: "retryable", error };
   }
 }
@@ -231,7 +263,7 @@ async function applyPulledPage(replicaContext: ReplicaContext, page: SyncRunPage
 }
 
 async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
-  let replicaContext: ReplicaContext;
+  let replicaContext: BoundReplicaContext;
   try {
     replicaContext = await captureSyncContext();
   } catch (error) {
@@ -241,7 +273,7 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
 
   useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
   const outcome = await runSync(mode, {
-    remote: { pull: pullPage },
+    remote: { pull: (cursors, withCounts) => pullPage(replicaContext, cursors, withCounts) },
     replica: {
       readCursors: () => readLocalCursors(replicaContext),
       hasQueuedWrites: async () => (await readOutboxState(replicaContext)).count > 0,
@@ -307,18 +339,29 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
  * work — every mutation carries a whole row, so applying one twice lands on the same state.
  */
 async function sendPagePush(
+  replicaContext: BoundReplicaContext,
   mutations: readonly Mutation[],
 ): Promise<OutboxDeliveryResult<PushChangesResult>> {
   try {
     const result: PushChangesResult | Response = await pushChanges({
-      data: { mutations: [...mutations] },
+      data: {
+        protocolVersion: SYNC_PROTOCOL_VERSION,
+        expectedOwnerUserId: replicaContext.ownerUserId,
+        mutations: [...mutations],
+      },
     });
-    if (!(result instanceof Response)) return { kind: "accepted", result };
-    if (result.status === 401) return { kind: "unauthorized", error: result };
-    if (result.status === 409) return { kind: "terminal", error: result };
-    return { kind: "retryable", error: result };
+    if (!(result instanceof Response)) {
+      if (
+        result.protocolVersion !== SYNC_PROTOCOL_VERSION ||
+        result.ownerUserId !== replicaContext.ownerUserId
+      ) {
+        return { kind: "terminal", error: new Error("The sync response owner did not match.") };
+      }
+      return { kind: "accepted", result };
+    }
+    return classifyRejectedSyncResponse(result);
   } catch (error) {
-    if (error instanceof Response && error.status === 409) return { kind: "terminal", error };
+    if (error instanceof Response) return classifyRejectedSyncResponse(error);
     return { kind: "retryable", error };
   }
 }
@@ -336,14 +379,14 @@ async function applyAcceptedPageBatch(
   }
 }
 
-async function drainPageOutbox(replicaContext: ReplicaContext): Promise<OutboxDrainOutcome> {
+async function drainPageOutbox(replicaContext: BoundReplicaContext): Promise<OutboxDrainOutcome> {
   useSyncStore.setState({ isPushing: true });
   try {
     return await drainOutbox({
       storage: createOutboxStorage(replicaContext),
       batchLimit: PUSH_BATCH_LIMIT,
       toPayload: ({ seq: _seq, ...mutation }) => mutation,
-      send: sendPagePush,
+      send: (mutations) => sendPagePush(replicaContext, mutations),
       onAccepted: (result) => applyAcceptedPageBatch(replicaContext, result),
     });
   } finally {
@@ -409,8 +452,19 @@ export function verifyIntegrity(): Promise<IntegrityReport> {
       return { outcome: "unsettled" };
     }
 
-    const server: IntegrityResult | Response = await checkIntegrity();
-    if (!isSyncResult(server)) throw server;
+    const server: IntegrityResult | Response = await checkIntegrity({
+      data: {
+        protocolVersion: SYNC_PROTOCOL_VERSION,
+        expectedOwnerUserId: replicaContext.ownerUserId,
+      },
+    });
+    if (!isSyncResult(server)) throw await readSyncResponseError(server);
+    if (
+      server.protocolVersion !== SYNC_PROTOCOL_VERSION ||
+      server.ownerUserId !== replicaContext.ownerUserId
+    ) {
+      throw new Error("The integrity response owner did not match.");
+    }
     await assertCurrentReplicaContext(replicaContext);
 
     // Folded after the answer arrives rather than before it, so the local side of the comparison is

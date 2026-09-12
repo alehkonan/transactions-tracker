@@ -3,6 +3,7 @@ import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
 import {
   classifyLegacyOwnership,
   replicaContextFromDescriptor,
+  type BoundReplicaContext,
   type ReplicaContext,
   type ReplicaDescriptor,
   type ReplicaIdentity,
@@ -279,14 +280,17 @@ export async function captureReplicaContext(
 }
 
 /** Sync requires durable server-confirmed ownership; a legacy candidate is not authorization. */
-export async function captureSyncContext(): Promise<ReplicaContext> {
+export async function captureSyncContext(): Promise<BoundReplicaContext> {
   const descriptor = await readReplicaDescriptor();
   if (descriptor.lifecycle !== "active") throw new ReplicaContextChangedError();
   if (descriptor.legacyOwnership.kind === "recovery-required") {
     throw new ReplicaRecoveryRequiredError();
   }
   if (descriptor.identity == null) throw new ReplicaIdentityRequiredError();
-  return effectiveContext(descriptor);
+  return {
+    replicaId: descriptor.replicaId,
+    ownerUserId: descriptor.identity.ownerUserId,
+  };
 }
 
 /** Rechecks a captured context immediately before publishing non-durable state. */

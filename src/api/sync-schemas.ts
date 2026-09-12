@@ -6,7 +6,7 @@ import {
   necessityLevelEnum,
   transactionTypeEnum,
 } from "~/database/enums";
-import { PUSH_BATCH_LIMIT, SYNCED_TABLES } from "~/modules/sync/sync-types";
+import { PUSH_BATCH_LIMIT, SYNCED_TABLES, SYNC_PROTOCOL_VERSION } from "~/modules/sync/sync-types";
 import type {
   AccountPayload,
   CategoryPayload,
@@ -93,7 +93,36 @@ const mutationSchema = z.union([
   ]),
 ]);
 
-export const pushChangesSchema = z.object({
+export const replicaSyncContextSchema = z.object({
+  protocolVersion: z.literal(SYNC_PROTOCOL_VERSION),
+  expectedOwnerUserId: z.number().int().positive(),
+});
+
+const cursorTimestampSchema = z
+  .string()
+  .max(64)
+  .regex(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}(:?\d{2})?)?$/);
+
+const cursorSchema = z.object({
+  updatedAt: cursorTimestampSchema,
+  id: z.uuid().nullable(),
+});
+
+export const pullChangesSchema = replicaSyncContextSchema.extend({
+  cursors: z
+    .object({
+      profiles: cursorSchema.optional(),
+      accounts: cursorSchema.optional(),
+      categories: cursorSchema.optional(),
+      transactions: cursorSchema.optional(),
+    })
+    .optional(),
+  withCounts: z.boolean().optional(),
+});
+
+export const checkIntegritySchema = replicaSyncContextSchema;
+
+export const pushChangesSchema = replicaSyncContextSchema.extend({
   mutations: z
     .array(mutationSchema)
     .max(PUSH_BATCH_LIMIT)

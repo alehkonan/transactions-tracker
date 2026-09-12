@@ -1,6 +1,6 @@
 import { STALE_CURSOR_AFTER_DAYS, SYNCED_TABLES } from "./sync-types";
 import type {
-  IntegrityResult,
+  IntegritySnapshot,
   SyncCursors,
   SyncedRow,
   SyncedRows,
@@ -58,7 +58,7 @@ export function tableIntegrity(rows: SyncedRow[]): TableIntegrity {
 }
 
 /** Fingerprints the whole working set, in the shape `checkIntegrity` answers in. */
-export function localIntegrity(rows: SyncedRows): IntegrityResult {
+export function localIntegrity(rows: SyncedRows): IntegritySnapshot {
   return {
     profiles: tableIntegrity(rows.profiles),
     accounts: tableIntegrity(rows.accounts),
@@ -82,8 +82,8 @@ export type IntegrityDivergence = {
  * depend on that.
  */
 export function compareIntegrity(
-  local: IntegrityResult,
-  server: IntegrityResult,
+  local: IntegritySnapshot,
+  server: IntegritySnapshot,
 ): IntegrityDivergence[] {
   return SYNCED_TABLES.filter(
     (table) =>

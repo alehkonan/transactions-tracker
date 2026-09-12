@@ -12,6 +12,8 @@ const emptyRows: SyncedRows = {
 
 function page(pending: SyncedTable[]): PullChangesResult {
   return {
+    protocolVersion: 2,
+    ownerUserId: 41,
     rows: emptyRows,
     nextCursors: {},
     pending,
@@ -184,6 +186,29 @@ describe("runSync", () => {
 
     expect(outcome).toEqual({ kind: "terminal", phase: "push", pushed: 0, error: failure });
     expect(pulled).toBe(false);
+  });
+
+  it("surfaces a terminal owner mismatch from pull without committing a page", async () => {
+    const failure = new Error("Replica owner mismatch.");
+    let committed = false;
+
+    const outcome = await runSync(
+      "normal",
+      dependencies({
+        remote: { pull: async () => ({ kind: "terminal", error: failure }) },
+        replica: {
+          readCursors: async () => undefined,
+          hasQueuedWrites: async () => false,
+          clearCachedRows: async () => {},
+          commitPulledPage: async () => {
+            committed = true;
+          },
+        },
+      }),
+    );
+
+    expect(outcome).toEqual({ kind: "terminal", phase: "pull", pushed: 0, error: failure });
+    expect(committed).toBe(false);
   });
 
   it("returns explicit unauthorized and convergence outcomes", async () => {

@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { mutationIntentMismatchResponse } from "~/api/mutation-receipts.server";
 import { executePush } from "~/api/push-execution.server";
 import { resolveSession } from "~/api/session.server";
@@ -10,6 +9,7 @@ import {
   withSyncPhase,
   withSyncRequest,
 } from "~/api/sync-observability.server";
+import { validateSyncRequest } from "~/api/sync-protocol.server";
 import { pushChangesSchema } from "~/api/sync-schemas";
 
 /**
@@ -38,17 +38,14 @@ export const Route = createFileRoute("/api/push")({
               return Response.json({ error: "Request body must be valid JSON." }, { status: 400 });
             }
 
-            const parsed = pushChangesSchema.safeParse(body);
-            if (!parsed.success) {
-              return Response.json({ error: z.treeifyError(parsed.error) }, { status: 400 });
-            }
-            logSyncEvent("sync.push.batch", mutationLogFields(parsed.data.mutations));
-
             try {
+              const parsed = validateSyncRequest(pushChangesSchema, body, user.id);
+              logSyncEvent("sync.push.batch", mutationLogFields(parsed.mutations));
+
               const result = await withSyncPhase(
                 "push.execute",
-                () => executePush(user.id, parsed.data.mutations),
-                { mutationCount: parsed.data.mutations.length },
+                () => executePush(user.id, parsed.mutations),
+                { mutationCount: parsed.mutations.length },
                 (pushResult) => ({
                   appliedCount: pushResult.applied.length,
                   conflictCount: pushResult.conflicts.length,
@@ -56,6 +53,7 @@ export const Route = createFileRoute("/api/push")({
               );
               return Response.json(result);
             } catch (error) {
+              if (error instanceof Response) return error;
               const response =
                 mutationIntentMismatchResponse(error) ?? retryableSyncResponse(error);
               if (response) return response;

@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, count, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
-import { z } from "zod";
 import {
   accountsTable,
   categoriesTable,
@@ -8,6 +7,7 @@ import {
   profilesTable,
   transactionsTable,
 } from "~/database/tables";
+import { SYNC_PROTOCOL_VERSION } from "~/modules/sync/sync-types";
 import { authMiddleware } from "./auth.middleware";
 import { getUsdRates } from "./currency-rates.server";
 import { runReadDatabaseTransaction } from "./database-resilience.server";
@@ -20,7 +20,8 @@ import {
   retryableSyncResponse,
   withSyncPhase,
 } from "./sync-observability.server";
-import { pushChangesSchema } from "./sync-schemas";
+import { validateSyncRequest } from "./sync-protocol.server";
+import { checkIntegritySchema, pullChangesSchema, pushChangesSchema } from "./sync-schemas";
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import type { Executor } from "~/database/get-db.server";
@@ -50,36 +51,6 @@ const PULL_PAGE_SIZE = 2000;
  * applying a row twice is a no-op.
  */
 const CURSOR_OVERLAP_MS = 10_000;
-
-/** Loose shape check only — the value is a bind parameter, never interpolated into the statement. */
-const timestampSchema = z
-  .string()
-  .max(64)
-  .regex(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}(:?\d{2})?)?$/);
-
-const cursorSchema = z.object({
-  updatedAt: timestampSchema,
-  id: z.uuid().nullable(),
-});
-
-const pullChangesSchema = z
-  .object({
-    cursors: z
-      .object({
-        profiles: cursorSchema.optional(),
-        accounts: cursorSchema.optional(),
-        categories: cursorSchema.optional(),
-        transactions: cursorSchema.optional(),
-      })
-      .optional(),
-    /**
-     * Ask for the transaction backlog size alongside the page. The client sets it on the first page
-     * of a run only: it is what a progress percentage needs, and an extra `count(*)` per page would
-     * be a real cost against a slow database for a number that does not change during the run.
-     */
-    withCounts: z.boolean().optional(),
-  })
-  .optional();
 
 /**
  * Every account column a client is allowed to hold — that is, all of them but `balance`, which is a
@@ -170,13 +141,14 @@ function withoutCursorColumn<T extends { cursorAt: string }>(rows: T[]): Omit<T,
  */
 export const pullChanges = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
-  .validator(pullChangesSchema)
+  .validator((data: unknown) => data)
   // Annotated rather than inferred: the payload shape is a contract with the IndexedDB stores and
   // the Zustand store, so a column dropped from a select should fail here, not at the far end.
   .handler(async ({ data, context }): Promise<PullChangesResult> => {
-    const cursors: SyncCursors = data?.cursors ?? {};
+    const request = validateSyncRequest(pullChangesSchema, data, context.user.id);
+    const cursors: SyncCursors = request.cursors ?? {};
     logSyncEvent("sync.pull.request", {
-      withCounts: data?.withCounts === true,
+      withCounts: request.withCounts === true,
       cursorTables: Object.keys(cursors),
     });
 
@@ -296,7 +268,7 @@ export const pullChanges = createServerFn()
           );
           // Counted through the same predicate as the page above, so it measures exactly the run the
           // client is about to make: an index-only scan over `(profile_id, updated_at, id)`.
-          const backlog = data?.withCounts
+          const backlog = request.withCounts
             ? await withSyncPhase("pull.transaction_backlog", () =>
                 db
                   .select({ count: count() })
@@ -324,6 +296,8 @@ export const pullChanges = createServerFn()
       }
 
       const result: PullChangesResult = {
+        protocolVersion: SYNC_PROTOCOL_VERSION,
+        ownerUserId: context.user.id,
         rows: {
           profiles: withoutCursorColumn(profiles),
           accounts: withoutCursorColumn(accounts),
@@ -408,7 +382,9 @@ function integrityOf(columns: KeysetColumns) {
  */
 export const checkIntegrity = createServerFn()
   .middleware([loggerMiddleware, authMiddleware])
-  .handler(async ({ context }): Promise<IntegrityResult> => {
+  .validator((data: unknown) => data)
+  .handler(async ({ data, context }): Promise<IntegrityResult> => {
+    validateSyncRequest(checkIntegritySchema, data, context.user.id);
     try {
       return await runReadDatabaseTransaction("integrity.database", async (db) => {
         const ownProfiles = await withSyncPhase(
@@ -465,6 +441,8 @@ export const checkIntegrity = createServerFn()
         const empty: TableIntegrity = { count: 0, checksum: "0" };
 
         return {
+          protocolVersion: SYNC_PROTOCOL_VERSION,
+          ownerUserId: context.user.id,
           profiles: profiles[0] ?? empty,
           accounts: accounts[0] ?? empty,
           categories: categories[0] ?? empty,
@@ -493,15 +471,16 @@ export const checkIntegrity = createServerFn()
  */
 export const pushChanges = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])
-  .validator(pushChangesSchema)
+  .validator((data: unknown) => data)
   .handler(async ({ data, context }): Promise<PushChangesResult> => {
-    logSyncEvent("sync.push.batch", mutationLogFields(data.mutations));
+    const request = validateSyncRequest(pushChangesSchema, data, context.user.id);
+    logSyncEvent("sync.push.batch", mutationLogFields(request.mutations));
 
     try {
       return await withSyncPhase(
         "push.execute",
-        () => executePush(context.user.id, data.mutations),
-        { mutationCount: data.mutations.length },
+        () => executePush(context.user.id, request.mutations),
+        { mutationCount: request.mutations.length },
         (result) => ({
           appliedCount: result.applied.length,
           conflictCount: result.conflicts.length,
