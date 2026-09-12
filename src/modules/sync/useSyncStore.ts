@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { readOutboxState, rowKey } from "./outbox";
-import type { ReplicaContext } from "./replica-identity";
+import type { ReplicaContext, ReplicaSyncAuth } from "./replica-identity";
 import type {
   Color,
   PushConflict,
@@ -44,8 +44,14 @@ type SyncState = {
    * from a pull. Transactions may still be arriving — see `pending`.
    */
   isHydrated: boolean;
+  /** IndexedDB inspection completed; it never waits for network sync. */
+  isLocalBooted: boolean;
   /** Durable identity captured with the rows currently published in memory. */
   replicaContext: ReplicaContext | null;
+  /** Local-only view selection, persisted in the replica metadata rather than a cookie. */
+  selectedProfileId: string | null;
+  /** Durable admission state mirrored from the replica descriptor. */
+  syncAuth: ReplicaSyncAuth;
   status: SyncStatus;
   error: string | null;
   /**
@@ -92,7 +98,10 @@ type SyncState = {
 function initialState(): SyncState {
   return {
     isHydrated: false,
+    isLocalBooted: false,
     replicaContext: null,
+    selectedProfileId: null,
+    syncAuth: "unknown",
     status: "idle",
     error: null,
     isOnline: true,
@@ -174,8 +183,9 @@ export function replaceRows(
   rows: SyncedRows,
   colors: Color[],
   usdRates: Record<string, number>,
+  selectedProfileId: string | null,
 ) {
-  useSyncStore.setState({ replicaContext, ...rows, colors, usdRates });
+  useSyncStore.setState({ replicaContext, ...rows, colors, usdRates, selectedProfileId });
 }
 
 /**
@@ -197,6 +207,7 @@ export function clearWorkingSet(): void {
     pending: [],
     syncedRows: 0,
     syncTotalRows: null,
+    selectedProfileId: null,
   });
 }
 

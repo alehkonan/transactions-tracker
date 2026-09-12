@@ -13,7 +13,7 @@ import {
   updateCategory,
 } from "~/modules/categories/category-mutations";
 import { getCategoryDisplayColor } from "~/modules/categories/category-palette";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
 import type { Color } from "~/modules/sync/sync-types";
@@ -41,6 +41,7 @@ function getDefaultValues(category?: CategoryRow): CategoryFormValues {
 export function CategoryForm({ colors, category }: Props) {
   const { onClose } = useContext(DialogContext);
   const replicaContext = useReplicaBinding();
+  const profileId = useSelectedProfileId();
   const isEditing = Boolean(category);
   const { control, handleSubmit, reset, formState } = useForm<CategoryFormValues>({
     defaultValues: getDefaultValues(category),
@@ -65,7 +66,6 @@ export function CategoryForm({ colors, category }: Props) {
     // The validation rule above already rejected a missing color; this only narrows the type.
     if (colorId == null) return;
 
-    const profileId = readSelectedProfileId();
     if (profileId == null || !replicaContext) return;
 
     if (category) {

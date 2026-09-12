@@ -1,6 +1,6 @@
 import { use } from "react";
 import { DialogContext } from "~/components/Dialog";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import {
@@ -23,9 +23,9 @@ type Options = {
 export function useTransactionFormSubmit({ transaction }: Options) {
   const { onClose } = use(DialogContext);
   const replicaContext = useReplicaBinding();
+  const profileId = useSelectedProfileId();
 
   const submit = async (values: TransactionFormValues) => {
-    const profileId = readSelectedProfileId();
     if (profileId == null || !replicaContext) return;
 
     const shared = {

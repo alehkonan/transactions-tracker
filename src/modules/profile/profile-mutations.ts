@@ -1,17 +1,13 @@
+import { selectProfileLocally } from "~/modules/profile/local-selection";
 import { commit, newRow } from "~/modules/sync/mutations";
-import { pushNow } from "~/modules/sync/sync-engine";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import type { LocalChange } from "~/modules/sync/mutations";
 import type { ReplicaContext } from "~/modules/sync/replica-identity";
 import type { ProfilePayload, SyncedProfile } from "~/modules/sync/sync-types";
 
 /**
- * Creates a profile and waits for it to reach the server.
- *
- * The one mutation in the app that cannot be fire-and-forget: selecting a profile mints a signed
- * cookie, and the server will only sign one for a profile it can see (see `selectProfile`). So the
- * push is awaited here rather than left to the debounce — the alternative is a profile the user
- * has just made and cannot open for another second.
+ * Creates a profile locally. The selection is local metadata too, so neither creation nor opening a
+ * new profile waits for the network.
  */
 export async function createProfile(
   name: string,
@@ -22,15 +18,6 @@ export async function createProfile(
   const row = newRow({ ...payload, userId: null });
 
   await commit([{ op: "upsert", table: "profiles", row, payload }], replicaContext);
-  const outcome = await pushNow();
-  if (outcome.kind !== "completed") {
-    if (outcome.kind === "unauthorized") throw new Error("The session is no longer authorized.");
-    if (outcome.kind === "didNotConverge")
-      throw new Error(`Sync did not converge after ${outcome.pages} pages.`);
-    if (outcome.kind === "blocked") throw new Error("There are changes still waiting to be sent.");
-    throw outcome.error instanceof Error ? outcome.error : new Error("Could not save the profile.");
-  }
-
   return row.id;
 }
 
@@ -57,10 +44,10 @@ export function updateProfile(
  * Removes a profile and drops its children locally in one IndexedDB transaction. The server mirrors
  * the cascade with tombstones so other devices learn about every deleted child through their pulls.
  */
-export function deleteProfile(id: string, replicaContext?: ReplicaContext): Promise<void> {
+export async function deleteProfile(id: string, replicaContext?: ReplicaContext): Promise<void> {
   const state = useSyncStore.getState();
   const profile = state.profiles.find((candidate) => candidate.id === id);
-  if (!profile) return Promise.resolve();
+  if (!profile) return;
 
   const changes: LocalChange[] = [{ op: "delete", table: "profiles", row: profile }];
   const accounts = state.accounts.filter((account) => account.profileId === id);
@@ -73,5 +60,6 @@ export function deleteProfile(id: string, replicaContext?: ReplicaContext): Prom
     changes.push({ op: "cascade", table: "transactions", rows: transactions });
   }
 
-  return commit(changes, replicaContext);
+  await commit(changes, replicaContext);
+  if (useSyncStore.getState().selectedProfileId === id) await selectProfileLocally(null);
 }

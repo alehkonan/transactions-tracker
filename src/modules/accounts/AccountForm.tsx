@@ -9,7 +9,7 @@ import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { SelectControl } from "~/components/SelectControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { formatMoney } from "~/utils/format-money";
 import { isMoneyInput } from "~/utils/money";
@@ -66,6 +66,7 @@ function getProjectedBalance(account: AccountWithBalance, initialBalance: string
 export function AccountForm({ account }: Props) {
   const { onClose } = useContext(DialogContext);
   const replicaContext = useReplicaBinding();
+  const profileId = useSelectedProfileId();
   const isEditing = Boolean(account);
   const { control, handleSubmit, reset, formState } = useForm<AccountFormValues>({
     defaultValues: getDefaultValues(account),
@@ -82,7 +83,6 @@ export function AccountForm({ account }: Props) {
   };
 
   const onSubmit = handleSubmit(async (values) => {
-    const profileId = readSelectedProfileId();
     if (profileId == null || !replicaContext) return;
 
     const input = {

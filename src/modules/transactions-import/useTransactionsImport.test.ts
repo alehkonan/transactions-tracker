@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   getMissingHeaders: vi.fn(),
 }));
 
-vi.mock("~/modules/profile/profile-cookie", () => ({ readSelectedProfileId: vi.fn() }));
 vi.mock("~/modules/sync/idb", () => ({
   assertCurrentReplicaContext: mocks.assertCurrentReplicaContext,
   captureReplicaContext: mocks.captureReplicaContext,

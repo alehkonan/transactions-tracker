@@ -1,6 +1,5 @@
 import { create, type StateCreator } from "zustand";
 import { devtools } from "zustand/middleware";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
 import { assertCurrentReplicaContext, captureReplicaContext } from "~/modules/sync/idb";
 import { commit } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -110,7 +109,7 @@ export const actions = {
    */
   startImport: async () => {
     const { rows, replicaContext } = useTransactionsImport.getState();
-    const profileId = readSelectedProfileId();
+    const profileId = useSyncStore.getState().selectedProfileId;
     if (!rows || !replicaContext || profileId == null) return;
 
     useTransactionsImport.setState({ step: "processing", report: undefined });

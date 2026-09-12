@@ -8,7 +8,7 @@ import { SignOutButton } from "~/modules/auth/SignOutButton";
 import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { CreateCategoryButton } from "~/modules/categories/CreateCategoryButton";
 import { useCategories } from "~/modules/categories/useCategories";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { IntegrityCheck } from "~/modules/sync/IntegrityCheck";
 import { StoragePersistence } from "~/modules/sync/StoragePersistence";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/settings")({
     const categories = useCategories();
     const colors = useSyncStore((state) => state.colors);
     const profiles = useSyncStore((state) => state.profiles);
-    const profileId = readSelectedProfileId();
+    const profileId = useSelectedProfileId();
     const profile = profiles.find((candidate) => candidate.id === profileId);
     // From the hint cookie rather than a `getSession()` call: the name is only being displayed, and
     // this page has no business being the one thing in the app that needs the network.

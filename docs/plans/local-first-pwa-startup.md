@@ -330,6 +330,8 @@ Ambiguous recovery — исключение из-за неизвестного �
 
 ### T5. Local boot, статусы и локальный выбор профиля
 
+> **Статус исполнения (2026-09-12): реализация завершена.** Local boot отделён от сетевого sync; cookie guards больше не управляют локальным доступом; `syncAuth` блокирует все автоматические sync triggers во время reauth; статус честно отображает auth pause и локально сохранённые изменения. Выбор профиля хранится в IDB metadata и реактивном Zustand, поэтому создание и выбор профиля не ожидают push. Browser acceptance gates из строки 350 необходимо выполнить перед выпуском.
+
 Файлы: `src/routes/__root.tsx`, `src/routes/login.tsx`, `src/routes/index.tsx`, `src/routes/profile.tsx`; `src/modules/sync/SyncGate.tsx`, `SyncStatus.tsx`, `sync-engine.ts`, `useSyncStore.ts`; `src/modules/profile/*`; call sites `readSelectedProfileId`.
 
 1. Boot сначала читает replica metadata/rows. Разделить завершение local boot и promise сетевого sync. Ни router guard, ни local-ready UI не ждут auth RPC/sync lock.

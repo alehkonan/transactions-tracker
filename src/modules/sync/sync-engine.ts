@@ -1,4 +1,5 @@
 import { checkIntegrity, pullChanges, pushChanges } from "~/api/sync.functions";
+import { hasLiveSessionHint } from "~/modules/auth/session-hint";
 import { runWithBrowserOperationLock } from "./browser-operation-lock";
 import {
   assertCurrentReplicaContext,
@@ -7,6 +8,7 @@ import {
   readLocalCursors,
   readLocalSnapshot,
   recoverInterruptedReplicaTransition,
+  setReplicaSyncAuth,
   subscribeToReplicaInvalidation,
   writeLocalPage,
 } from "./idb";
@@ -130,7 +132,7 @@ export function announceReplicaTransition(replicaContext: ReplicaContext): void 
 
 /** Publishes a completed same-user transition and resumes sync through the ordinary scheduler. */
 export function resumeSyncAfterSignIn(replicaContext: ReplicaContext): void {
-  useSyncStore.setState({ replicaContext, status: "idle", error: null });
+  useSyncStore.setState({ replicaContext, syncAuth: "authenticated", status: "idle", error: null });
   announce({ type: "auth-completed", replicaId: replicaContext.replicaId });
   schedulePush(0, replicaContext);
 }
@@ -138,6 +140,7 @@ export function resumeSyncAfterSignIn(replicaContext: ReplicaContext): void {
 /** Keeps local data available after uncertain auth while durably gated sync stays paused. */
 export function pauseSyncAfterAuthFailure(replicaContext: ReplicaContext): void {
   useSyncStore.setState({
+    syncAuth: "login-required",
     status: "error",
     error: "Sign in again before synchronization resumes.",
   });
@@ -182,13 +185,21 @@ async function hydrateFromLocal(): Promise<boolean> {
     return false;
   }
 
-  replaceRows(replicaContext, snapshot.rows, snapshot.colors, snapshot.usdRates);
+  replaceRows(
+    replicaContext,
+    snapshot.rows,
+    snapshot.colors,
+    snapshot.usdRates,
+    snapshot.selectedProfileId,
+  );
   replaceOutboxState(snapshot.outbox);
   const syncAuth = replicaSyncAuthFromDescriptor(snapshot.descriptor);
   useSyncStore.setState((state) => ({
     // A cursor is what says the local copy is a complete picture rather than a partial one.
     isHydrated: state.isHydrated || snapshot.cursors != null,
     lastSyncedAt: snapshot.lastSyncedAt,
+    syncAuth,
+    isLocalBooted: true,
     ...(syncAuth === "login-required" || syncAuth === "owner-mismatch"
       ? { status: "error" as const, error: "Sign in again before synchronization resumes." }
       : {}),
@@ -342,7 +353,12 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
   }
 
   if (outcome.kind === "unauthorized") {
-    useSyncStore.setState({ status: "unauthorized", error: toMessage(outcome.error) });
+    await setReplicaSyncAuth(replicaContext, "login-required");
+    useSyncStore.setState({
+      syncAuth: "login-required",
+      status: "unauthorized",
+      error: toMessage(outcome.error),
+    });
   } else if (outcome.kind === "terminal") {
     useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
   } else if (outcome.kind === "retryable") {
@@ -452,6 +468,7 @@ let failedPushes = 0;
  * created. Doing it here puts that behind the sync indicator instead of on the loading path.
  */
 export function pushNow(): Promise<SyncRunOutcome> {
+  if (!canAttemptSync()) return Promise.resolve(blockedSyncOutcome());
   clearTimeout(pushTimer);
   pushTimer = undefined;
   return runExclusive(() => runPageSync("normal"));
@@ -465,7 +482,7 @@ export function pushNow(): Promise<SyncRunOutcome> {
  * nowhere else.
  */
 export function schedulePush(delayMs: number = PUSH_DEBOUNCE_MS, expected?: ReplicaContext): void {
-  if (pushTimer != null) return;
+  if (!canAttemptSync() || pushTimer != null) return;
   pushTimer = setTimeout(() => {
     void (async () => {
       try {
@@ -556,6 +573,7 @@ export function verifyIntegrity(): Promise<IntegrityReport> {
  * they are the one thing here that a re-pull could not bring back.
  */
 export function resyncFromScratch(): Promise<SyncRunOutcome> {
+  if (!canAttemptSync()) return Promise.resolve(blockedSyncOutcome());
   return runExclusive(() => runPageSync("resync"));
 }
 
@@ -565,6 +583,7 @@ export function resyncFromScratch(): Promise<SyncRunOutcome> {
 
 /** Brings this browser up to date: sends what is queued if anything is, otherwise just pulls. */
 export function syncNow(): Promise<SyncRunOutcome> {
+  if (!canAttemptSync()) return Promise.resolve(blockedSyncOutcome());
   return runExclusive(() => runPageSync("normal"));
 }
 
@@ -574,6 +593,21 @@ export function syncNow(): Promise<SyncRunOutcome> {
  * The check is against `lastSyncedAt`, which every tab updates from its own pulls, so a tab coming
  * back to the foreground next to one that has been syncing all along does nothing.
  */
+function blockedSyncOutcome(): SyncRunOutcome {
+  return { kind: "blocked", reason: "queued-writes" };
+}
+
+/** Every automatic and explicit trigger enters sync through this admission check. */
+function canAttemptSync(): boolean {
+  const { isOnline, syncAuth } = useSyncStore.getState();
+  return (
+    isOnline &&
+    syncAuth !== "unknown" &&
+    syncAuth !== "login-required" &&
+    syncAuth !== "owner-mismatch"
+  );
+}
+
 async function syncIfStale(): Promise<void> {
   const { status, isOnline, lastSyncedAt, outboxCount } = useSyncStore.getState();
 
@@ -675,6 +709,7 @@ export function startSyncTriggers(): () => void {
             useSyncStore.setState({ status: "idle", error: null });
           } else if (message.type === "auth-required") {
             useSyncStore.setState({
+              syncAuth: "login-required",
               status: "error",
               error: "Sign in again before synchronization resumes.",
             });
@@ -734,12 +769,24 @@ export function bootSync(): Promise<SyncRunOutcome> {
     } catch (error) {
       // Private-mode Safari and friends: no local copy, so every boot is a first run.
       console.warn("Could not read the local database:", error);
+      useSyncStore.setState({ isLocalBooted: true, status: "error", error: toMessage(error) });
     }
 
     if (recoveredTransition) {
       const error = new Error("Sign in again before synchronization resumes.");
       pauseSyncAfterAuthFailure(recoveredTransition);
       return { kind: "unauthorized", phase: "pull", pushed: 0, error };
+    }
+
+    const state = useSyncStore.getState();
+    if (state.replicaContext?.ownerUserId != null && !hasLiveSessionHint()) {
+      await setReplicaSyncAuth(state.replicaContext, "login-required");
+      useSyncStore.setState({
+        syncAuth: "login-required",
+        status: "error",
+        error: "Sign in again before synchronization resumes.",
+      });
+      return blockedSyncOutcome();
     }
 
     const outcome = await syncNow();

@@ -1,32 +1,16 @@
 import { Toast } from "@base-ui/react/toast";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import {
-  HeadContent,
-  Scripts,
-  createRootRoute,
-  redirect,
-  useRouterState,
-} from "@tanstack/react-router";
+import { HeadContent, Scripts, createRootRoute, useRouterState } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { twJoin } from "tailwind-merge";
 import { Navbar } from "~/components/Navbar";
 import { ServiceWorkerRegistration } from "~/components/ServiceWorkerRegistration";
 import { Toaster } from "~/components/Toaster";
-import { hasLiveSessionHint } from "~/modules/auth/session-hint";
-import { hasSelectedProfileHint } from "~/modules/profile/profile-cookie";
 import { SyncGate } from "~/modules/sync/SyncGate";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import appCss from "~/styles.css?url";
 
 export const Route = createRootRoute({
-  beforeLoad: ({ location }) => {
-    if (location.pathname === "/login") return;
-    if (!hasLiveSessionHint()) {
-      throw redirect({ to: "/login", search: { returnTo: location.href } });
-    }
-    if (location.pathname === "/profile") return;
-    if (!hasSelectedProfileHint()) throw redirect({ to: "/profile" });
-  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },

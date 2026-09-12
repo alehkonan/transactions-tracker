@@ -747,6 +747,16 @@ export function selectLocalProfile(
   });
 }
 
+/** Durably pauses automatic sync without affecting the locally readable replica. */
+export function setReplicaSyncAuth(
+  expected: ReplicaContext,
+  syncAuth: "unknown" | "authenticated" | "login-required" | "owner-mismatch",
+): Promise<void> {
+  return guardedTransaction([], expected, (transaction, descriptor) => {
+    transaction.objectStore(META_STORE).put({ ...descriptor, syncAuth }, DESCRIPTOR_KEY);
+  });
+}
+
 export function bindReplicaIdentity(
   expected: ReplicaContext,
   identity: Omit<ReplicaIdentity, "replicaId">,

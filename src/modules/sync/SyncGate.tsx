@@ -26,6 +26,10 @@ type Props = {
 export function SyncGate({ children }: Props) {
   const navigate = useNavigate();
   const isHydrated = useSyncStore((state) => state.isHydrated);
+  const isLocalBooted = useSyncStore((state) => state.isLocalBooted);
+  const selectedProfileId = useSyncStore((state) => state.selectedProfileId);
+  const replicaContext = useSyncStore((state) => state.replicaContext);
+  const syncAuth = useSyncStore((state) => state.syncAuth);
   const status = useSyncStore((state) => state.status);
   const error = useSyncStore((state) => state.error);
   const replicaId = useSyncStore((state) => state.replicaContext?.replicaId);
@@ -37,14 +41,35 @@ export function SyncGate({ children }: Props) {
     return startSyncTriggers();
   }, []);
 
-  // The route guards run off a forgeable hint cookie, so the server rejecting the pull is the first
-  // real proof that the session is gone.
   useEffect(() => {
-    if (status === "unauthorized") {
-      const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (!isLocalBooted) return;
+    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (replicaContext?.ownerUserId == null && status !== "error") {
       void navigate({ to: "/login", search: { returnTo }, replace: true });
+      return;
     }
-  }, [status, navigate]);
+    if (
+      (syncAuth === "login-required" ||
+        syncAuth === "owner-mismatch" ||
+        status === "unauthorized") &&
+      window.location.pathname !== "/login"
+    ) {
+      void navigate({ to: "/login", search: { returnTo }, replace: true });
+      return;
+    }
+    if (isHydrated && selectedProfileId == null && window.location.pathname !== "/profile") {
+      void navigate({ to: "/profile", replace: true });
+    }
+  }, [
+    isHydrated,
+    isLocalBooted,
+    navigate,
+    replicaContext?.ownerUserId,
+    selectedProfileId,
+    status,
+    syncAuth,
+  ]);
 
   if (isHydrated) {
     return (
@@ -58,7 +83,18 @@ export function SyncGate({ children }: Props) {
     );
   }
 
-  if (status === "error") {
+  if (isLocalBooted && replicaContext?.ownerUserId == null && status !== "error") {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <Title variant="card">Sign in to load your data</Title>
+        <Button variant="primary" onClick={() => void navigate({ to: "/login" })}>
+          Sign in
+        </Button>
+      </div>
+    );
+  }
+
+  if (!isHydrated && status === "error") {
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
         <Title variant="card">Could not load your data</Title>
@@ -73,7 +109,9 @@ export function SyncGate({ children }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6">
       <LoaderCircleIcon className="text-text-muted size-8 animate-spin" aria-label="Loading" />
-      <p className="text-text-muted text-sm">Loading your data…</p>
+      <p className="text-text-muted text-sm">
+        {isLocalBooted ? "Loading your data…" : "Opening local data…"}
+      </p>
     </div>
   );
 }

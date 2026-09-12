@@ -7,7 +7,7 @@ import { Select } from "~/components/Select";
 import { Title } from "~/components/Title";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useCategories } from "~/modules/categories/useCategories";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { AveragePeriodToggle } from "~/modules/statistics/AveragePeriodToggle";
 import { CategoryBreakdownCard } from "~/modules/statistics/CategoryBreakdownCard";
 import { computeAvailableSpendingMonths } from "~/modules/statistics/compute-available-spending-months";
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/statistics")({
     const navigate = useNavigate({ from: "/statistics" });
     const period = search.period ?? DEFAULT_AVERAGE_PERIOD;
 
-    const profileId = readSelectedProfileId();
+    const profileId = useSelectedProfileId();
     const allTransactions = useSyncStore((state) => state.transactions);
     const usdRates = useSyncStore((state) => state.usdRates);
     const accounts = useAccounts();
