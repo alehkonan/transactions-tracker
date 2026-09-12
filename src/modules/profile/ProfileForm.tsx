@@ -4,6 +4,7 @@ import { Button } from "~/components/Button";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
 import { createProfile, updateProfile } from "~/modules/profile/profile-mutations";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import type { ProfileSummary } from "~/modules/accounts/compute-balances";
 
 type ProfileFormValues = {
@@ -22,6 +23,7 @@ function getDefaultValues(profile?: Props["profile"]): ProfileFormValues {
 /** Creates or renames a profile. */
 export function ProfileForm({ profile }: Props) {
   const { onClose } = useContext(DialogContext);
+  const replicaContext = useSyncStore((state) => state.replicaContext);
   const isEditing = Boolean(profile);
   const { control, handleSubmit, reset, formState } = useForm<ProfileFormValues>({
     defaultValues: getDefaultValues(profile),
@@ -29,12 +31,12 @@ export function ProfileForm({ profile }: Props) {
 
   const onSubmit = handleSubmit(async ({ name }) => {
     const trimmedName = name.trim();
-    if (!trimmedName) return;
+    if (!trimmedName || !replicaContext) return;
 
     if (profile) {
-      await updateProfile(profile.id, trimmedName);
+      await updateProfile(profile.id, trimmedName, replicaContext);
     } else {
-      await createProfile(trimmedName);
+      await createProfile(trimmedName, replicaContext);
       reset(getDefaultValues());
     }
 

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { navigate, passwordSignIn, resetLocalData } = vi.hoisted(() => ({
+const { navigate, passwordSignIn, completeSignIn } = vi.hoisted(() => ({
   navigate: vi.fn(),
   passwordSignIn: vi.fn(),
-  resetLocalData: vi.fn(),
+  completeSignIn: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
@@ -31,10 +31,10 @@ vi.mock("~/api/auth.functions", () => ({
   passwordSignIn,
   passwordSignUp: vi.fn(),
 }));
-vi.mock("~/modules/auth/security-errors", () => ({
-  unwrapServerResponse: (result: unknown) => result,
+vi.mock("~/modules/auth/complete-sign-in", () => ({
+  completeSignIn,
+  getSignInReturnPath: () => "/",
 }));
-vi.mock("~/modules/sync/sync-engine", () => ({ resetLocalData }));
 
 import { usePasswordAuthForm } from "./usePasswordAuthForm";
 
@@ -42,7 +42,7 @@ describe("usePasswordAuthForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     passwordSignIn.mockResolvedValue({ id: 7, username: "replica-a" });
-    resetLocalData.mockResolvedValue(undefined);
+    completeSignIn.mockImplementation(async (_intent, finalize) => finalize(7));
     navigate.mockResolvedValue(undefined);
   });
 
@@ -51,10 +51,10 @@ describe("usePasswordAuthForm", () => {
 
     await (form.onSubmit as unknown as () => Promise<void>)();
 
+    expect(completeSignIn).toHaveBeenCalledWith("sign-in", expect.any(Function));
     expect(passwordSignIn).toHaveBeenCalledWith({
-      data: { username: "replica-a", password: "correct password" },
+      data: { username: "replica-a", password: "correct password", expectedUserId: 7 },
     });
-    expect(resetLocalData).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith({ to: "/", replace: true });
   });
 });

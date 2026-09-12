@@ -2,6 +2,7 @@ import { commit, newRow } from "~/modules/sync/mutations";
 import { pushNow } from "~/modules/sync/sync-engine";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import type { LocalChange } from "~/modules/sync/mutations";
+import type { ReplicaContext } from "~/modules/sync/replica-identity";
 import type { ProfilePayload, SyncedProfile } from "~/modules/sync/sync-types";
 
 /**
@@ -12,12 +13,15 @@ import type { ProfilePayload, SyncedProfile } from "~/modules/sync/sync-types";
  * push is awaited here rather than left to the debounce — the alternative is a profile the user
  * has just made and cannot open for another second.
  */
-export async function createProfile(name: string): Promise<string> {
+export async function createProfile(
+  name: string,
+  replicaContext?: ReplicaContext,
+): Promise<string> {
   const payload: ProfilePayload = { name };
   // `userId` is the server's to stamp from the session; locally the row simply has no owner yet.
   const row = newRow({ ...payload, userId: null });
 
-  await commit([{ op: "upsert", table: "profiles", row, payload }]);
+  await commit([{ op: "upsert", table: "profiles", row, payload }], replicaContext);
   const outcome = await pushNow();
   if (outcome.kind !== "completed") {
     if (outcome.kind === "unauthorized") throw new Error("The session is no longer authorized.");
@@ -34,19 +38,26 @@ function findProfile(id: string): SyncedProfile | undefined {
   return useSyncStore.getState().profiles.find((profile) => profile.id === id);
 }
 
-export function updateProfile(id: string, name: string): Promise<void> {
+export function updateProfile(
+  id: string,
+  name: string,
+  replicaContext?: ReplicaContext,
+): Promise<void> {
   const profile = findProfile(id);
   if (!profile) return Promise.resolve();
 
   const payload: ProfilePayload = { name };
-  return commit([{ op: "upsert", table: "profiles", row: { ...profile, ...payload }, payload }]);
+  return commit(
+    [{ op: "upsert", table: "profiles", row: { ...profile, ...payload }, payload }],
+    replicaContext,
+  );
 }
 
 /**
  * Removes a profile and drops its children locally in one IndexedDB transaction. The server mirrors
  * the cascade with tombstones so other devices learn about every deleted child through their pulls.
  */
-export function deleteProfile(id: string): Promise<void> {
+export function deleteProfile(id: string, replicaContext?: ReplicaContext): Promise<void> {
   const state = useSyncStore.getState();
   const profile = state.profiles.find((candidate) => candidate.id === id);
   if (!profile) return Promise.resolve();
@@ -62,5 +73,5 @@ export function deleteProfile(id: string): Promise<void> {
     changes.push({ op: "cascade", table: "transactions", rows: transactions });
   }
 
-  return commit(changes);
+  return commit(changes, replicaContext);
 }

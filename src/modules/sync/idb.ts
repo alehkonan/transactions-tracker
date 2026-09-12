@@ -7,6 +7,7 @@ import {
   type ReplicaContext,
   type ReplicaDescriptor,
   type ReplicaIdentity,
+  type ReplicaTransition,
 } from "./replica-identity";
 import { SYNCED_TABLES } from "./sync-types";
 import type {
@@ -259,6 +260,60 @@ function guardedTransaction(
   );
 }
 
+function assertExpectedTransition(
+  descriptor: ReplicaDescriptor | undefined,
+  expected: ReplicaContext,
+  transitionId: string,
+): asserts descriptor is ReplicaDescriptor {
+  if (
+    descriptor == null ||
+    descriptor.lifecycle !== "transitioning" ||
+    descriptor.transition?.transitionId !== transitionId
+  ) {
+    throw new ReplicaContextChangedError();
+  }
+  const actual = effectiveContext(descriptor);
+  if (actual.replicaId !== expected.replicaId || actual.ownerUserId !== expected.ownerUserId) {
+    throw new ReplicaContextChangedError();
+  }
+}
+
+function transitionedTransaction(
+  stores: readonly string[],
+  expected: ReplicaContext,
+  transitionId: string,
+  mutate: (transaction: IDBTransaction, descriptor: ReplicaDescriptor) => void,
+): Promise<void> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(
+          Array.from(new Set([...stores, META_STORE])),
+          "readwrite",
+        );
+        let failure: unknown;
+        const descriptorRequest = transaction.objectStore(META_STORE).get(DESCRIPTOR_KEY);
+        descriptorRequest.addEventListener("success", () => {
+          try {
+            const descriptor = descriptorRequest.result as ReplicaDescriptor | undefined;
+            assertExpectedTransition(descriptor, expected, transitionId);
+            mutate(transaction, descriptor);
+          } catch (error) {
+            failure = error;
+            transaction.abort();
+          }
+        });
+        descriptorRequest.addEventListener("error", () => {
+          failure = descriptorRequest.error;
+          transaction.abort();
+        });
+        transaction.addEventListener("complete", () => resolve());
+        transaction.addEventListener("error", () => reject(failure ?? transaction.error));
+        transaction.addEventListener("abort", () => reject(failure ?? transaction.error));
+      }),
+  );
+}
+
 export async function readReplicaDescriptor(): Promise<ReplicaDescriptor> {
   const database = await openDatabase();
   const descriptor = (await promisify(
@@ -277,6 +332,82 @@ export async function captureReplicaContext(
     throw new ReplicaRecoveryRequiredError();
   }
   return effectiveContext(descriptor);
+}
+
+export function beginReplicaTransition(
+  expected: ReplicaContext,
+  transition: ReplicaTransition,
+): Promise<void> {
+  return guardedTransaction(
+    [],
+    expected,
+    (transaction, descriptor) => {
+      transaction
+        .objectStore(META_STORE)
+        .put(
+          { ...descriptor, lifecycle: "transitioning", transition } satisfies ReplicaDescriptor,
+          DESCRIPTOR_KEY,
+        );
+    },
+    { allowRecovery: true },
+  );
+}
+
+export function cancelReplicaTransition(
+  expected: ReplicaContext,
+  transitionId: string,
+): Promise<void> {
+  return transitionedTransaction([], expected, transitionId, (transaction, descriptor) => {
+    const { transition: _transition, ...rest } = descriptor;
+    transaction
+      .objectStore(META_STORE)
+      .put({ ...rest, lifecycle: "active" } satisfies ReplicaDescriptor, DESCRIPTOR_KEY);
+  });
+}
+
+export function completeReplicaSignIn(
+  expected: ReplicaContext,
+  transitionId: string,
+  identity: Omit<ReplicaIdentity, "replicaId">,
+): Promise<void> {
+  return transitionedTransaction([], expected, transitionId, (transaction, descriptor) => {
+    const existingOwner = effectiveContext(descriptor).ownerUserId;
+    if (existingOwner != null && existingOwner !== identity.ownerUserId) {
+      throw new ReplicaContextChangedError();
+    }
+    const { transition: _transition, ...rest } = descriptor;
+    transaction.objectStore(META_STORE).put(
+      {
+        ...rest,
+        lifecycle: "active",
+        identity: { ...identity, replicaId: descriptor.replicaId },
+        legacyOwnership: { kind: "migrated" },
+      } satisfies ReplicaDescriptor,
+      DESCRIPTOR_KEY,
+    );
+  });
+}
+
+/**
+ * Repairs a marker left by a crashed tab. Call only while holding the browser operation lock; the
+ * lock proves no live finalization still owns the transition.
+ */
+export async function recoverInterruptedReplicaTransition(): Promise<ReplicaContext | null> {
+  const database = await openDatabase();
+  const transaction = database.transaction(META_STORE, "readwrite");
+  const meta = transaction.objectStore(META_STORE);
+  const descriptorRequest = meta.get(DESCRIPTOR_KEY);
+  let recovered: ReplicaContext | null = null;
+
+  descriptorRequest.addEventListener("success", () => {
+    const descriptor = descriptorRequest.result as ReplicaDescriptor | undefined;
+    if (!descriptor || descriptor.lifecycle !== "transitioning") return;
+    recovered = effectiveContext(descriptor);
+    const { transition: _transition, ...rest } = descriptor;
+    meta.put({ ...rest, lifecycle: "active" } satisfies ReplicaDescriptor, DESCRIPTOR_KEY);
+  });
+  await whenComplete(transaction);
+  return recovered;
 }
 
 /** Sync requires durable server-confirmed ownership; a legacy candidate is not authorization. */
@@ -571,22 +702,27 @@ export function bindReplicaIdentity(
 }
 
 /** Clears one replica and installs a fresh unbound incarnation in the same transaction. */
-export function replaceLocalReplica(expected: ReplicaContext): Promise<ReplicaContext> {
+export function replaceLocalReplica(
+  expected: ReplicaContext,
+  transitionId?: string,
+): Promise<ReplicaContext> {
   const descriptor = createDescriptor({ kind: "unbound" });
-  return guardedTransaction(
-    [...SYNCED_TABLES, OUTBOX_STORE],
-    expected,
-    (transaction) => {
-      for (const table of SYNCED_TABLES) transaction.objectStore(table).clear();
-      transaction.objectStore(OUTBOX_STORE).clear();
-      const meta = transaction.objectStore(META_STORE);
-      meta.clear();
-      meta.put(descriptor, DESCRIPTOR_KEY);
-      meta.put(0, LOCAL_REVISION_KEY);
-      meta.put([], COMPLETE_TABLES_KEY);
-    },
-    { allowRecovery: true },
-  ).then(() => effectiveContext(descriptor));
+  const replace = (transaction: IDBTransaction) => {
+    for (const table of SYNCED_TABLES) transaction.objectStore(table).clear();
+    transaction.objectStore(OUTBOX_STORE).clear();
+    const meta = transaction.objectStore(META_STORE);
+    meta.clear();
+    meta.put(descriptor, DESCRIPTOR_KEY);
+    meta.put(0, LOCAL_REVISION_KEY);
+    meta.put([], COMPLETE_TABLES_KEY);
+  };
+
+  const operation = transitionId
+    ? transitionedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, transitionId, replace)
+    : guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, replace, {
+        allowRecovery: true,
+      });
+  return operation.then(() => effectiveContext(descriptor));
 }
 
 export type LocalRecoveryExport = {

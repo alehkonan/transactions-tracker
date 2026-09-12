@@ -44,6 +44,8 @@ type SyncState = {
    * from a pull. Transactions may still be arriving — see `pending`.
    */
   isHydrated: boolean;
+  /** Durable identity captured with the rows currently published in memory. */
+  replicaContext: ReplicaContext | null;
   status: SyncStatus;
   error: string | null;
   /**
@@ -90,6 +92,7 @@ type SyncState = {
 function initialState(): SyncState {
   return {
     isHydrated: false,
+    replicaContext: null,
     status: "idle",
     error: null,
     isOnline: true,
@@ -166,8 +169,13 @@ export function applyServerRows(rows: Partial<SyncedRows>, colors?: Color[]): vo
 }
 
 /** Replaces the whole working set with what IndexedDB holds — a boot, or a peer tab's write. */
-export function replaceRows(rows: SyncedRows, colors: Color[], usdRates: Record<string, number>) {
-  useSyncStore.setState({ ...rows, colors, usdRates });
+export function replaceRows(
+  replicaContext: ReplicaContext,
+  rows: SyncedRows,
+  colors: Color[],
+  usdRates: Record<string, number>,
+) {
+  useSyncStore.setState({ replicaContext, ...rows, colors, usdRates });
 }
 
 /**

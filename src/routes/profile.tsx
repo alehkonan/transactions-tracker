@@ -4,6 +4,7 @@ import { selectProfile } from "~/api/profile.functions";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { computeProfileSummaries } from "~/modules/accounts/compute-balances";
+import { runAuthenticatedRequest } from "~/modules/auth/complete-sign-in";
 import { CreateProfileButton } from "~/modules/profile/CreateProfileButton";
 import { ProfileCard } from "~/modules/profile/ProfileCard";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -26,7 +27,7 @@ export const Route = createFileRoute("/profile")({
     const handleSelect = async (id: string) => {
       // The cookies the guard reads are set by the server, so the navigation waits for them —
       // leaving early would bounce straight back here with nothing selected.
-      await selectProfile({ data: { profileId: id } });
+      await runAuthenticatedRequest(() => selectProfile({ data: { profileId: id } }));
       await navigate({ to: "/" });
     };
 

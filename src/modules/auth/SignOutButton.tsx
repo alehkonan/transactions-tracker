@@ -5,23 +5,35 @@ import { signOut } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
-import { resetLocalData } from "~/modules/sync/sync-engine";
+import { completeSignOut, readSignOutObligations } from "~/modules/auth/complete-sign-in";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 
 export function SignOutButton() {
   const router = useRouter();
   const toastManager = Toast.useToastManager();
-  const outboxCount = useSyncStore((state) => state.outboxCount);
+  const visibleOutboxCount = useSyncStore((state) => state.outboxCount);
+  const [confirmedOutboxCount, setConfirmedOutboxCount] = useState<number | null>(null);
   const [isPending, setIsPending] = useState(false);
+
+  const openConfirmation = async (onOpen: () => void) => {
+    setIsPending(true);
+    try {
+      const obligations = await readSignOutObligations();
+      setConfirmedOutboxCount(obligations.outboxCount);
+      onOpen();
+    } catch {
+      toastManager.add({
+        description: "Could not verify local changes. Sign-out was not started.",
+      });
+    } finally {
+      setIsPending(false);
+    }
+  };
 
   const handleSignOut = async () => {
     setIsPending(true);
     try {
-      await signOut();
-      // Signing out on a shared device has to take the local copy of the data with it: the rows sit
-      // in IndexedDB, readable by whoever uses the browser next. A session that merely expires keeps
-      // them, so coming back is still instant.
-      await resetLocalData();
+      await completeSignOut(() => signOut());
       // Invalidating re-runs the root guard, which now finds no session and redirects to /login.
       await router.invalidate();
     } catch {
@@ -33,6 +45,7 @@ export function SignOutButton() {
     }
   };
 
+  const outboxCount = confirmedOutboxCount ?? visibleOutboxCount;
   const hasUnsyncedChanges = outboxCount > 0;
   const changeLabel = outboxCount === 1 ? "change" : "changes";
   const confirmationMessage = hasUnsyncedChanges
@@ -47,7 +60,7 @@ export function SignOutButton() {
     <Popover
       aria-label={confirmationTitle}
       renderTrigger={({ onOpen }) => (
-        <Button variant="danger" onClick={onOpen} disabled={isPending}>
+        <Button variant="danger" onClick={() => void openConfirmation(onOpen)} disabled={isPending}>
           {isPending ? "Signing out…" : "Sign out"}
         </Button>
       )}

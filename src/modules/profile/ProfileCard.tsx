@@ -6,6 +6,7 @@ import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { deleteProfile } from "~/modules/profile/profile-mutations";
 import { ProfileForm } from "~/modules/profile/ProfileForm";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
 import type { ProfileSummary } from "~/modules/accounts/compute-balances";
 
@@ -16,11 +17,13 @@ type Props = {
 
 /** A profile summary with explicit open, edit, and delete actions in its footer. */
 export function ProfileCard({ profile, onOpen }: Props) {
+  const replicaContext = useSyncStore((state) => state.replicaContext);
   const [isDeleting, startDeleteTransition] = useTransition();
 
   const handleDelete = () => {
+    if (!replicaContext) return;
     startDeleteTransition(async () => {
-      await deleteProfile(profile.id);
+      await deleteProfile(profile.id, replicaContext);
     });
   };
 

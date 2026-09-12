@@ -21,7 +21,9 @@ import appCss from "~/styles.css?url";
 export const Route = createRootRoute({
   beforeLoad: ({ location }) => {
     if (location.pathname === "/login") return;
-    if (!hasLiveSessionHint()) throw redirect({ to: "/login" });
+    if (!hasLiveSessionHint()) {
+      throw redirect({ to: "/login", search: { returnTo: location.href } });
+    }
     if (location.pathname === "/profile") return;
     if (!hasSelectedProfileHint()) throw redirect({ to: "/profile" });
   },

@@ -10,6 +10,7 @@ import { SelectControl } from "~/components/SelectControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
 import { isMoneyInput } from "~/utils/money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
@@ -64,6 +65,7 @@ function getProjectedBalance(account: AccountWithBalance, initialBalance: string
 
 export function AccountForm({ account }: Props) {
   const { onClose } = useContext(DialogContext);
+  const replicaContext = useSyncStore((state) => state.replicaContext);
   const isEditing = Boolean(account);
   const { control, handleSubmit, reset, formState } = useForm<AccountFormValues>({
     defaultValues: getDefaultValues(account),
@@ -72,16 +74,16 @@ export function AccountForm({ account }: Props) {
   const initialBalance = useWatch({ control, name: "initialBalance" });
 
   const handleDelete = () => {
-    if (!account) return;
+    if (!account || !replicaContext) return;
     startDeleteTransition(async () => {
-      await deleteAccount(account);
+      await deleteAccount(account, replicaContext);
       onClose();
     });
   };
 
   const onSubmit = handleSubmit(async (values) => {
     const profileId = readSelectedProfileId();
-    if (profileId == null) return;
+    if (profileId == null || !replicaContext) return;
 
     const input = {
       name: values.name,
@@ -94,9 +96,9 @@ export function AccountForm({ account }: Props) {
     // Both land in the store before this resolves, so the dialog closes onto the change itself
     // rather than onto the round trip that will carry it to the server.
     if (account) {
-      await updateAccount(account, input);
+      await updateAccount(account, input, replicaContext);
     } else {
-      await createAccount(profileId, input);
+      await createAccount(profileId, input, replicaContext);
     }
 
     if (!isEditing) reset(getDefaultValues());

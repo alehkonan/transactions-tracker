@@ -4,6 +4,7 @@ import { changePassword } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
+import { runAuthenticatedRequest } from "~/modules/auth/complete-sign-in";
 import { getSecurityErrorMessage, unwrapServerResponse } from "~/modules/auth/security-errors";
 
 type Values = { currentPassword: string; newPassword: string; confirmPassword: string };
@@ -24,7 +25,11 @@ export function ChangePasswordForm({ onSaved }: Props) {
 
   const onSubmit = handleSubmit(async ({ currentPassword, newPassword }) => {
     try {
-      await unwrapServerResponse(await changePassword({ data: { currentPassword, newPassword } }));
+      await unwrapServerResponse(
+        await runAuthenticatedRequest(() =>
+          changePassword({ data: { currentPassword, newPassword } }),
+        ),
+      );
       await onSaved();
       onClose();
     } catch (caught) {

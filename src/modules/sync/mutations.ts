@@ -139,7 +139,7 @@ export async function commit(
   applyLocalRows(rows);
   // On disk is on disk: any other tab on this browser is looking at the same database and should
   // show the change now, not once the push that carries it away has been round-tripped.
-  announceLocalWrite();
+  announceLocalWrite(replicaContext);
   // Background Sync stays disabled until worker settlement is fenced to the replica owner. The
   // foreground engine remains the only path allowed to send and settle this durable outbox.
   schedulePush();

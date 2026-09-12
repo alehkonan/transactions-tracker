@@ -39,7 +39,10 @@ export function SyncGate({ children }: Props) {
   // The route guards run off a forgeable hint cookie, so the server rejecting the pull is the first
   // real proof that the session is gone.
   useEffect(() => {
-    if (status === "unauthorized") void navigate({ to: "/login", replace: true });
+    if (status === "unauthorized") {
+      const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      void navigate({ to: "/login", search: { returnTo }, replace: true });
+    }
   }, [status, navigate]);
 
   if (isHydrated) {

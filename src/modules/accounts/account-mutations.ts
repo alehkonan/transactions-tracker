@@ -1,6 +1,7 @@
 import { commit, newRow } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import type { LocalChange } from "~/modules/sync/mutations";
+import type { ReplicaContext } from "~/modules/sync/replica-identity";
 import type { AccountPayload, SyncedAccount } from "~/modules/sync/sync-types";
 
 /**
@@ -13,13 +14,24 @@ import type { AccountPayload, SyncedAccount } from "~/modules/sync/sync-types";
 /** Everything but the profile, which the caller's selection decides rather than the form. */
 export type AccountInput = Omit<AccountPayload, "profileId">;
 
-export function createAccount(profileId: string, input: AccountInput): Promise<void> {
+export function createAccount(
+  profileId: string,
+  input: AccountInput,
+  replicaContext?: ReplicaContext,
+): Promise<void> {
   const payload: AccountPayload = { ...input, profileId };
 
-  return commit([{ op: "upsert", table: "accounts", row: newRow(payload), payload }]);
+  return commit(
+    [{ op: "upsert", table: "accounts", row: newRow(payload), payload }],
+    replicaContext,
+  );
 }
 
-export function updateAccount(account: SyncedAccount, input: AccountInput): Promise<void> {
+export function updateAccount(
+  account: SyncedAccount,
+  input: AccountInput,
+  replicaContext?: ReplicaContext,
+): Promise<void> {
   if (account.profileId == null) return Promise.resolve();
 
   const payload: AccountPayload = { ...input, profileId: account.profileId };
@@ -32,7 +44,7 @@ export function updateAccount(account: SyncedAccount, input: AccountInput): Prom
     ...payload,
   };
 
-  return commit([{ op: "upsert", table: "accounts", row, payload }]);
+  return commit([{ op: "upsert", table: "accounts", row, payload }], replicaContext);
 }
 
 /**
@@ -42,7 +54,10 @@ export function updateAccount(account: SyncedAccount, input: AccountInput): Prom
  * along with the account (their `onDelete: "cascade"` only fires for a real delete), so all this
  * has to do is drop the same rows locally, which is instant however many there are.
  */
-export function deleteAccount(account: SyncedAccount): Promise<void> {
+export function deleteAccount(
+  account: SyncedAccount,
+  replicaContext?: ReplicaContext,
+): Promise<void> {
   const transactions = useSyncStore
     .getState()
     .transactions.filter((transaction) => transaction.accountId === account.id);
@@ -52,5 +67,5 @@ export function deleteAccount(account: SyncedAccount): Promise<void> {
     changes.push({ op: "cascade", table: "transactions", rows: transactions });
   }
 
-  return commit(changes);
+  return commit(changes, replicaContext);
 }

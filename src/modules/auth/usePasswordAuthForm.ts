@@ -2,9 +2,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { passwordSignIn, passwordSignUp } from "~/api/auth.functions";
+import { completeSignIn, getSignInReturnPath } from "~/modules/auth/complete-sign-in";
 import { getPasswordAuthErrorMessage } from "~/modules/auth/password-auth-errors";
-import { unwrapServerResponse } from "~/modules/auth/security-errors";
-import { resetLocalData } from "~/modules/sync/sync-engine";
 
 export type PasswordAuthMode = "sign-in" | "sign-up";
 
@@ -34,14 +33,14 @@ export function usePasswordAuthForm(mode: PasswordAuthMode) {
   const onSubmit = handleSubmit(async ({ username, password }) => {
     try {
       const data = { username: username.trim(), password };
-      if (mode === "sign-up") {
-        await unwrapServerResponse(await passwordSignUp({ data }));
-      } else {
-        await unwrapServerResponse(await passwordSignIn({ data }));
-      }
-
-      await resetLocalData();
-      await navigate({ to: "/", replace: true });
+      await completeSignIn(mode, (expectedUserId) =>
+        mode === "sign-up"
+          ? passwordSignUp({ data })
+          : passwordSignIn({
+              data: expectedUserId == null ? data : { ...data, expectedUserId },
+            }),
+      );
+      await navigate({ to: getSignInReturnPath(), replace: true });
     } catch (caught) {
       setError("root", { message: getPasswordAuthErrorMessage(mode, caught) });
     }

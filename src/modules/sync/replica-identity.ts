@@ -6,6 +6,12 @@ export type ReplicaIdentity = {
 
 export type ReplicaLifecycle = "active" | "transitioning" | "signed-out";
 
+export type ReplicaTransition = {
+  transitionId: string;
+  kind: "sign-in" | "sign-out" | "replace";
+  startedAt: number;
+};
+
 export type LegacyRecoveryReason =
   | "missing-profile-owner"
   | "mixed-profile-owners"
@@ -21,6 +27,7 @@ export type ReplicaDescriptor = {
   replicaId: string;
   identity: ReplicaIdentity | null;
   lifecycle: ReplicaLifecycle;
+  transition?: ReplicaTransition;
   legacyOwnership: LegacyOwnership;
 };
 
