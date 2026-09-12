@@ -13,6 +13,7 @@ import { replicaContextFromDescriptor } from "~/modules/sync/replica-identity";
 import {
   announceReplicaTransition,
   finishReplicaReplacement,
+  pauseSyncAfterAuthFailure,
   resumeSyncAfterSignIn,
 } from "~/modules/sync/sync-engine";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -89,12 +90,18 @@ export function completeSignIn(
       resumeSyncAfterSignIn(confirmedContext);
       return identity;
     } catch (error) {
-      await cancelReplicaTransition(replicaContext, transitionId).catch(() => undefined);
+      const restored = await cancelReplicaTransition(replicaContext, transitionId).then(
+        () => true,
+        () => false,
+      );
       if (replicaContext.ownerUserId != null) {
-        useSyncStore.setState({
-          status: "unauthorized",
-          error: "Sign in again before synchronization resumes.",
-        });
+        if (restored) pauseSyncAfterAuthFailure(replicaContext);
+        else {
+          useSyncStore.setState({
+            status: "error",
+            error: "The local workspace transition was interrupted. Reopen it to continue safely.",
+          });
+        }
       }
       throw error;
     }
@@ -144,7 +151,11 @@ export function completeSignOut(finalize: () => Promise<unknown>): Promise<void>
       const replacement = await replaceLocalReplica(replicaContext, transitionId);
       await finishReplicaReplacement(replicaContext, replacement);
     } catch (error) {
-      await cancelReplicaTransition(replicaContext, transitionId).catch(() => undefined);
+      const restored = await cancelReplicaTransition(replicaContext, transitionId).then(
+        () => true,
+        () => false,
+      );
+      if (restored) pauseSyncAfterAuthFailure(replicaContext);
       throw error;
     }
   });

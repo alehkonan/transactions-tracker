@@ -1,7 +1,7 @@
 import { create, type StateCreator } from "zustand";
 import { devtools } from "zustand/middleware";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
-import { captureReplicaContext } from "~/modules/sync/idb";
+import { assertCurrentReplicaContext, captureReplicaContext } from "~/modules/sync/idb";
 import { commit } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { deleteTransactions } from "~/modules/transactions/transaction-mutations";
@@ -39,6 +39,22 @@ const initState: StateCreator<State> = () => ({
 
 export const useTransactionsImport = create(devtools(initState));
 
+function hasImportContext(
+  expected: ReplicaContext,
+  rows?: ImportRow[],
+  file?: File,
+  report?: ImportReport,
+): boolean {
+  const current = useTransactionsImport.getState();
+  return (
+    current.replicaContext?.replicaId === expected.replicaId &&
+    current.replicaContext.ownerUserId === expected.ownerUserId &&
+    (rows === undefined || current.rows === rows) &&
+    (file === undefined || current.file === file) &&
+    (report === undefined || current.report === report)
+  );
+}
+
 export const actions = {
   reset: () => {
     useTransactionsImport.setState(useTransactionsImport.getInitialState(), true);
@@ -52,7 +68,10 @@ export const actions = {
       uploadError: undefined,
     });
 
-    const csv = parseCsv(await file.text());
+    const contents = await file.text();
+    await assertCurrentReplicaContext(replicaContext);
+    if (!hasImportContext(replicaContext, undefined, file)) return;
+    const csv = parseCsv(contents);
 
     if (csv.rows.length === 0) {
       useTransactionsImport.setState({
@@ -107,6 +126,8 @@ export const actions = {
       });
 
       await commit(plan.changes, replicaContext);
+      await assertCurrentReplicaContext(replicaContext);
+      if (!hasImportContext(replicaContext, rows)) return;
 
       useTransactionsImport.setState({
         report: {
@@ -119,10 +140,12 @@ export const actions = {
         },
       });
     } catch (error) {
-      useTransactionsImport.setState({
-        step: "upload",
-        uploadError: error instanceof Error ? error.message : "Import failed.",
-      });
+      if (hasImportContext(replicaContext, rows)) {
+        useTransactionsImport.setState({
+          step: "upload",
+          uploadError: error instanceof Error ? error.message : "Import failed.",
+        });
+      }
     }
   },
   discardImportedTransactions: async () => {
@@ -133,6 +156,7 @@ export const actions = {
     // The accounts and categories the import created stay, as they always have: they are what the
     // file said exists, and deleting them would take any pre-existing rows filed under them along.
     await deleteTransactions(report.createdTransactionIds, replicaContext);
-    actions.reset();
+    await assertCurrentReplicaContext(replicaContext);
+    if (hasImportContext(replicaContext, undefined, undefined, report)) actions.reset();
   },
 };

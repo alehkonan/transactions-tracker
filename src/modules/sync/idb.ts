@@ -73,6 +73,13 @@ export class ReplicaIdentityRequiredError extends Error {
   }
 }
 
+export class ReplicaSyncAuthRequiredError extends Error {
+  constructor() {
+    super("Sign in again before synchronization resumes.");
+    this.name = "ReplicaSyncAuthRequiredError";
+  }
+}
+
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.addEventListener("success", () => resolve(request.result));
@@ -95,6 +102,7 @@ function createDescriptor(
     replicaId: uuidV7(),
     identity: null,
     lifecycle: "active",
+    syncAuth: "unknown",
     legacyOwnership,
   };
 }
@@ -342,12 +350,15 @@ export function beginReplicaTransition(
     [],
     expected,
     (transaction, descriptor) => {
-      transaction
-        .objectStore(META_STORE)
-        .put(
-          { ...descriptor, lifecycle: "transitioning", transition } satisfies ReplicaDescriptor,
-          DESCRIPTOR_KEY,
-        );
+      transaction.objectStore(META_STORE).put(
+        {
+          ...descriptor,
+          lifecycle: "transitioning",
+          transition,
+          syncAuth: "login-required",
+        } satisfies ReplicaDescriptor,
+        DESCRIPTOR_KEY,
+      );
     },
     { allowRecovery: true },
   );
@@ -381,6 +392,7 @@ export function completeReplicaSignIn(
         ...rest,
         lifecycle: "active",
         identity: { ...identity, replicaId: descriptor.replicaId },
+        syncAuth: "authenticated",
         legacyOwnership: { kind: "migrated" },
       } satisfies ReplicaDescriptor,
       DESCRIPTOR_KEY,
@@ -404,7 +416,10 @@ export async function recoverInterruptedReplicaTransition(): Promise<ReplicaCont
     if (!descriptor || descriptor.lifecycle !== "transitioning") return;
     recovered = effectiveContext(descriptor);
     const { transition: _transition, ...rest } = descriptor;
-    meta.put({ ...rest, lifecycle: "active" } satisfies ReplicaDescriptor, DESCRIPTOR_KEY);
+    meta.put(
+      { ...rest, lifecycle: "active", syncAuth: "login-required" } satisfies ReplicaDescriptor,
+      DESCRIPTOR_KEY,
+    );
   });
   await whenComplete(transaction);
   return recovered;
@@ -418,6 +433,9 @@ export async function captureSyncContext(): Promise<BoundReplicaContext> {
     throw new ReplicaRecoveryRequiredError();
   }
   if (descriptor.identity == null) throw new ReplicaIdentityRequiredError();
+  if (descriptor.syncAuth === "login-required" || descriptor.syncAuth === "owner-mismatch") {
+    throw new ReplicaSyncAuthRequiredError();
+  }
   return {
     replicaId: descriptor.replicaId,
     ownerUserId: descriptor.identity.ownerUserId,
@@ -694,6 +712,7 @@ export function bindReplicaIdentity(
       {
         ...descriptor,
         identity: { ...identity, replicaId: descriptor.replicaId },
+        syncAuth: "authenticated",
         legacyOwnership: { kind: "migrated" },
       } satisfies ReplicaDescriptor,
       DESCRIPTOR_KEY,

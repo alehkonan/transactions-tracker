@@ -38,6 +38,7 @@ export function LoginCard() {
             variant={mode === "sign-in" ? "primary" : "secondary"}
             className={mode === "sign-in" ? undefined : "border-0"}
             aria-pressed={mode === "sign-in"}
+            data-testid="password-auth-mode-sign-in"
             disabled={isPending}
             onClick={() => setMode("sign-in")}
           >
@@ -47,6 +48,7 @@ export function LoginCard() {
             variant={mode === "sign-up" ? "primary" : "secondary"}
             className={mode === "sign-up" ? undefined : "border-0"}
             aria-pressed={mode === "sign-up"}
+            data-testid="password-auth-mode-sign-up"
             disabled={isPending}
             onClick={() => setMode("sign-up")}
           >
@@ -88,12 +90,22 @@ export function LoginCard() {
                 rules={{ required: "Pick a username to create an account." }}
                 description="Shown when your device asks which passkey to use."
               />
-              <Button variant="secondary" type="submit" disabled={isPending}>
+              <Button
+                variant="secondary"
+                type="submit"
+                disabled={isPending}
+                data-testid="passkey-auth-sign-up"
+              >
                 <KeyRoundIcon className="size-4" />
                 Create account with a passkey
               </Button>
             </form>
-            <Button variant="secondary" onClick={passkey.handleSignIn} disabled={isPending}>
+            <Button
+              variant="secondary"
+              onClick={passkey.handleSignIn}
+              disabled={isPending}
+              data-testid="passkey-auth-sign-in"
+            >
               Sign in with a passkey
             </Button>
           </div>

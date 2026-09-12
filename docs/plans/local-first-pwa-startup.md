@@ -218,7 +218,7 @@ type ReplicaSyncContext = {
 
 ## 6. Порядок задач
 
-> **Прогресс:** T0, T1, T2 и T3 завершены. Следующий шаг — **T4: общий auth coordinator, lifecycle и fencing**.
+> **Прогресс:** T0, T1, T2 и T3 завершены. **T4 в работе:** общий auth coordinator и lifecycle transition уже внедрены; durable `syncAuth` pause, cross-tab auth outcomes и fencing устаревших CSV import callbacks завершены. Следующий срез T4 — fencing форм/таймеров, повторная проверка obligations при sign-out и browser gates для peer-tab/crash recovery.
 
 Каждая задача: прочитать перечисленные файлы → добавить failing regression test на конкретное поведение → минимальная реализация → targeted tests → краткий отчёт (изменения/команды/ограничения). Документационный план сам по себе не доказывает прохождение тестов.
 
@@ -311,6 +311,8 @@ Ambiguous recovery — исключение из-за неизвестного �
 Проверки: A cookies + expected B отвергаются для pull/push/integrity/HTTP push, даже пустого batch; не создаются receipts/профили. Expected A сохраняет обычное поведение. Credentials B + reauth expected A не устанавливают сессию B. `401`/owner mismatch/protocol mismatch различимы клиентом.
 
 ### T4. Общий auth coordinator, lifecycle и fencing
+
+> **Статус исполнения (2026-09-12): в работе.** Готовы единый coordinator для password/passkey/autofill, общий browser lock, lifecycle transitions, owner-preserving same-user completion, durable `syncAuth: unknown | authenticated | login-required | owner-mismatch`, fail-closed sync admission после failed/crashed auth, межвкладочные `auth-completed`/`auth-required`, безопасный return path и fencing отложенных CSV import callbacks. Auth E2E workflow переведён на стабильные `data-testid`; `playwright.config.ts` намеренно оставлен минимальным с одним Chromium и без отдельного PWA-проекта. Targeted проверки: `complete-sign-in.test.ts`, `replica-identity.test.ts`, `useTransactionsImport.test.ts`, same-user reauth и password round-trip проходят. Не закрыты: captured replica для всех dirty forms/timer/status callbacks, повторное чтение obligations непосредственно при подтверждении sign-out, explicit different-user discard UX и полноценные peer-tab/crash browser gates.
 
 Файлы: `src/modules/auth/usePasskeyAuth.ts`, `usePasswordAuthForm.ts`, `SignOutButton.tsx`, предлагаемый `complete-sign-in.ts`; `src/modules/sync/sync-engine.ts`, `mutations.ts`, `useSyncStore.ts`; import-state consumers.
 

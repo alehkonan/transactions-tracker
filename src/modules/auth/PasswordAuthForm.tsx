@@ -31,6 +31,7 @@ export function PasswordAuthForm({
         control={control}
         name="username"
         label="Username"
+        data-testid="password-auth-username"
         autoComplete="username"
         disabled={isDisabled}
         rules={{
@@ -42,6 +43,7 @@ export function PasswordAuthForm({
         name="password"
         type="password"
         label="Password"
+        data-testid="password-auth-password"
         autoComplete={isSignUp ? "new-password" : "current-password"}
         disabled={isDisabled}
         description={isSignUp ? "Use 12–128 characters." : undefined}
@@ -57,6 +59,7 @@ export function PasswordAuthForm({
           name="confirmPassword"
           type="password"
           label="Confirm password"
+          data-testid="password-auth-confirm-password"
           autoComplete="new-password"
           disabled={isDisabled}
           rules={{
@@ -65,7 +68,12 @@ export function PasswordAuthForm({
           }}
         />
       )}
-      <Button variant="primary" type="submit" disabled={isDisabled}>
+      <Button
+        variant="primary"
+        type="submit"
+        disabled={isDisabled}
+        data-testid="password-auth-submit"
+      >
         {isPending
           ? isSignUp
             ? "Creating account…"

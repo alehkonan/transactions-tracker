@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { classifyLegacyOwnership } from "./replica-identity";
+import { classifyLegacyOwnership, replicaSyncAuthFromDescriptor } from "./replica-identity";
+
+describe("replicaSyncAuthFromDescriptor", () => {
+  it("treats descriptors written before durable auth admission as unknown", () => {
+    expect(
+      replicaSyncAuthFromDescriptor({
+        replicaId: "replica-a",
+        identity: { replicaId: "replica-a", ownerUserId: 41, username: "user-a" },
+        lifecycle: "active",
+        legacyOwnership: { kind: "migrated" },
+      }),
+    ).toBe("unknown");
+  });
+});
 
 describe("classifyLegacyOwnership", () => {
   it("leaves an empty v2 replica unbound", () => {

@@ -13,6 +13,32 @@ const EXPECTED_REPLICA_COUNTS = {
   outbox: 1,
 };
 
+async function readReplicaDescriptor(
+  page: import("@playwright/test").Page,
+): Promise<{ lifecycle?: string; syncAuth?: string } | undefined> {
+  return page.evaluate(async () => {
+    const request = indexedDB.open("transactions-tracker");
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener("success", () => resolve(request.result));
+      request.addEventListener("error", () => reject(request.error));
+    });
+    try {
+      const descriptorRequest = database
+        .transaction("meta", "readonly")
+        .objectStore("meta")
+        .get("replicaDescriptor");
+      return await new Promise<{ lifecycle?: string; syncAuth?: string } | undefined>(
+        (resolve, reject) => {
+          descriptorRequest.addEventListener("success", () => resolve(descriptorRequest.result));
+          descriptorRequest.addEventListener("error", () => reject(descriptorRequest.error));
+        },
+      );
+    } finally {
+      database.close();
+    }
+  });
+}
+
 test.describe("local-first startup and reauthentication", () => {
   test("an expired session keeps the existing local replica open", async ({
     localReplicaPage: page,
@@ -49,13 +75,14 @@ test.describe("local-first startup and reauthentication", () => {
       sessionStorage.setItem("e2e-delete-database-observer", "installed");
     });
     await page.goto("/login");
+    await page.waitForLoadState("networkidle");
     await expect
       .poll(() => page.evaluate(() => sessionStorage.getItem("e2e-delete-database-observer")))
       .toBe("installed");
 
-    await page.getByLabel("Username", { exact: true }).fill(authCredentials.username);
-    await page.getByLabel("Password", { exact: true }).fill(authCredentials.password);
-    await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+    await page.getByTestId("password-auth-username").fill(authCredentials.username);
+    await page.getByTestId("password-auth-password").fill(authCredentials.password);
+    await page.getByTestId("password-auth-submit").click();
     await expect(page).not.toHaveURL(/\/login$/, { timeout: 30_000 });
     await expect
       .poll(() =>
@@ -69,5 +96,8 @@ test.describe("local-first startup and reauthentication", () => {
     const reopenedPage = await context.newPage();
     await reopenedPage.goto("/profile");
     await expect.poll(() => readReplicaCounts(reopenedPage)).toMatchObject(EXPECTED_REPLICA_COUNTS);
+    await expect
+      .poll(async () => (await readReplicaDescriptor(reopenedPage))?.syncAuth)
+      .toBe("authenticated");
   });
 });

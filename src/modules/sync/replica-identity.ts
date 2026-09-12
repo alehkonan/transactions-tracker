@@ -6,6 +6,8 @@ export type ReplicaIdentity = {
 
 type ReplicaLifecycle = "active" | "transitioning" | "signed-out";
 
+export type ReplicaSyncAuth = "unknown" | "authenticated" | "login-required" | "owner-mismatch";
+
 export type ReplicaTransition = {
   transitionId: string;
   kind: "sign-in" | "sign-out" | "replace";
@@ -28,6 +30,8 @@ export type ReplicaDescriptor = {
   identity: ReplicaIdentity | null;
   lifecycle: ReplicaLifecycle;
   transition?: ReplicaTransition;
+  /** Optional for v3 descriptors written before auth admission became durable. */
+  syncAuth?: ReplicaSyncAuth;
   legacyOwnership: LegacyOwnership;
 };
 
@@ -140,6 +144,10 @@ export function classifyLegacyOwnership(contents: LegacyReplicaContents): Legacy
 
   if (reasons.length > 0) return { kind: "recovery-required", reasons };
   return { kind: "candidate", ownerUserId: [...ownerIds][0] };
+}
+
+export function replicaSyncAuthFromDescriptor(descriptor: ReplicaDescriptor): ReplicaSyncAuth {
+  return descriptor.syncAuth ?? "unknown";
 }
 
 export function replicaContextFromDescriptor(descriptor: ReplicaDescriptor): ReplicaContext {

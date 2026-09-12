@@ -19,6 +19,7 @@ import {
 } from "./outbox-acceptance";
 import {
   replicaContextFromDescriptor,
+  replicaSyncAuthFromDescriptor,
   type BoundReplicaContext,
   type ReplicaContext,
 } from "./replica-identity";
@@ -92,6 +93,10 @@ type SyncMessage =
   | { type: "changed"; replicaId: string }
   /** A dangerous lifecycle transition started; peers must stop showing the old workspace. */
   | { type: "transition"; replicaId: string }
+  /** Server-confirmed same-user auth completed; peers may reopen this replica and sync. */
+  | { type: "auth-completed"; replicaId: string }
+  /** Auth finalization failed or was interrupted; peers may reopen local data but must not sync. */
+  | { type: "auth-required"; replicaId: string }
   /** The old replica was explicitly discarded after successful sign-out. */
   | { type: "replaced"; previousReplicaId: string; replicaId: string };
 
@@ -126,8 +131,17 @@ export function announceReplicaTransition(replicaContext: ReplicaContext): void 
 /** Publishes a completed same-user transition and resumes sync through the ordinary scheduler. */
 export function resumeSyncAfterSignIn(replicaContext: ReplicaContext): void {
   useSyncStore.setState({ replicaContext, status: "idle", error: null });
-  announce({ type: "changed", replicaId: replicaContext.replicaId });
+  announce({ type: "auth-completed", replicaId: replicaContext.replicaId });
   schedulePush(0);
+}
+
+/** Keeps local data available after uncertain auth while durably gated sync stays paused. */
+export function pauseSyncAfterAuthFailure(replicaContext: ReplicaContext): void {
+  useSyncStore.setState({
+    status: "error",
+    error: "Sign in again before synchronization resumes.",
+  });
+  announce({ type: "auth-required", replicaId: replicaContext.replicaId });
 }
 
 /** Clears callbacks and memory only after durable replacement has committed. */
@@ -170,10 +184,14 @@ async function hydrateFromLocal(): Promise<boolean> {
 
   replaceRows(replicaContext, snapshot.rows, snapshot.colors, snapshot.usdRates);
   replaceOutboxState(snapshot.outbox);
+  const syncAuth = replicaSyncAuthFromDescriptor(snapshot.descriptor);
   useSyncStore.setState((state) => ({
     // A cursor is what says the local copy is a complete picture rather than a partial one.
     isHydrated: state.isHydrated || snapshot.cursors != null,
     lastSyncedAt: snapshot.lastSyncedAt,
+    ...(syncAuth === "login-required" || syncAuth === "owner-mismatch"
+      ? { status: "error" as const, error: "Sign in again before synchronization resumes." }
+      : {}),
   }));
   return true;
 }
@@ -629,7 +647,20 @@ export function startSyncTriggers(): () => void {
     if (message.replicaId !== currentReplicaId) return;
     clearTimeout(reloadTimer);
     reloadTimer = setTimeout(() => {
-      void hydrateFromLocal().catch(() => undefined);
+      void hydrateFromLocal()
+        .then((current) => {
+          if (!current) return current;
+          if (message.type === "auth-completed") {
+            useSyncStore.setState({ status: "idle", error: null });
+          } else if (message.type === "auth-required") {
+            useSyncStore.setState({
+              status: "error",
+              error: "Sign in again before synchronization resumes.",
+            });
+          }
+          return current;
+        })
+        .catch(() => undefined);
     }, PEER_RELOAD_DEBOUNCE_MS);
   };
 
@@ -686,7 +717,7 @@ export function bootSync(): Promise<SyncRunOutcome> {
 
     if (recoveredTransition) {
       const error = new Error("Sign in again before synchronization resumes.");
-      useSyncStore.setState({ status: "unauthorized", error: error.message });
+      pauseSyncAfterAuthFailure(recoveredTransition);
       return { kind: "unauthorized", phase: "pull", pushed: 0, error };
     }
 

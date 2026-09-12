@@ -17,18 +17,18 @@ test("a password account signs out and signs in again", async ({
 }) => {
   await page.goto("/settings");
   await signOut(page);
-  await expect(page).toHaveURL(/\/login$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
 
-  await page.getByLabel("Username", { exact: true }).fill(authCredentials.username);
-  await page.getByLabel("Password", { exact: true }).fill("Wrong-Password!Still-Strong");
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByTestId("password-auth-username").fill(authCredentials.username);
+  await page.getByTestId("password-auth-password").fill("Wrong-Password!Still-Strong");
+  await page.getByTestId("password-auth-submit").click();
   await expect(
     page.getByText("Unable to sign in. Check your credentials and try again."),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
 
-  await page.getByLabel("Password", { exact: true }).fill(authCredentials.password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByTestId("password-auth-password").fill(authCredentials.password);
+  await page.getByTestId("password-auth-submit").click();
   await expect(page).toHaveURL(/\/profile$/, { timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Choose a profile" })).toBeVisible();
 });
@@ -39,16 +39,16 @@ test("a duplicate password signup is rejected", async ({
 }) => {
   await page.goto("/settings");
   await signOut(page);
-  await expect(page).toHaveURL(/\/login$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
 
-  await page.getByRole("button", { name: "Create account", exact: true }).click();
-  await page.getByLabel("Username", { exact: true }).fill(authCredentials.username);
-  await page.getByLabel("Password", { exact: true }).fill(authCredentials.password);
-  await page.getByLabel("Confirm password", { exact: true }).fill(authCredentials.password);
-  await page.getByRole("button", { name: "Create account", exact: true }).last().click();
+  await page.getByTestId("password-auth-mode-sign-up").click();
+  await page.getByTestId("password-auth-username").fill(authCredentials.username);
+  await page.getByTestId("password-auth-password").fill(authCredentials.password);
+  await page.getByTestId("password-auth-confirm-password").fill(authCredentials.password);
+  await page.getByTestId("password-auth-submit").click();
 
   await expect(page.getByText("That username is already taken.")).toBeVisible();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
 });
 
 passkeyTest(
@@ -56,9 +56,9 @@ passkeyTest(
   async ({ onboardedPasskeyPage: page }) => {
     await page.goto("/settings");
     await signOut(page);
-    await expect(page).toHaveURL(/\/login$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
 
-    await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+    await page.getByTestId("passkey-auth-sign-in").click();
     await expect(page).toHaveURL(/\/profile$/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Choose a profile" })).toBeVisible();
   },

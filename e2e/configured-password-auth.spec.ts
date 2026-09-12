@@ -10,9 +10,9 @@ test.skip(!hasConfiguredCredentials, "E2E_TEST_USERNAME and E2E_TEST_PASSWORD ar
 test("the configured password user can sign in", async ({ page }) => {
   await page.goto("/login");
   await page.waitForLoadState("networkidle");
-  await page.getByLabel("Username", { exact: true }).fill(configuredUsername);
-  await page.getByLabel("Password", { exact: true }).fill(configuredPassword);
-  await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  await page.getByTestId("password-auth-username").fill(configuredUsername);
+  await page.getByTestId("password-auth-password").fill(configuredPassword);
+  await page.getByTestId("password-auth-submit").click();
 
   const outcome = await Promise.race([
     page.waitForURL(/\/profile$/, { timeout: 30_000 }).then(() => "signed-in" as const),
