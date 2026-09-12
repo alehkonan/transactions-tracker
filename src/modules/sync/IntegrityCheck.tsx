@@ -44,8 +44,7 @@ export function IntegrityCheck() {
           ? outcome.error
           : new Error("Could not re-download the data.");
       }
-      // The gate is up by now — the working set was dropped — so this only matters if the pull was
-      // quick enough that the page never went away.
+      // The existing workspace remains visible until the complete replacement swaps atomically.
       setState({ phase: "checked", report: { outcome: "matched" } });
     } catch (error) {
       setState({ phase: "failed", message: toMessage(error) });

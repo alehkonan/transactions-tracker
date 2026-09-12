@@ -353,6 +353,8 @@ Ambiguous recovery — исключение из-за неизвестного �
 
 ### T6. Не уничтожать рабочую реплику перед full refresh
 
+> **Статус исполнения (2026-09-12): реализация завершена.** Stale-cursor recovery и explicit resync собирают полный снимок в памяти, не меняя отображаемую durable replica до завершения загрузки. Финальный swap fenced по owner/replicaId, `localRevision` и пустому outbox в одной IDB transaction; `401` и другие ошибки отбрасывают staging. Добавлены focused regression checks для staged stale refresh и `401`; browser acceptance gates из строки 371 остаются обязательными перед выпуском.
+
 Файлы: `src/modules/sync/sync-run.ts`, `sync-run.test.ts`, `sync-engine.ts`, `idb.ts`, integrity UI.
 
 Причина включения в scope: после долгой паузы курсоры могут быть слишком старыми. Исправленная авторизация бесполезна, если auto recovery удаляет local rows перед неуспешной сетью.

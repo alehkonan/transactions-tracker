@@ -4,10 +4,10 @@ import { runWithBrowserOperationLock } from "./browser-operation-lock";
 import {
   assertCurrentReplicaContext,
   captureSyncContext,
-  clearLocalRows,
   readLocalCursors,
   readLocalSnapshot,
   recoverInterruptedReplicaTransition,
+  replaceFullLocalSnapshot,
   setReplicaSyncAuth,
   subscribeToReplicaInvalidation,
   writeLocalPage,
@@ -239,18 +239,6 @@ function toMessage(error: unknown): string {
   return "Could not reach the server.";
 }
 
-/**
- * Throws the local copy away, rows and cursors, leaving the queue of unpushed writes intact.
- *
- * Both halves have to go together: IndexedDB is what the next boot reads, and the store is what the
- * next merge writes back to it, so dropping one and keeping the other would restore exactly the
- * divergence being repaired.
- */
-async function dropLocalCopy(replicaContext: ReplicaContext): Promise<void> {
-  await clearLocalRows(replicaContext);
-  clearWorkingSet();
-}
-
 async function pullPage(
   replicaContext: BoundReplicaContext,
   cursors: SyncCursors | undefined,
@@ -324,7 +312,12 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
     replica: {
       readCursors: () => readLocalCursors(replicaContext),
       hasQueuedWrites: async () => (await readOutboxState(replicaContext)).count > 0,
-      clearCachedRows: () => dropLocalCopy(replicaContext),
+      captureFullReplacement: async () => {
+        const snapshot = await readLocalSnapshot();
+        await assertCurrentReplicaContext(replicaContext);
+        return { localRevision: snapshot.localRevision };
+      },
+      replaceFullSnapshot: (snapshot) => replaceFullLocalSnapshot(replicaContext, snapshot),
       commitPulledPage: (result) => commitPulledPage(replicaContext, result),
     },
     push: { drain: () => drainPageOutbox(replicaContext) },
@@ -338,6 +331,7 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
   }
 
   if (outcome.kind === "completed") {
+    if (outcome.replaced && !(await hydrateFromLocal())) return outcome;
     if (outcome.pushed > 0) failedPushes = 0;
     useSyncStore.setState({
       status: "idle",
@@ -346,7 +340,7 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
       syncTotalRows: null,
       lastSyncedAt: Date.now(),
     });
-    if (outcome.changedRows > 0) {
+    if (outcome.changedRows > 0 || outcome.replaced) {
       announce({ type: "changed", replicaId: replicaContext.replicaId });
     }
     return outcome;
@@ -566,11 +560,11 @@ export function verifyIntegrity(): Promise<IntegrityReport> {
 }
 
 /**
- * Drops the local copy and pulls the whole working set again.
+ * Pulls a complete working set into memory and swaps it into IndexedDB only once it is complete.
  *
- * The only repair there is, and deliberately the blunt one: the sync path cannot tell *which* of its
- * assumptions failed, so it does not try to patch the difference. Refuses while writes are queued —
- * they are the one thing here that a re-pull could not bring back.
+ * The repair remains deliberately blunt because the sync path cannot know which assumption failed,
+ * but the existing workspace stays usable until the complete replacement has passed its final fence.
+ * It refuses while writes are queued — they are the one thing a re-pull could not bring back.
  */
 export function resyncFromScratch(): Promise<SyncRunOutcome> {
   if (!canAttemptSync()) return Promise.resolve(blockedSyncOutcome());

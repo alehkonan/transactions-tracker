@@ -643,6 +643,15 @@ type PulledPage = {
   usdRates: Record<string, number> | null;
 };
 
+/** A complete remote working set staged in memory before replacing an existing replica. */
+export type FullReplicaSnapshot = {
+  rows: SyncedRows;
+  cursors: SyncCursors;
+  colors: Color[];
+  usdRates: Record<string, number> | null;
+  localRevision: number;
+};
+
 export function writeLocalPage(expected: ReplicaContext, page: PulledPage): Promise<void> {
   return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
     putServerRows(transaction, page.rows);
@@ -714,6 +723,95 @@ export function settleAcceptedPush(
     putServerRows(transaction, rows, new Set(seqs));
     transaction.objectStore(META_STORE).put(colors, COLORS_KEY);
   });
+}
+
+/**
+ * Atomically replaces replicated data after a complete staged download. Local obligations and
+ * identity metadata stay untouched; any local write that arrived during the download aborts the swap.
+ */
+export function replaceFullLocalSnapshot(
+  expected: ReplicaContext,
+  snapshot: FullReplicaSnapshot,
+): Promise<void> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(
+          [...SYNCED_TABLES, META_STORE, OUTBOX_STORE],
+          "readwrite",
+        );
+        let failure: unknown;
+        const meta = transaction.objectStore(META_STORE);
+        const descriptorRequest = meta.get(DESCRIPTOR_KEY);
+        const revisionRequest = meta.get(LOCAL_REVISION_KEY);
+        const outboxRequest = transaction.objectStore(OUTBOX_STORE).count();
+        let descriptor: ReplicaDescriptor | undefined;
+        let revision = 0;
+        let outboxCount = 0;
+        let descriptorReady = false;
+        let revisionReady = false;
+        let outboxReady = false;
+        let replaced = false;
+
+        const replace = () => {
+          if (!descriptorReady || !revisionReady || !outboxReady || replaced) return;
+          replaced = true;
+          try {
+            assertExpectedContext(descriptor, expected);
+            if (revision !== snapshot.localRevision || outboxCount !== 0) {
+              throw new Error("Local changes arrived while the full refresh was downloading.");
+            }
+            for (const table of SYNCED_TABLES) {
+              const store = transaction.objectStore(table);
+              store.clear();
+              for (const row of snapshot.rows[table]) store.put(row);
+            }
+            meta.put(snapshot.cursors, CURSORS_KEY);
+            meta.put(snapshot.colors, COLORS_KEY);
+            if (snapshot.usdRates) meta.put(snapshot.usdRates, USD_RATES_KEY);
+            meta.put([...SYNCED_TABLES], COMPLETE_TABLES_KEY);
+            meta.put(Date.now(), LAST_SYNCED_AT_KEY);
+            const selectedProfileRequest = meta.get(SELECTED_PROFILE_KEY);
+            selectedProfileRequest.addEventListener("success", () => {
+              const selectedProfileId = selectedProfileRequest.result;
+              const isLive = snapshot.rows.profiles.some(
+                (profile) => profile.id === selectedProfileId && profile.deletedAt == null,
+              );
+              if (!isLive) meta.delete(SELECTED_PROFILE_KEY);
+            });
+            selectedProfileRequest.addEventListener("error", () => transaction.abort());
+          } catch (error) {
+            failure = error;
+            transaction.abort();
+          }
+        };
+
+        descriptorRequest.addEventListener("success", () => {
+          descriptor = descriptorRequest.result as ReplicaDescriptor | undefined;
+          descriptorReady = true;
+          replace();
+        });
+        revisionRequest.addEventListener("success", () => {
+          revision = (revisionRequest.result as number | undefined) ?? 0;
+          revisionReady = true;
+          replace();
+        });
+        outboxRequest.addEventListener("success", () => {
+          outboxCount = outboxRequest.result;
+          outboxReady = true;
+          replace();
+        });
+        for (const request of [descriptorRequest, revisionRequest, outboxRequest]) {
+          request.addEventListener("error", () => {
+            failure = request.error;
+            transaction.abort();
+          });
+        }
+        transaction.addEventListener("complete", () => resolve());
+        transaction.addEventListener("error", () => reject(failure ?? transaction.error));
+        transaction.addEventListener("abort", () => reject(failure ?? transaction.error));
+      }),
+  );
 }
 
 export function clearLocalRows(expected: ReplicaContext): Promise<void> {
