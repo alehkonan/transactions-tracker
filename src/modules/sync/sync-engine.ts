@@ -1,16 +1,12 @@
 import { checkIntegrity, pullChanges, pushChanges } from "~/api/sync.functions";
-import { uuidV7 } from "~/utils/uuid-v7";
 import { runWithBrowserOperationLock } from "./browser-operation-lock";
 import {
   assertCurrentReplicaContext,
-  captureReplicaContext,
   captureSyncContext,
-  beginReplicaTransition,
   clearLocalRows,
   readLocalCursors,
   readLocalSnapshot,
   recoverInterruptedReplicaTransition,
-  replaceLocalReplica,
   subscribeToReplicaInvalidation,
   writeLocalPage,
 } from "./idb";
@@ -702,25 +698,4 @@ export function bootSync(): Promise<SyncRunOutcome> {
   })();
 
   return bootPromise;
-}
-
-/**
- * Forgets everything local — the rows, the cursors, the queued writes and the in-memory copy — so
- * the next boot starts from scratch. Used when the browser changes hands, which is the one case
- * where keeping a cache of somebody's finances around is not a convenience. A session that merely
- * expires keeps its copy, so coming back is still instant.
- */
-export function resetLocalData(): Promise<void> {
-  return runExclusive(async () => {
-    const replicaContext = await captureReplicaContext({ allowRecovery: true });
-    const transitionId = uuidV7();
-    await beginReplicaTransition(replicaContext, {
-      transitionId,
-      kind: "replace",
-      startedAt: Date.now(),
-    });
-    announceReplicaTransition(replicaContext);
-    const replacement = await replaceLocalReplica(replicaContext, transitionId);
-    await finishReplicaReplacement(replicaContext, replacement);
-  });
 }

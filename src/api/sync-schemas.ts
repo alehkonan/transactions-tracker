@@ -93,7 +93,7 @@ const mutationSchema = z.union([
   ]),
 ]);
 
-export const replicaSyncContextSchema = z.object({
+const replicaSyncContextSchema = z.object({
   protocolVersion: z.literal(SYNC_PROTOCOL_VERSION),
   expectedOwnerUserId: z.number().int().positive(),
 });

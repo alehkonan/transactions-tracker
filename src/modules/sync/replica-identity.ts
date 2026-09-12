@@ -4,7 +4,7 @@ export type ReplicaIdentity = {
   username: string;
 };
 
-export type ReplicaLifecycle = "active" | "transitioning" | "signed-out";
+type ReplicaLifecycle = "active" | "transitioning" | "signed-out";
 
 export type ReplicaTransition = {
   transitionId: string;
@@ -12,7 +12,7 @@ export type ReplicaTransition = {
   startedAt: number;
 };
 
-export type LegacyRecoveryReason =
+type LegacyRecoveryReason =
   | "missing-profile-owner"
   | "mixed-profile-owners"
   | "inconsistent-references";

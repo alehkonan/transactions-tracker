@@ -2,8 +2,8 @@ import { z } from "zod";
 import { SYNC_PROTOCOL_VERSION } from "~/modules/sync/sync-types";
 import type { ReplicaSyncContext } from "~/modules/sync/sync-types";
 
-export const SYNC_PROTOCOL_UNSUPPORTED = "SYNC_PROTOCOL_UNSUPPORTED";
-export const INVALID_SYNC_REQUEST = "INVALID_SYNC_REQUEST";
+const SYNC_PROTOCOL_UNSUPPORTED = "SYNC_PROTOCOL_UNSUPPORTED";
+const INVALID_SYNC_REQUEST = "INVALID_SYNC_REQUEST";
 export const REPLICA_OWNER_MISMATCH = "REPLICA_OWNER_MISMATCH";
 
 function protocolVersionOf(value: unknown): unknown {

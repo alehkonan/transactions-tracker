@@ -1,4 +1,9 @@
 {
   "$schema": "./node_modules/knip/schema.json",
-  "ignore": ["public/sw.js", ".agents/skills/impeccable/**", ".claude/skills/impeccable/**"]
+  "ignore": [
+    "public/sw.js",
+    "src/api/auth.functions.ts",
+    ".agents/skills/impeccable/**",
+    ".claude/skills/impeccable/**"
+  ]
 }

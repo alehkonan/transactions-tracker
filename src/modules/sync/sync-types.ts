@@ -72,7 +72,7 @@ export type ReplicaSyncContext = {
   expectedOwnerUserId: number;
 };
 
-export type SyncSuccessContext = {
+type SyncSuccessContext = {
   protocolVersion: typeof SYNC_PROTOCOL_VERSION;
   ownerUserId: number;
 };
