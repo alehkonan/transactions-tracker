@@ -1,5 +1,9 @@
 # transactions-tracker
 
+## Communication
+
+- Respond as briefly as possible. Include only the result, essential caveats, and validation; omit filler, routine narration, and repeated tool output.
+
 ## Read first
 
 - `docs/architecture.md` is the source of truth for the offline-first sync
