@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  beginReplicaSignOutTransition: vi.fn(),
   beginReplicaTransition: vi.fn(),
   cancelReplicaTransition: vi.fn(),
   captureReplicaContext: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("~/modules/sync/browser-operation-lock", () => ({
 }));
 vi.mock("~/modules/sync/idb", () => ({
   assertCurrentReplicaContext: vi.fn(),
+  beginReplicaSignOutTransition: mocks.beginReplicaSignOutTransition,
   beginReplicaTransition: mocks.beginReplicaTransition,
   cancelReplicaTransition: mocks.cancelReplicaTransition,
   captureReplicaContext: mocks.captureReplicaContext,
@@ -34,7 +36,12 @@ vi.mock("~/modules/sync/useSyncStore", () => ({
 }));
 vi.mock("~/utils/uuid-v7", () => ({ uuidV7: () => "transition-a" }));
 
-import { completeSignIn, getSignInReturnPath } from "./complete-sign-in";
+import {
+  completeSignIn,
+  completeSignOut,
+  getSignInReturnPath,
+  SignOutObligationsChangedError,
+} from "./complete-sign-in";
 
 function location(search: string): Location {
   return { origin: "https://tracker.example", search } as Location;
@@ -44,6 +51,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.recoverInterruptedReplicaTransition.mockResolvedValue(null);
   mocks.captureReplicaContext.mockResolvedValue({ replicaId: "replica-a", ownerUserId: 41 });
+  mocks.beginReplicaSignOutTransition.mockResolvedValue(0);
   mocks.beginReplicaTransition.mockResolvedValue(undefined);
   mocks.cancelReplicaTransition.mockResolvedValue(undefined);
   mocks.completeReplicaSignIn.mockResolvedValue(undefined);
@@ -67,6 +75,21 @@ describe("completeSignIn", () => {
     });
     expect(mocks.completeReplicaSignIn).not.toHaveBeenCalled();
     expect(mocks.resumeSyncAfterSignIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("completeSignOut", () => {
+  it("reopens confirmation instead of discarding obligations that changed after it opened", async () => {
+    mocks.beginReplicaSignOutTransition.mockResolvedValueOnce(2);
+
+    await expect(completeSignOut(vi.fn(), 1)).rejects.toEqual(
+      new SignOutObligationsChangedError(2),
+    );
+
+    expect(mocks.cancelReplicaTransition).toHaveBeenCalledWith(
+      { replicaId: "replica-a", ownerUserId: 41 },
+      "transition-a",
+    );
   });
 });
 

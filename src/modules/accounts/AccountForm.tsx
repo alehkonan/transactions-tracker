@@ -10,7 +10,7 @@ import { SelectControl } from "~/components/SelectControl";
 import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
 import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
-import { useSyncStore } from "~/modules/sync/useSyncStore";
+import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { formatMoney } from "~/utils/format-money";
 import { isMoneyInput } from "~/utils/money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
@@ -65,7 +65,7 @@ function getProjectedBalance(account: AccountWithBalance, initialBalance: string
 
 export function AccountForm({ account }: Props) {
   const { onClose } = useContext(DialogContext);
-  const replicaContext = useSyncStore((state) => state.replicaContext);
+  const replicaContext = useReplicaBinding();
   const isEditing = Boolean(account);
   const { control, handleSubmit, reset, formState } = useForm<AccountFormValues>({
     defaultValues: getDefaultValues(account),

@@ -1,13 +1,15 @@
 import { KeyRoundIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "~/components/Button";
 import { Card } from "~/components/Card";
 import { InputControl } from "~/components/InputControl";
 import { Title } from "~/components/Title";
 import { PasswordAuthForm } from "~/modules/auth/PasswordAuthForm";
+import { SignOutButton } from "~/modules/auth/SignOutButton";
 import { usePasskeyAuth } from "~/modules/auth/usePasskeyAuth";
 import { type PasswordAuthMode, usePasswordAuthForm } from "~/modules/auth/usePasswordAuthForm";
+import { captureReplicaContext } from "~/modules/sync/idb";
 
 type PasskeySignUpFormValues = {
   username: string;
@@ -20,8 +22,15 @@ export function LoginCard() {
   const { control, handleSubmit } = useForm<PasskeySignUpFormValues>({
     defaultValues: { username: "" },
   });
+  const [hasBoundReplica, setHasBoundReplica] = useState(false);
   const isPending = passkey.isPending || password.isPending;
   const onPasskeySignUp = handleSubmit(({ username }) => passkey.handleSignUp(username));
+
+  useEffect(() => {
+    void captureReplicaContext({ allowRecovery: true })
+      .then((context) => setHasBoundReplica(context.ownerUserId != null))
+      .catch(() => setHasBoundReplica(false));
+  }, []);
 
   return (
     <Card>
@@ -32,6 +41,18 @@ export function LoginCard() {
             Sign in with your password or passkey, or create a new account.
           </p>
         </div>
+
+        {hasBoundReplica && (
+          <div className="border-danger bg-danger/10 flex flex-col gap-2 rounded-xl border p-3">
+            <p className="text-sm">
+              This browser has a local workspace for another account. Sign in as its owner, or
+              explicitly discard it before using a different account.
+            </p>
+            <div className="self-start">
+              <SignOutButton />
+            </div>
+          </div>
+        )}
 
         <div className="border-border grid grid-cols-2 rounded-2xl border p-1">
           <Button

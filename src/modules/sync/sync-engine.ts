@@ -132,7 +132,7 @@ export function announceReplicaTransition(replicaContext: ReplicaContext): void 
 export function resumeSyncAfterSignIn(replicaContext: ReplicaContext): void {
   useSyncStore.setState({ replicaContext, status: "idle", error: null });
   announce({ type: "auth-completed", replicaId: replicaContext.replicaId });
-  schedulePush(0);
+  schedulePush(0, replicaContext);
 }
 
 /** Keeps local data available after uncertain auth while durably gated sync stays paused. */
@@ -349,7 +349,10 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
     useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
     if (outcome.phase === "push") {
       failedPushes++;
-      schedulePush(Math.min(MAX_PUSH_BACKOFF_MS, PUSH_DEBOUNCE_MS * 2 ** failedPushes));
+      schedulePush(
+        Math.min(MAX_PUSH_BACKOFF_MS, PUSH_DEBOUNCE_MS * 2 ** failedPushes),
+        replicaContext,
+      );
     }
   } else if (outcome.kind === "didNotConverge") {
     useSyncStore.setState({
@@ -418,6 +421,7 @@ async function applyAcceptedPageBatch(
 }
 
 async function drainPageOutbox(replicaContext: BoundReplicaContext): Promise<OutboxDrainOutcome> {
+  await assertCurrentReplicaContext(replicaContext);
   useSyncStore.setState({ isPushing: true });
   try {
     return await drainOutbox({
@@ -428,7 +432,12 @@ async function drainPageOutbox(replicaContext: BoundReplicaContext): Promise<Out
       onAccepted: (result) => applyAcceptedPageBatch(replicaContext, result),
     });
   } finally {
-    useSyncStore.setState({ isPushing: false });
+    try {
+      await assertCurrentReplicaContext(replicaContext);
+      useSyncStore.setState({ isPushing: false });
+    } catch {
+      // A replaced replica owns a fresh status lifecycle; this old drain must not publish into it.
+    }
   }
 }
 
@@ -455,12 +464,24 @@ export function pushNow(): Promise<SyncRunOutcome> {
  * seven days of no visits, and an entry that never got pushed is the one thing here that exists
  * nowhere else.
  */
-export function schedulePush(delayMs: number = PUSH_DEBOUNCE_MS): void {
+export function schedulePush(delayMs: number = PUSH_DEBOUNCE_MS, expected?: ReplicaContext): void {
   if (pushTimer != null) return;
   pushTimer = setTimeout(() => {
-    void pushNow().catch((error) => {
-      useSyncStore.setState({ status: "error", error: toMessage(error) });
-    });
+    void (async () => {
+      try {
+        if (expected) await assertCurrentReplicaContext(expected);
+        await pushNow();
+      } catch (error) {
+        if (expected) {
+          try {
+            await assertCurrentReplicaContext(expected);
+          } catch {
+            return;
+          }
+        }
+        useSyncStore.setState({ status: "error", error: toMessage(error) });
+      }
+    })();
   }, delayMs);
 }
 

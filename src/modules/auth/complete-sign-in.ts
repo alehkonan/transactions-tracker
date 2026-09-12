@@ -1,6 +1,7 @@
 import { runWithBrowserOperationLock } from "~/modules/sync/browser-operation-lock";
 import {
   assertCurrentReplicaContext,
+  beginReplicaSignOutTransition,
   beginReplicaTransition,
   cancelReplicaTransition,
   captureReplicaContext,
@@ -23,6 +24,13 @@ import type { ReplicaContext } from "~/modules/sync/replica-identity";
 type SessionUser = { id: number; username: string };
 type SignInIntent = "sign-in" | "sign-up";
 type SignInFinalizer = (expectedUserId: number | undefined) => Promise<SessionUser | Response>;
+
+export class SignOutObligationsChangedError extends Error {
+  constructor(readonly outboxCount: number) {
+    super("Local changes changed while the sign-out confirmation was open.");
+    this.name = "SignOutObligationsChangedError";
+  }
+}
 
 async function unwrapIdentity(value: SessionUser | Response): Promise<SessionUser> {
   if (!(value instanceof Response)) return value;
@@ -133,16 +141,23 @@ export async function readSignOutObligations(): Promise<{ outboxCount: number }>
 }
 
 /** Server failure restores the original replica; only a confirmed sign-out may discard it. */
-export function completeSignOut(finalize: () => Promise<unknown>): Promise<void> {
+export function completeSignOut(
+  finalize: () => Promise<unknown>,
+  confirmedOutboxCount: number,
+): Promise<void> {
   return runWithBrowserOperationLock(async () => {
     await recoverInterruptedReplicaTransition();
     const replicaContext = await captureReplicaContext({ allowRecovery: true });
     const transitionId = uuidV7();
-    await beginReplicaTransition(replicaContext, {
+    const currentOutboxCount = await beginReplicaSignOutTransition(replicaContext, {
       transitionId,
       kind: "sign-out",
       startedAt: Date.now(),
     });
+    if (currentOutboxCount !== confirmedOutboxCount) {
+      await cancelReplicaTransition(replicaContext, transitionId);
+      throw new SignOutObligationsChangedError(currentOutboxCount);
+    }
     announceReplicaTransition(replicaContext);
 
     try {

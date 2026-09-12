@@ -4,7 +4,7 @@ import { Button } from "~/components/Button";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
 import { createProfile, updateProfile } from "~/modules/profile/profile-mutations";
-import { useSyncStore } from "~/modules/sync/useSyncStore";
+import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import type { ProfileSummary } from "~/modules/accounts/compute-balances";
 
 type ProfileFormValues = {
@@ -23,7 +23,7 @@ function getDefaultValues(profile?: Props["profile"]): ProfileFormValues {
 /** Creates or renames a profile. */
 export function ProfileForm({ profile }: Props) {
   const { onClose } = useContext(DialogContext);
-  const replicaContext = useSyncStore((state) => state.replicaContext);
+  const replicaContext = useReplicaBinding();
   const isEditing = Boolean(profile);
   const { control, handleSubmit, reset, formState } = useForm<ProfileFormValues>({
     defaultValues: getDefaultValues(profile),

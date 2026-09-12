@@ -364,6 +364,60 @@ export function beginReplicaTransition(
   );
 }
 
+/**
+ * Atomically captures local-only obligations and starts sign-out. A separately read count could be
+ * stale by the time the destructive transition begins because ordinary local commits do not take the
+ * auth lock.
+ */
+export function beginReplicaSignOutTransition(
+  expected: ReplicaContext,
+  transition: ReplicaTransition,
+): Promise<number> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<number>((resolve, reject) => {
+        const transaction = database.transaction([META_STORE, OUTBOX_STORE], "readwrite");
+        let outboxCount = 0;
+        let failure: unknown;
+        const descriptorRequest = transaction.objectStore(META_STORE).get(DESCRIPTOR_KEY);
+        const outboxRequest = transaction.objectStore(OUTBOX_STORE).count();
+
+        descriptorRequest.addEventListener("success", () => {
+          try {
+            const descriptor = descriptorRequest.result as ReplicaDescriptor | undefined;
+            assertExpectedContext(descriptor, expected, true);
+            transaction.objectStore(META_STORE).put(
+              {
+                ...descriptor,
+                lifecycle: "transitioning",
+                transition,
+                syncAuth: "login-required",
+              } satisfies ReplicaDescriptor,
+              DESCRIPTOR_KEY,
+            );
+          } catch (error) {
+            failure = error;
+            transaction.abort();
+          }
+        });
+        descriptorRequest.addEventListener("error", () => {
+          failure = descriptorRequest.error;
+          transaction.abort();
+        });
+        outboxRequest.addEventListener("success", () => {
+          outboxCount = outboxRequest.result;
+        });
+        outboxRequest.addEventListener("error", () => {
+          failure = outboxRequest.error;
+          transaction.abort();
+        });
+        transaction.addEventListener("complete", () => resolve(outboxCount));
+        transaction.addEventListener("error", () => reject(failure ?? transaction.error));
+        transaction.addEventListener("abort", () => reject(failure ?? transaction.error));
+      }),
+  );
+}
+
 export function cancelReplicaTransition(
   expected: ReplicaContext,
   transitionId: string,

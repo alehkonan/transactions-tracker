@@ -5,7 +5,11 @@ import { signOut } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
-import { completeSignOut, readSignOutObligations } from "~/modules/auth/complete-sign-in";
+import {
+  completeSignOut,
+  readSignOutObligations,
+  SignOutObligationsChangedError,
+} from "~/modules/auth/complete-sign-in";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 
 export function SignOutButton() {
@@ -33,13 +37,20 @@ export function SignOutButton() {
   const handleSignOut = async () => {
     setIsPending(true);
     try {
-      await completeSignOut(() => signOut());
+      await completeSignOut(() => signOut(), confirmedOutboxCount ?? visibleOutboxCount);
       // Invalidating re-runs the root guard, which now finds no session and redirects to /login.
       await router.invalidate();
-    } catch {
-      toastManager.add({
-        description: "Could not sign out. Your local data remains on this device.",
-      });
+    } catch (error) {
+      if (error instanceof SignOutObligationsChangedError) {
+        setConfirmedOutboxCount(error.outboxCount);
+        toastManager.add({
+          description: "Local changes changed. Review the updated warning before signing out.",
+        });
+      } else {
+        toastManager.add({
+          description: "Could not sign out. Your local data remains on this device.",
+        });
+      }
     } finally {
       setIsPending(false);
     }

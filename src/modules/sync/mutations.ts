@@ -1,5 +1,5 @@
 import { uuidV7 } from "~/utils/uuid-v7";
-import { captureReplicaContext, writeLocalMutations } from "./idb";
+import { assertCurrentReplicaContext, captureReplicaContext, writeLocalMutations } from "./idb";
 import { announceLocalWrite, schedulePush } from "./sync-engine";
 import { SYNCED_TABLES } from "./sync-types";
 import { applyLocalRows, refreshOutboxState, useSyncStore } from "./useSyncStore";
@@ -135,6 +135,7 @@ export async function commit(
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.
   await writeLocalMutations(replicaContext, rows, mutations);
+  await assertCurrentReplicaContext(replicaContext);
   await refreshOutboxState(replicaContext);
   applyLocalRows(rows);
   // On disk is on disk: any other tab on this browser is looking at the same database and should
@@ -142,7 +143,7 @@ export async function commit(
   announceLocalWrite(replicaContext);
   // Background Sync stays disabled until worker settlement is fenced to the replica owner. The
   // foreground engine remains the only path allowed to send and settle this durable outbox.
-  schedulePush();
+  schedulePush(undefined, replicaContext);
 }
 
 /**

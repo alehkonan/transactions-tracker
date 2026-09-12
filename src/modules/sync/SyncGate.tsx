@@ -28,6 +28,7 @@ export function SyncGate({ children }: Props) {
   const isHydrated = useSyncStore((state) => state.isHydrated);
   const status = useSyncStore((state) => state.status);
   const error = useSyncStore((state) => state.error);
+  const replicaId = useSyncStore((state) => state.replicaContext?.replicaId);
 
   useEffect(() => {
     void bootSync();
@@ -48,7 +49,9 @@ export function SyncGate({ children }: Props) {
   if (isHydrated) {
     return (
       <>
-        {children}
+        <div key={replicaId ?? "unbound"} className="contents">
+          {children}
+        </div>
         <SyncStatus />
         <SyncConflictToasts />
       </>

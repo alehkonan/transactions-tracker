@@ -14,7 +14,7 @@ import {
 } from "~/modules/categories/category-mutations";
 import { getCategoryDisplayColor } from "~/modules/categories/category-palette";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
-import { useSyncStore } from "~/modules/sync/useSyncStore";
+import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
 import type { Color } from "~/modules/sync/sync-types";
 
@@ -40,7 +40,7 @@ function getDefaultValues(category?: CategoryRow): CategoryFormValues {
 /** Creates a category, or renames/recolors/deletes an existing one — the single editor behind a category tag. */
 export function CategoryForm({ colors, category }: Props) {
   const { onClose } = useContext(DialogContext);
-  const replicaContext = useSyncStore((state) => state.replicaContext);
+  const replicaContext = useReplicaBinding();
   const isEditing = Boolean(category);
   const { control, handleSubmit, reset, formState } = useForm<CategoryFormValues>({
     defaultValues: getDefaultValues(category),

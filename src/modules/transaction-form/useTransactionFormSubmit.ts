@@ -1,6 +1,7 @@
 import { use } from "react";
 import { DialogContext } from "~/components/Dialog";
 import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import {
   getSignedTransactionAmount,
@@ -21,7 +22,7 @@ type Options = {
 /** Persists the submitted form values (create or update) and closes the dialog. Throws on failure. */
 export function useTransactionFormSubmit({ transaction }: Options) {
   const { onClose } = use(DialogContext);
-  const replicaContext = useSyncStore((state) => state.replicaContext);
+  const replicaContext = useReplicaBinding();
 
   const submit = async (values: TransactionFormValues) => {
     const profileId = readSelectedProfileId();

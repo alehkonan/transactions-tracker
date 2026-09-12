@@ -4,7 +4,7 @@ import { Button } from "~/components/Button";
 import { DialogContext } from "~/components/Dialog";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
-import { useSyncStore } from "~/modules/sync/useSyncStore";
+import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { deleteTransactions } from "~/modules/transactions/transaction-mutations";
 
 type Props = {
@@ -14,7 +14,7 @@ type Props = {
 /** Deletes the transaction being edited, after confirmation, then closes the form. */
 export function DeleteTransactionButton({ id }: Props) {
   const { onClose } = use(DialogContext);
-  const replicaContext = useSyncStore((state) => state.replicaContext);
+  const replicaContext = useReplicaBinding();
   const [isDeleting, startTransition] = useTransition();
 
   const handleConfirm = () => {
