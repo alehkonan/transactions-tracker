@@ -13,9 +13,9 @@
 
 - TanStack Start, React 19, TypeScript, Tailwind CSS v4, Drizzle/PostgreSQL,
   IndexedDB, Zustand, Zod, and pnpm.
-- Lefthook runs formatting and `lint:fix` on commit, then typecheck, unit tests,
-  and `knip` before push. Do not run them redundantly unless the user requests
-  it or they are needed to diagnose a specific change.
+- Leave validation to Lefthook: it runs formatting and `lint:fix` on commit,
+  then typecheck, unit tests, and `knip` before push. Do not run these checks
+  from the agent session unless the user explicitly requests a specific check.
 - For end-to-end workflow interactions, add stable `data-testid` hooks and use
   `getByTestId`; reserve role/name locators for tests that explicitly verify
   accessibility semantics.
