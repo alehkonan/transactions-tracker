@@ -9,56 +9,62 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AccountsRouteImport } from './routes/accounts'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as StatisticsRouteImport } from './routes/statistics'
-import { Route as TransactionsRouteImport } from './routes/transactions'
-import { Route as TransactionsImportRouteImport } from './routes/transactions-import'
+import { Route as ClientRouteImport } from './routes/_client'
+import { Route as ClientIndexRouteImport } from './routes/_client.index'
+import { Route as ClientAccountsRouteImport } from './routes/_client.accounts'
+import { Route as ClientLoginRouteImport } from './routes/_client.login'
+import { Route as ClientProfileRouteImport } from './routes/_client.profile'
+import { Route as ClientSettingsRouteImport } from './routes/_client.settings'
+import { Route as ClientStatisticsRouteImport } from './routes/_client.statistics'
+import { Route as ClientTransactionsRouteImport } from './routes/_client.transactions'
+import { Route as ClientTransactionsImportRouteImport } from './routes/_client.transactions-import'
 import { Route as ApiPushRouteImport } from './routes/api/push'
 
-const IndexRoute = IndexRouteImport.update({
+const ClientRoute = ClientRouteImport.update({
+  id: '/_client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClientRoute,
 } as any)
-const AccountsRoute = AccountsRouteImport.update({
+const ClientAccountsRoute = ClientAccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClientRoute,
 } as any)
-const LoginRoute = LoginRouteImport.update({
+const ClientLoginRoute = ClientLoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClientRoute,
 } as any)
-const ProfileRoute = ProfileRouteImport.update({
+const ClientProfileRoute = ClientProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClientRoute,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
+const ClientSettingsRoute = ClientSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClientRoute,
 } as any)
-const StatisticsRoute = StatisticsRouteImport.update({
+const ClientStatisticsRoute = ClientStatisticsRouteImport.update({
   id: '/statistics',
   path: '/statistics',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClientRoute,
 } as any)
-const TransactionsRoute = TransactionsRouteImport.update({
+const ClientTransactionsRoute = ClientTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ClientRoute,
 } as any)
-const TransactionsImportRoute = TransactionsImportRouteImport.update({
-  id: '/transactions-import',
-  path: '/transactions-import',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ClientTransactionsImportRoute =
+  ClientTransactionsImportRouteImport.update({
+    id: '/transactions-import',
+    path: '/transactions-import',
+    getParentRoute: () => ClientRoute,
+  } as any)
 const ApiPushRoute = ApiPushRouteImport.update({
   id: '/api/push',
   path: '/api/push',
@@ -66,38 +72,39 @@ const ApiPushRoute = ApiPushRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/accounts': typeof AccountsRoute
-  '/login': typeof LoginRoute
-  '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/transactions': typeof TransactionsRoute
-  '/transactions-import': typeof TransactionsImportRoute
+  '/': typeof ClientIndexRoute
+  '/accounts': typeof ClientAccountsRoute
+  '/login': typeof ClientLoginRoute
+  '/profile': typeof ClientProfileRoute
+  '/settings': typeof ClientSettingsRoute
+  '/statistics': typeof ClientStatisticsRoute
+  '/transactions': typeof ClientTransactionsRoute
+  '/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/accounts': typeof AccountsRoute
-  '/login': typeof LoginRoute
-  '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/transactions': typeof TransactionsRoute
-  '/transactions-import': typeof TransactionsImportRoute
+  '/accounts': typeof ClientAccountsRoute
+  '/login': typeof ClientLoginRoute
+  '/profile': typeof ClientProfileRoute
+  '/settings': typeof ClientSettingsRoute
+  '/statistics': typeof ClientStatisticsRoute
+  '/transactions': typeof ClientTransactionsRoute
+  '/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
+  '/': typeof ClientIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/accounts': typeof AccountsRoute
-  '/login': typeof LoginRoute
-  '/profile': typeof ProfileRoute
-  '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/transactions': typeof TransactionsRoute
-  '/transactions-import': typeof TransactionsImportRoute
+  '/_client': typeof ClientRouteWithChildren
+  '/_client/accounts': typeof ClientAccountsRoute
+  '/_client/login': typeof ClientLoginRoute
+  '/_client/profile': typeof ClientProfileRoute
+  '/_client/settings': typeof ClientSettingsRoute
+  '/_client/statistics': typeof ClientStatisticsRoute
+  '/_client/transactions': typeof ClientTransactionsRoute
+  '/_client/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
+  '/_client/': typeof ClientIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -113,7 +120,6 @@ export interface FileRouteTypes {
     | '/api/push'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/accounts'
     | '/login'
     | '/profile'
@@ -122,88 +128,90 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/transactions-import'
     | '/api/push'
+    | '/'
   id:
     | '__root__'
-    | '/'
-    | '/accounts'
-    | '/login'
-    | '/profile'
-    | '/settings'
-    | '/statistics'
-    | '/transactions'
-    | '/transactions-import'
+    | '/_client'
+    | '/_client/accounts'
+    | '/_client/login'
+    | '/_client/profile'
+    | '/_client/settings'
+    | '/_client/statistics'
+    | '/_client/transactions'
+    | '/_client/transactions-import'
     | '/api/push'
+    | '/_client/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AccountsRoute: typeof AccountsRoute
-  LoginRoute: typeof LoginRoute
-  ProfileRoute: typeof ProfileRoute
-  SettingsRoute: typeof SettingsRoute
-  StatisticsRoute: typeof StatisticsRoute
-  TransactionsRoute: typeof TransactionsRoute
-  TransactionsImportRoute: typeof TransactionsImportRoute
+  ClientRoute: typeof ClientRouteWithChildren
   ApiPushRoute: typeof ApiPushRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_client': {
+      id: '/_client'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof ClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_client/': {
+      id: '/_client/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientIndexRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/accounts': {
-      id: '/accounts'
+    '/_client/accounts': {
+      id: '/_client/accounts'
       path: '/accounts'
       fullPath: '/accounts'
-      preLoaderRoute: typeof AccountsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientAccountsRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/login': {
-      id: '/login'
+    '/_client/login': {
+      id: '/_client/login'
       path: '/login'
       fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientLoginRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/profile': {
-      id: '/profile'
+    '/_client/profile': {
+      id: '/_client/profile'
       path: '/profile'
       fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientProfileRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/settings': {
-      id: '/settings'
+    '/_client/settings': {
+      id: '/_client/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientSettingsRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/statistics': {
-      id: '/statistics'
+    '/_client/statistics': {
+      id: '/_client/statistics'
       path: '/statistics'
       fullPath: '/statistics'
-      preLoaderRoute: typeof StatisticsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientStatisticsRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/transactions': {
-      id: '/transactions'
+    '/_client/transactions': {
+      id: '/_client/transactions'
       path: '/transactions'
       fullPath: '/transactions'
-      preLoaderRoute: typeof TransactionsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientTransactionsRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/transactions-import': {
-      id: '/transactions-import'
+    '/_client/transactions-import': {
+      id: '/_client/transactions-import'
       path: '/transactions-import'
       fullPath: '/transactions-import'
-      preLoaderRoute: typeof TransactionsImportRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ClientTransactionsImportRouteImport
+      parentRoute: typeof ClientRoute
     }
     '/api/push': {
       id: '/api/push'
@@ -215,15 +223,33 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ClientRouteChildren {
+  ClientAccountsRoute: typeof ClientAccountsRoute
+  ClientLoginRoute: typeof ClientLoginRoute
+  ClientProfileRoute: typeof ClientProfileRoute
+  ClientSettingsRoute: typeof ClientSettingsRoute
+  ClientStatisticsRoute: typeof ClientStatisticsRoute
+  ClientTransactionsRoute: typeof ClientTransactionsRoute
+  ClientTransactionsImportRoute: typeof ClientTransactionsImportRoute
+  ClientIndexRoute: typeof ClientIndexRoute
+}
+
+const ClientRouteChildren: ClientRouteChildren = {
+  ClientAccountsRoute: ClientAccountsRoute,
+  ClientLoginRoute: ClientLoginRoute,
+  ClientProfileRoute: ClientProfileRoute,
+  ClientSettingsRoute: ClientSettingsRoute,
+  ClientStatisticsRoute: ClientStatisticsRoute,
+  ClientTransactionsRoute: ClientTransactionsRoute,
+  ClientTransactionsImportRoute: ClientTransactionsImportRoute,
+  ClientIndexRoute: ClientIndexRoute,
+}
+
+const ClientRouteWithChildren =
+  ClientRoute._addFileChildren(ClientRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AccountsRoute: AccountsRoute,
-  LoginRoute: LoginRoute,
-  ProfileRoute: ProfileRoute,
-  SettingsRoute: SettingsRoute,
-  StatisticsRoute: StatisticsRoute,
-  TransactionsRoute: TransactionsRoute,
-  TransactionsImportRoute: TransactionsImportRoute,
+  ClientRoute: ClientRouteWithChildren,
   ApiPushRoute: ApiPushRoute,
 }
 export const routeTree = rootRouteImport

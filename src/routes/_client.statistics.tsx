@@ -26,7 +26,7 @@ import { useSyncStore } from "~/modules/sync/useSyncStore";
 
 const currentYearMonth = () => format(new Date(), "yyyy-MM");
 
-export const Route = createFileRoute("/statistics")({
+export const Route = createFileRoute("/_client/statistics")({
   validateSearch: z.object({
     month: z
       .string()

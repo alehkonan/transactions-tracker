@@ -8,7 +8,7 @@ import { selectProfileLocally } from "~/modules/profile/local-selection";
 import { ProfileCard } from "~/modules/profile/ProfileCard";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 
-export const Route = createFileRoute("/profile")({
+export const Route = createFileRoute("/_client/profile")({
   component: () => {
     const navigate = useNavigate();
     // Not profile-scoped, unlike every other page: the pull covers all of the user's profiles, which

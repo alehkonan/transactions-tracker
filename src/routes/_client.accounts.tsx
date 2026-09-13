@@ -45,7 +45,7 @@ function getAccountGroups(accounts: AccountWithBalance[], totals: BalanceTotals)
   ];
 }
 
-export const Route = createFileRoute("/accounts")({
+export const Route = createFileRoute("/_client/accounts")({
   component: () => {
     const accounts = useAccounts();
     const usdRates = useSyncStore((state) => state.usdRates);

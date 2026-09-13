@@ -1,14 +1,16 @@
-// This file is a template. Vite stamps the build id, precache list and portable acceptance kernel
+// This file is a template. Vite stamps the build id, shell, precache list and portable acceptance kernel
 // into the copy emitted to dist/client. Keeping the worker standalone avoids application imports.
 const BUILD_ID = __BUILD_ID__;
 const DATABASE_NAME = __DATABASE_NAME__;
 const DATABASE_VERSION = __DATABASE_VERSION__;
+const SHELL_URL = __SHELL_URL__;
+const PRECACHE = __PRECACHE__;
+const NAVIGATION_PATHS = new Set(__NAVIGATION_PATHS__);
 if (typeof DATABASE_NAME !== "string" || !Number.isInteger(DATABASE_VERSION)) {
   throw new Error("The service worker has an invalid IndexedDB contract.");
 }
 const CACHE_PREFIX = "transactions-tracker-";
 const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
-const PRECACHE = ["/", ...__PRECACHE__];
 
 /* __OUTBOX_ACCEPTANCE_KERNEL__ */
 
@@ -38,33 +40,16 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return; // POSTs are live data; the page engine owns their failures.
 
+  const url = new URL(request.url);
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (!response.ok) return response;
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put("/", response.clone());
-            return response;
-          });
-        })
-        .catch(() => caches.match("/")),
-    );
+    const pathname =
+      url.pathname.endsWith("/") && url.pathname !== "/" ? url.pathname.slice(0, -1) : url.pathname;
+    if (!NAVIGATION_PATHS.has(pathname)) return;
+    event.respondWith(fetch(request).catch(() => caches.match(SHELL_URL)));
     return;
   }
 
-  const url = new URL(request.url);
-  if (url.origin === self.location.origin && url.pathname.startsWith("/assets/")) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          if (response.ok) {
-            void caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
-          }
-          return response;
-        });
-      }),
-    );
+  if (url.origin === self.location.origin && PRECACHE.includes(url.pathname)) {
+    event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
   }
 });

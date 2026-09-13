@@ -28,7 +28,7 @@ const dateKeySchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .optional();
 
-export const Route = createFileRoute("/transactions")({
+export const Route = createFileRoute("/_client/transactions")({
   validateSearch: z.object({
     from: dateKeySchema,
     to: dateKeySchema,

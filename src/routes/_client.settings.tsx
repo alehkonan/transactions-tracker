@@ -14,7 +14,7 @@ import { StoragePersistence } from "~/modules/sync/StoragePersistence";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { ExportTransactionsButton } from "~/modules/transactions/ExportTransactionsButton";
 
-export const Route = createFileRoute("/settings")({
+export const Route = createFileRoute("/_client/settings")({
   component: () => {
     const categories = useCategories();
     const colors = useSyncStore((state) => state.colors);

@@ -23,3 +23,8 @@ Cache-Control = "no-cache"
 for = "/assets/*"
 [headers.values]
 Cache-Control = "public, immutable, max-age=31536000"
+
+[[headers]]
+for = "/_shell/*"
+[headers.values]
+Cache-Control = "public, immutable, max-age=31536000"

@@ -25,6 +25,16 @@ export default defineConfig({
       importProtection: {
         behavior: "error",
       },
+      spa: {
+        enabled: true,
+        maskPath: "/",
+        prerender: { outputPath: "/_shell", crawlLinks: false, retryCount: 0 },
+      },
+      prerender: {
+        autoStaticPathsDiscovery: false,
+        crawlLinks: false,
+        failOnError: true,
+      },
     }),
     devtools({
       // data-tsd-source attributes diverge between the SSR and client

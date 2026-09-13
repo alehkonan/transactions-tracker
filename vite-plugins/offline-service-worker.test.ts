@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Script, createContext } from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
-import { offlineServiceWorker } from "./offline-service-worker";
-import type { ResolvedConfig } from "vite";
+import { finalizeOfflineArtifacts } from "./offline-service-worker";
 
 const temporaryDirectories: string[] = [];
 
@@ -15,28 +14,51 @@ afterEach(async () => {
   );
 });
 
-async function generateWorker(): Promise<string> {
+async function finalizeWorker() {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "transactions-tracker-worker-"));
   temporaryDirectories.push(temporaryRoot);
   const outputDirectory = join(temporaryRoot, "client");
-  await fs.mkdir(outputDirectory);
+  await fs.mkdir(join(outputDirectory, "assets"), { recursive: true });
+  await fs.writeFile(
+    join(outputDirectory, "_shell.html"),
+    '<!doctype html><html><head><link href="/assets/app.css"></head><body><div id="root"></div></body></html>',
+  );
+  await fs.writeFile(join(outputDirectory, "assets", "app.css"), "body{}");
+  await fs.writeFile(join(outputDirectory, "assets", "lazy-route.js"), "export {};");
+  await fs.writeFile(join(outputDirectory, "assets", "lazy-route.js.map"), "{}");
 
-  const plugin = offlineServiceWorker();
-  if (typeof plugin.configResolved !== "function" || typeof plugin.writeBundle !== "function") {
-    throw new Error("The offline service-worker plugin is missing its build hooks.");
-  }
-
-  Reflect.apply(plugin.configResolved, undefined, [
-    { root: process.cwd(), build: { outDir: "dist" } } as ResolvedConfig,
-  ]);
-  await Reflect.apply(plugin.writeBundle, undefined, [{ dir: outputDirectory }, {}]);
-
-  return fs.readFile(join(outputDirectory, "sw.js"), "utf8");
+  const metadata = await finalizeOfflineArtifacts(process.cwd(), outputDirectory);
+  return {
+    outputDirectory,
+    metadata,
+    worker: await fs.readFile(join(outputDirectory, "sw.js"), "utf8"),
+  };
 }
 
 describe("offlineServiceWorker", () => {
+  it("finalizes a prerendered shell into deterministic, complete offline artifacts", async () => {
+    const first = await finalizeWorker();
+    const second = await finalizeWorker();
+
+    expect(first.metadata.buildId).toBe(second.metadata.buildId);
+    expect(first.metadata.shellUrl).toBe(`/_shell/${first.metadata.buildId}/`);
+    expect(first.metadata.precache).toContain(first.metadata.shellUrl);
+    expect(first.metadata.precache).toContain("/assets/app.css");
+    expect(first.metadata.precache).toContain("/assets/lazy-route.js");
+    expect(first.metadata.precache).not.toContain("/assets/lazy-route.js.map");
+    await expect(
+      fs.readFile(
+        join(first.outputDirectory, "_shell", first.metadata.buildId, "index.html"),
+        "utf8",
+      ),
+    ).resolves.toContain('<div id="root"></div>');
+    const redirects = await fs.readFile(join(first.outputDirectory, "_redirects"), "utf8");
+    expect(redirects).not.toContain(`/api/push ${first.metadata.shellUrl} 200`);
+    expect(redirects).toContain(`/transactions/ ${first.metadata.shellUrl} 200`);
+  });
+
   it("inlines the portable acceptance kernel without module syntax or placeholders", async () => {
-    const worker = await generateWorker();
+    const { worker } = await finalizeWorker();
 
     expect(worker).toContain("__outboxAcceptanceKernel");
     expect(worker).toContain("The server confirmed none of the pushed changes.");
@@ -47,7 +69,7 @@ describe("offlineServiceWorker", () => {
   });
 
   it("emits a classic script with an available kernel and safe event handlers", async () => {
-    const worker = await generateWorker();
+    const { worker } = await finalizeWorker();
     const listeners: string[] = [];
     const context = createContext({
       URL,

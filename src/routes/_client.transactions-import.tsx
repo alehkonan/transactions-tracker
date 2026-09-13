@@ -6,7 +6,7 @@ import { ProcessingStep } from "~/modules/transactions-import/ProcessingStep";
 import { UploadStep } from "~/modules/transactions-import/UploadStep";
 import { useTransactionsImport } from "~/modules/transactions-import/useTransactionsImport";
 
-export const Route = createFileRoute("/transactions-import")({
+export const Route = createFileRoute("/_client/transactions-import")({
   component: () => {
     const step = useTransactionsImport((state) => state.step);
 
