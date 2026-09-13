@@ -63,10 +63,13 @@ describe("ServiceWorkerRegistration", () => {
     const serviceWorker = {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
+      controller: null,
       register: vi.fn().mockResolvedValue({
         active: null,
         installing: installingWorker,
         waiting: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       }),
     };
     Object.defineProperty(navigator, "serviceWorker", {
@@ -86,5 +89,37 @@ describe("ServiceWorkerRegistration", () => {
 
     expect(container.querySelector("output")?.textContent).toContain("Offline mode unavailable");
     expect(warning).toHaveBeenCalledOnce();
+  });
+
+  it("shows a passive notice for a worker that is already waiting", async () => {
+    const serviceWorker = {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      controller: { postMessage: vi.fn() },
+      register: vi.fn().mockResolvedValue({
+        active: {},
+        installing: null,
+        waiting: {},
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    };
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: serviceWorker,
+    });
+
+    await act(async () => {
+      root.render(<ServiceWorkerRegistration />);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("output")?.textContent).toContain(
+      "Update ready. Finish your edits, then close all app windows and reopen.",
+    );
+    expect(serviceWorker.controller.postMessage).toHaveBeenCalledWith({
+      type: "transactions-tracker:service-worker",
+      action: "get-build-id",
+    });
   });
 });

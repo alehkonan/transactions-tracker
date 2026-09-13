@@ -90,8 +90,24 @@ describe("offlineServiceWorker", () => {
         filename: "kernel-check.js",
       }).runInContext(context),
     ).toBeTypeOf("function");
-    expect(listeners).toEqual(["install", "activate", "fetch"]);
+    expect(listeners).toEqual(["install", "activate", "message", "fetch"]);
+    expect(worker).not.toContain("skipWaiting");
+    expect(worker).not.toContain("clients.claim");
     expect(worker).not.toContain('fetch("/api/push"');
     expect(worker).not.toContain("indexedDB.open");
+  });
+
+  it("serves only its versioned shell for allowlisted navigations and retains live client caches", async () => {
+    const { worker, metadata } = await finalizeWorker();
+
+    expect(worker).toContain("event.respondWith(getCachedShell())");
+    expect(worker).toContain('fetch(SHELL_URL, { credentials: "omit", redirect: "error" })');
+    expect(worker).toContain("OFFLINE_RECOVERY_HTML");
+    expect(worker).not.toContain("caches.match(SHELL_URL)");
+    expect(worker).toContain("const exactUrl = `${url.pathname}${url.search}`");
+    expect(worker).toContain("includeUncontrolled: true");
+    expect(worker).toContain("request-client-build-id");
+    expect(worker).toContain("if (replies.size !== clients.length");
+    expect(worker).toContain(`const SHELL_URL = "${metadata.shellUrl}";`);
   });
 });
