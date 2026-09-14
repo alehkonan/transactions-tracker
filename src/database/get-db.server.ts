@@ -14,7 +14,9 @@ type Database = ReturnType<typeof drizzle<typeof schema>>;
 
 function getSslConfig() {
   const encodedCertificate = process.env.POSTGRES_CA_CERT_BASE64;
-  const deployed = process.env.NODE_ENV === "production" || process.env.NETLIFY === "true";
+  // `vite preview` runs with NODE_ENV=production locally. Netlify is the deployment boundary that
+  // requires verified TLS; treating every production-mode process as deployed blocks local preview.
+  const deployed = process.env.NETLIFY === "true";
 
   if (!encodedCertificate) {
     if (deployed) throw new Error("POSTGRES_CA_CERT_BASE64 is required in deployed environments");

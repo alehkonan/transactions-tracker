@@ -31,7 +31,8 @@ type SweepResult = Record<string, number>;
 
 function getSslConfig() {
   const encodedCertificate = process.env.POSTGRES_CA_CERT_BASE64;
-  const deployed = process.env.NODE_ENV === "production" || process.env.NETLIFY === "true";
+  // A local production-mode invocation may target the local database; Netlify deployments may not.
+  const deployed = process.env.NETLIFY === "true";
 
   if (!encodedCertificate) {
     if (deployed) throw new Error("POSTGRES_CA_CERT_BASE64 is required in deployed environments");

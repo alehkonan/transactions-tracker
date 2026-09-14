@@ -41,7 +41,14 @@ export default defineConfig({
       // transforms in devtools-vite, causing hydration mismatch warnings.
       injectSource: { enabled: false },
     }),
-    netlify(),
+    netlify({
+      dev: {
+        // Vite owns dev routing and public files. Reading generated `dist/client/_redirects` here
+        // mixes a previous production shell with unhashed dev modules and leaves every asset at 404.
+        redirects: { enabled: false },
+        staticFiles: { enabled: false },
+      },
+    }),
     offlineServiceWorker(),
     viteReact(),
     tailwindcss(),
