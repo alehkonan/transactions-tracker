@@ -9,4 +9,4 @@ A previously established local replica remains available for viewing and editing
 - Session expiry and explicit sign-out are different actions. Expiry must not discard the replica; explicit sign-out or deliberate replacement must prevent the next user from inheriting the previous user's financial data or pending obligations.
 - The implementation must distinguish the owner of the local replica from the currently authenticated server user. A different server identity must never receive mutations originating from the old replica.
 
-Implementation plan: [Local-first PWA startup and reauthentication](../plans/local-first-pwa-startup.md). The decision is accepted; the linked implementation is planned, not yet shipped.
+Implementation plan: [Local-first PWA startup and reauthentication](../plans/local-first-pwa-startup.md). The decision is implemented in the working tree; deployment remains blocked on the plan's explicit release and compatibility gates.

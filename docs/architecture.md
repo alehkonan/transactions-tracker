@@ -18,10 +18,10 @@ boot ─→ IndexedDB ─→ Zustand store (full working set) ─→ every read,
 ```
 
 There are **three logical data operations in the server surface** — `pullChanges`, `pushChanges` and
-`checkIntegrity` (which moves no rows at all). `pushChanges` also has a plain `/api/push` HTTP route
-for the service worker; both entry points share the schemas and `applyMutations` path. Everything
-else under `src/api/` is auth, or `selectProfile`, which is not a data endpoint but the one thing only
-a server can do: sign a cookie.
+`checkIntegrity` (which moves no rows at all). `pushChanges` also has a plain `/api/push` HTTP route;
+both entry points share the schemas and `applyMutations` path. Background worker delivery is disabled,
+so the page sync engine currently owns every push. Profile creation and selection are local-first and
+do not wait for a server function.
 
 ---
 
@@ -66,17 +66,25 @@ A keyset-paginated delta pull scoped to the caller's user, sending tombstones as
 
 ### Boot sequence
 
-1. SSR renders the shell with no data — which _is_ `SyncGate`'s loading screen, so the client
-   hydrates from exactly what was painted and there is no mismatch to reconcile.
-2. The client opens IndexedDB and reads `meta`.
-3. Empty → full-screen "Loading your data…" → paginated full pull → write IDB → hydrate the store.
-4. Populated → hydrate from IDB immediately → delta sync in the background.
+1. Every allowlisted UI URL receives the same anonymous SPA shell. It contains no username, financial
+   rows, auth redirect, or other personalized payload.
+2. The client opens IndexedDB **before** taking the browser operation lock or attempting auth/sync.
+   IDB v3 stores a durable replica descriptor separately from server-session state.
+3. A populated active replica hydrates Zustand immediately and opens for local reads and writes even
+   when cookies are missing, the network is offline, or the sync backend rejects the session.
+4. An empty unbound replica enters first-run sign-in/bootstrap. A v2 replica is migrated without
+   deleting rows or reordering its outbox; ambiguous ownership enters recovery instead of sync.
+5. Only after local classification does the engine reconcile auth and run push/pull in the background.
+   A `401` changes the replica's durable sync admission to `login-required`; it does not clear or hide
+   an already hydrated workspace.
+6. Full refreshes are staged and replace the working set only after a final replica/revision/outbox
+   fence. A local write arriving during the download cancels the replacement.
 
 **Hydration is progressive.** `profiles`, `accounts` and `categories` all fit in one page, so the
 gate opens as soon as none of them is `pending`, and transactions stream in behind the rendered app.
 Measured in dev against 11,584 transactions: reference data at ~470ms, all transactions in by ~1.8s;
 a warm boot reads the whole local copy in ~50ms and is interactive at ~350ms, of which ~230ms is
-React hydrating.
+React hydrating. These observations are baselines, not latency guarantees.
 
 The cost is that for that first moment every figure derived from transactions — balances, day totals,
 statistics — is a partial sum still climbing. The sync indicator says so, with a progress bar and a
@@ -199,13 +207,15 @@ entity labels, and the base/server/acceptance timeline on the receipt; identical
 acceptance-time facts even if the entity has moved again. The current client surfaces the result as a
 toast. There is no merge UI: conflicts are reported, never resolved.
 
-### Two deliberate asymmetries
+### Local profile selection and one deliberate asymmetry
 
-- **Deleting an account cascades server-side**, and the client mirrors the same cascade locally
-  rather than queueing an entry per transaction. One entry says what thousands would, and deleting a
-  well-used account should not be a minutes-long push.
-- **Creating a profile is the one mutation awaited all the way to the server**, because the next
-  thing the user does is select it, and only the server can sign the cookie that records the choice.
+Profile creation uses the same local commit/outbox path as other mutations. Selection is replica-scoped
+metadata in IndexedDB and Zustand, validated against a live local profile, so creating or opening a
+profile works offline and never waits for a signed server cookie.
+
+**Deleting an account cascades server-side**, and the client mirrors the same cascade locally rather
+than queueing an entry per transaction. One entry says what thousands would, and deleting a well-used
+account should not be a minutes-long push.
 
 ### The CSV import
 
@@ -233,7 +243,8 @@ knows nothing about any other, and a second tab is not exotic here — it is wha
 opens the app again instead of switching windows. Two tabs share one IndexedDB, so two uncoordinated
 pulls write over each other's cursors and two uncoordinated drains push the same outbox entries
 twice. `navigator.locks` is held browser-wide, which is exactly the scope IndexedDB has. Where it is
-missing (genuinely absent outside a secure context) a promise chain is the fallback.
+missing, local data remains readable/editable but sync and authentication fail closed because no
+per-document fallback can protect one shared IndexedDB across tabs.
 
 For the same reason, **a pull reads its cursor from IndexedDB, not from the store.** The store's copy
 is what _this_ tab last pulled; the tab next to it may have moved the cursor on since.
@@ -260,10 +271,14 @@ moved.
 Signing out broadcasts a second message, which reloads the other tabs onto `/login` — the point of
 dropping the local copy on a shared device is lost if the tab next door keeps showing it.
 
-**A server function that a middleware rejects resolves with a raw `Response`; it does not throw.**
-TanStack Start hands the response back as a value, so the 401 from `authMiddleware` arrives as a
-"payload" with no rows. `unauthorized` sends the gate to `/login`; everything else is an error the
-retry schedule owns.
+**A server function that middleware rejects can resolve with a raw `Response`; it does not necessarily
+throw.** Before reading cursors or the outbox, every sync run calls the identity-only
+`confirmSyncIdentity` endpoint with just the protocol version and expected owner. A different live
+session is rejected before any local mutation IDs, row IDs, payloads, or cursors are transmitted. The
+engine then validates both the status and every owner-aware result envelope. After local boot, a `401`
+pauses sync and keeps rows/outbox visible; transport failures remain retryable and do not imply
+`login-required`. A `409 REPLICA_OWNER_MISMATCH` is durable and terminal until explicit same-owner
+reauthentication or deliberate replica replacement.
 
 ### The status indicator
 
@@ -274,6 +289,36 @@ the two amounts of room — a full-width one-line **strip** on a phone, where ed
 nothing and buys the space to say the state in words, and a **corner pill** from `md` up, an icon
 with a figure beside it. First-run progress lives here too: "syncing 35%" is the same question as "is
 this saved", asked a few seconds earlier.
+
+---
+
+## PWA shell and updates
+
+`vite-plugins/offline-service-worker.ts` finalizes the prerendered anonymous shell after the client
+build. A content hash over the shell, sorted runtime assets, worker template, and storage/protocol
+constants becomes the build id. The immutable document is written to
+`/_shell/<buildId>/index.html`; `offline-artifacts.json`, `_redirects`, and the classic `sw.js` all
+reference the corresponding `/_shell/<buildId>/` URL.
+
+Installation is atomic at the cache level: the worker fetches the versioned shell, every runtime
+client chunk, CSS, manifest, and icon with redirects disabled, verifies every response, stores them,
+and only then writes a completion marker. The shell request omits credentials. A missing, interrupted,
+or redirected asset deletes the incomplete cache and prevents that worker from becoming a usable
+update. Allowlisted UI
+navigations are cache-first from the controlling build, while POST/server-function/unknown paths are
+left to the network.
+
+Updates intentionally avoid `skipWaiting()` and `clients.claim()`. An installed build waits instead of
+reloading open documents or dirty forms. Activation keeps the current and recent complete caches and
+asks live clients which build they still execute before evicting older assets; missing replies defer
+eviction. The new build takes control after all old windows close and the app is reopened.
+
+`/pwa-recovery.html` is a standalone, dependency-free escape hatch outside the UI navigation allowlist.
+The anonymous shell links to it from its loader, so it remains reachable when application JavaScript or
+CSS cannot load. Before changing browser state it verifies every artifact advertised by the server,
+then unregisters service workers and deletes only `transactions-tracker-*` Cache Storage entries. It
+never opens or deletes IndexedDB, preserving the local replica and outbox. Background Sync delivery
+remains disabled until durable conflict settlement from ADR 0001 is implemented.
 
 ---
 
@@ -349,12 +394,25 @@ it cannot fix.
 
 ---
 
-## Auth
+## Auth and replica identity
 
-**Passkeys (WebAuthn) only**, via `@simplewebauthn`. `src/api/auth.functions.ts` runs both
-ceremonies; `webauthn.server.ts` holds the RP config and the single-use challenge store.
-`sessionMiddleware` injects `context.user` (nullable); `authMiddleware` requires it and 401s
+Authentication supports **passkeys and password credentials**. `src/api/auth.functions.ts` owns both
+flows; `webauthn.server.ts` holds the RP config and single-use WebAuthn challenges.
+`sessionMiddleware` injects `context.user` (nullable); `authMiddleware` requires it and returns `401`
 otherwise.
+
+The authenticated server user and the local replica owner are deliberately separate state. IDB v3's
+`replicaDescriptor` records a fresh `replicaId`, optional server-confirmed `{ ownerUserId, username }`,
+lifecycle/transition fencing, legacy ownership classification, and durable sync admission. Every sync
+envelope carries protocol version 2 plus `expectedOwnerUserId`; every successful result echoes the
+actual `ownerUserId`. The server rejects an owner mismatch before domain reads or writes.
+
+Sign-in finalization runs under the same browser-wide operation lock as sync. Reauthentication supplies
+the existing owner id to the server and only same-owner credentials may complete; failure restores the
+same replica and leaves its obligations intact. Explicit sign-out is different: it atomically checks
+the outbox warning, destroys the server session, replaces the local replica, and broadcasts the
+replacement to other tabs. Ambiguous legacy ownership cannot be bound by signing in; the UI offers a
+local JSON recovery export and explicit discard instead.
 
 **The auth path costs zero queries in the common case**, because the database is the slow part.
 `session.server.ts` mints two cookies, both `httpOnly` / `SameSite=Lax`:
@@ -370,19 +428,11 @@ hour to re-issue it; the 24h refresh deadline does not slide. The cost is that r
 single `DELETE`) takes effect when the access cookie next expires. An in-memory session cache would
 be simpler but is wrong on Netlify Functions — per-instance, and empty on every cold start.
 
-**Route guards read cookies, never the network.** `__root.tsx`'s `beforeLoad` is synchronous and
-checks two non-`httpOnly` hint cookies via the isomorphic `readCookie`:
-
-- `session_hint` — `{exp, username}`; the username is what lets `/settings` name the signed-in user
-  offline;
-- `profile_hint` — the selected profile id.
-
-Navigation therefore costs no RPC and the app still opens offline. **The hints are forgeable and
-carry no authority**: they only decide what renders, and every server function re-proves the caller.
-Each hint has an `httpOnly` counterpart that is the real thing, and the two must be written and
-cleared together — a hint that outlives its counterpart strands the user on a page that resolves to
-nothing. `createSession` clears the profile selection, which is what catches "somebody else signed in
-on this browser".
+**Client route selection does not depend on session cookies or a network check.** `SyncGate` classifies
+and hydrates IndexedDB first, then chooses login/profile/workspace UI from replica state. Session hints
+remain non-authoritative liveness hints for deciding whether background sync can be attempted; the
+settings username and selected profile come from durable replica metadata. Every server function still
+re-proves the caller.
 
 WebAuthn's secure-context rule means dev only works over `localhost`, not the LAN host Vite also
 serves on.

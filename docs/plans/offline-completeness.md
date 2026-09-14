@@ -1,5 +1,10 @@
 # Offline Completeness Plan
 
+> **Superseded in part:** the worker navigation/update strategy and Background Sync sections are
+> replaced by [Local-first PWA startup and reauthentication](./local-first-pwa-startup.md). Keep this
+> document as implementation history; the newer plan's owner-aware foreground settlement and passive
+> update policy govern current behavior.
+
 The three items from the original checklist, turned into execution plans: the current state, the
 design decisions, the exact files to touch, and how to verify each one landed. Read
 `docs/architecture.md` first — the governing constraint is the offline-first flow itself: reads

@@ -33,10 +33,42 @@ Push delivery uses a durable receipt keyed by `(user_id, mutation_id)`, written 
 
 Canonical rereads are scoped by user/profile, which prevents the previously identified cross-user disclosure. They still reread submitted IDs after mutation execution instead of collecting only affected rows with SQL `RETURNING`.
 
+## Local replica recovery and browser storage
+
+- IndexedDB v2 ownership can only be reconciled automatically when local profiles prove one unique
+  owner. Empty replicas become unbound. Mixed owners, missing owner evidence, or inconsistent
+  references enter `recovery-required`: sync/auth binding is blocked, the user can download a local
+  JSON export, and discard is explicit. There is no automatic importer for that recovery file yet.
+- `navigator.storage.persist()` is best-effort. The browser may still evict IndexedDB or Cache Storage,
+  especially under storage pressure or OS-managed installed-PWA lifecycle. Cache eviction removes cold
+  offline startup; IndexedDB eviction removes the local replica and unsynced outbox. Neither mechanism
+  is a backup.
+- A failed or blocked IDB upgrade is not treated as success. The UI can retry after older tabs close,
+  but a permanently unavailable/corrupt database still requires browser-level recovery outside the app.
+
+## Browser coordination and updates
+
+- Safe cross-tab sync/auth transitions require Web Locks. Where `navigator.locks` is unavailable, the
+  existing local replica remains readable/editable, but synchronization and authentication are paused;
+  a per-tab mutex would not protect shared IndexedDB.
+- The update policy is passive: no `skipWaiting()` and no `clients.claim()`. A new complete worker takes
+  over only after old app windows close and the app is reopened. Rolling back to a pre-v3 client is not
+  safe after replica migration.
+- The standalone `/pwa-recovery.html` escape hatch can unregister workers and remove this app’s Cache
+  Storage after confirming a complete replacement build is online. It deliberately preserves IndexedDB;
+  it cannot repair an incomplete server deploy, recover evicted local data, or retroactively appear in
+  shells released before the recovery page was shipped.
+- Chromium preview tests do not prove iOS/Safari installed-PWA close/reopen, eviction, or update
+  lifecycle. Those remain release gates.
+- Service-worker Background Sync delivery is intentionally disabled. The worker caches the app shell
+  and assets only; the foreground page owns outbox settlement until ADR 0001 provides durable conflict
+  notices and completion semantics.
+
 ## Sync query cost
 
 - Push batches can repeat authorization and conflict reads across mutation runs.
 - Balance recomputation currently touches every live account in each affected profile rather than only accounts whose transactions changed.
+- Every foreground sync run first performs an identity-only authenticated preflight. It adds one request, but prevents a mismatched live session from receiving local mutation IDs, row IDs, payloads, or cursors before owner rejection.
 - A first pull page performs ownership, four table-page, palette, optional backlog-count, and optional currency-rate operations. With `max: 1`, SQL launched together is still serialized on one connection.
 - Pull continuation pages query all synced tables and repeat palette/rate work. An exact full page also requires another request to discover completion.
 - Current count limits are safety rails, not measured byte budgets. Reducing them without phase measurements can increase repeated transaction and balance work.
@@ -45,7 +77,17 @@ Canonical rereads are scoped by user/profile, which prevents the previously iden
 
 Structured request and phase logs identify cold/warm isolates, operation phases, row or mutation counts, durations, and sanitized PostgreSQL classifications. They are diagnostic logs, not a retained metrics system or formal service-level monitor.
 
-The client now treats accepted-mutation fingerprint mismatches as terminal, retains the affected outbox entry, and suppresses automatic retries for that run. It still needs a complete distinction for other terminal protocol/authorization failures; until then, another permanently invalid outbox entry can remain at the head of the queue and retry repeatedly. Adaptive batch splitting is intentionally not implemented because connection and lock failures are not evidence that payload size caused the failure.
+The client treats owner mismatches, unsupported/invalid protocol envelopes, and accepted-mutation fingerprint mismatches as terminal, retains the affected outbox entry, and suppresses automatic retries for that run. Unknown non-auth HTTP failures remain retryable because infrastructure can replace an application response. Adaptive batch splitting is intentionally not implemented because connection and lock failures are not evidence that payload size caused the failure.
+
+## Performance evidence
+
+The production request sample above and the 11,584-row development measurements in
+`docs/architecture.md` are observations, not percentiles or SLAs. A local production-preview fixture
+measured `local-ready` at about 57ms on its first warmed visit and 46ms on a repeated offline visit.
+Controlled tests also rendered cached navigation and committed a local edit before separate 15-second
+upstream holds were released. These results prove causal independence in Chromium, not representative
+data volume, deployment latency, or an SLA; Deploy Preview and post-deploy measurements remain release
+gates.
 
 ## Background processing
 

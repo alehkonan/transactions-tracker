@@ -1,5 +1,10 @@
 # Session & Passkey Management Plan
 
+> **Superseded assumptions:** authentication is no longer passkey-only, session expiry no longer
+> destroys or hides an established local replica, and profile selection is local metadata. See
+> [Local-first PWA startup and reauthentication](./local-first-pwa-startup.md). The still-unchecked
+> multi-device session/passkey management work below remains a separate future scope.
+
 Add multi-device session visibility and passkey management to `/settings` while keeping sessions and
 credentials server-owned rather than part of the offline-first replicated working set. Read
 `docs/architecture.md` first — the auth and storage constraints below come from there.
