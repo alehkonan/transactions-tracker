@@ -101,13 +101,17 @@ describe("offlineServiceWorker", () => {
     const { worker, metadata } = await finalizeWorker();
 
     expect(worker).toContain("event.respondWith(getCachedShell())");
+    expect(worker).not.toContain("cache.addAll(PRECACHE)");
+    expect(worker).toContain('credentials: url === SHELL_URL ? "omit" : "same-origin"');
+    expect(worker).toContain('redirect: "error"');
     expect(worker).toContain('fetch(SHELL_URL, { credentials: "omit", redirect: "error" })');
     expect(worker).toContain("OFFLINE_RECOVERY_HTML");
     expect(worker).not.toContain("caches.match(SHELL_URL)");
     expect(worker).toContain("const exactUrl = `${url.pathname}${url.search}`");
+    expect(worker).toContain("match(request, { ignoreVary: true })");
     expect(worker).toContain("includeUncontrolled: true");
     expect(worker).toContain("request-client-build-id");
-    expect(worker).toContain("if (replies.size !== clients.length");
+    expect(worker).toMatch(/if\s*\(\s*replies\.size !== clients\.length/);
     expect(worker).toContain(`const SHELL_URL = "${metadata.shellUrl}";`);
   });
 });

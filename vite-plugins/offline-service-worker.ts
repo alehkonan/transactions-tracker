@@ -27,7 +27,6 @@ export function offlineServiceWorker(): Plugin {
 
   return {
     name: "offline-service-worker",
-    apply: "build",
     enforce: "post",
     configResolved(resolved) {
       config = resolved;
@@ -46,33 +45,43 @@ export function offlineServiceWorker(): Plugin {
       },
     },
     configurePreviewServer(server) {
-      return () => {
-        server.middlewares.use(async (request, response, next) => {
-          if (request.method !== "GET" || !request.url) return next();
+      // Register before Vite's fallback so preview exercises the same static shell routes as the CDN.
+      server.middlewares.use((request, response, next) => {
+        void (async () => {
+          if (request.method !== "GET" || !request.url) {
+            next();
+            return;
+          }
 
           const url = new URL(request.url, "http://preview.local");
-          // Start requests this artifact while prerendering. Rewriting it would recurse before the
-          // finalizer has produced the versioned shell.
-          if (url.pathname.startsWith("/_shell")) return next();
-          if (!isUiPath(url.pathname)) return next();
-
-          try {
-            const metadata = await readArtifactMetadata(config.root, "dist");
-            if (!metadata || !metadata.uiPaths.includes(url.pathname.replace(/\/$/, "") || "/")) {
-              return next();
-            }
-            const shell = await fs.readFile(
-              resolve(config.root, "dist", "client", metadata.shellUrl.slice(1)),
-            );
-            response.statusCode = 200;
-            response.setHeader("Content-Type", "text/html; charset=utf-8");
-            response.setHeader("Cache-Control", "public, immutable, max-age=31536000");
-            response.end(shell);
-          } catch (error) {
-            next(error as Error);
+          const metadata = await readArtifactMetadata(config.root, "dist");
+          if (!metadata) {
+            next();
+            return;
           }
-        });
-      };
+
+          const uiPath = url.pathname.replace(/\/$/, "") || "/";
+          const isVersionedShell = url.pathname === metadata.shellUrl;
+          const isKnownUiPath = isUiPath(url.pathname) && metadata.uiPaths.includes(uiPath);
+          if (!isVersionedShell && !isKnownUiPath) {
+            next();
+            return;
+          }
+
+          const shell = await fs.readFile(
+            resolve(config.root, "dist", "client", metadata.shellUrl.slice(1), "index.html"),
+          );
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/html; charset=utf-8");
+          response.setHeader(
+            "Cache-Control",
+            isVersionedShell ? "public, immutable, max-age=31536000" : "no-cache",
+          );
+          response.end(shell);
+          // Connect has no promise-aware middleware contract; rejected async work must reach `next`.
+          // oxlint-disable-next-line promise/no-callback-in-promise
+        })().catch(next);
+      });
     },
   };
 }

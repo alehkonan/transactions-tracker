@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#9c480c" />
+    <title>Repair Cracker Tracker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --background: oklch(0.945 0.052 88);
+        --surface: oklch(0.985 0.022 92);
+        --text: oklch(0.22 0.036 48);
+        --muted: oklch(0.43 0.04 58);
+        --border: oklch(0.65 0.08 68);
+        --accent: oklch(0.47 0.132 50);
+        --accent-hover: oklch(0.42 0.135 48);
+        --button-text: oklch(0.985 0.022 92);
+        --danger: oklch(0.48 0.14 35);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: oklch(0.155 0.035 48);
+          --surface: oklch(0.215 0.04 52);
+          --text: oklch(0.92 0.035 88);
+          --muted: oklch(0.7 0.04 72);
+          --border: oklch(0.52 0.07 65);
+          --accent: oklch(0.8 0.15 80);
+          --accent-hover: oklch(0.85 0.14 84);
+          --button-text: oklch(0.155 0.035 48);
+          --danger: oklch(0.72 0.13 38);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100dvh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        background: var(--background);
+        color: var(--text);
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      main {
+        width: min(100%, 36rem);
+        padding: clamp(1.25rem, 5vw, 2rem);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        background: var(--surface);
+      }
+
+      h1 {
+        margin: 0 0 0.75rem;
+        font-size: 1.875rem;
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+      }
+
+      p {
+        max-width: 65ch;
+        margin: 0.75rem 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      strong {
+        color: var(--text);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+      }
+
+      button,
+      a {
+        min-height: 2.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 1rem;
+        padding: 0.65rem 1rem;
+        font: inherit;
+        font-weight: 650;
+      }
+
+      button {
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: var(--button-text);
+        cursor: pointer;
+      }
+
+      button:hover:not(:disabled) {
+        border-color: var(--accent-hover);
+        background: var(--accent-hover);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+      }
+
+      a {
+        border: 1px solid var(--border);
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      button:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+
+      #status[role="alert"] {
+        color: var(--danger);
+      }
+
+      [hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main aria-labelledby="recovery-title">
+      <h1 id="recovery-title">Repair the offline app</h1>
+      <p>
+        Use this when Cracker Tracker stays on its loading screen or its app files return errors.
+        Repair removes the service worker and downloaded app files, then lets the browser fetch a
+        complete copy again.
+      </p>
+      <p>
+        <strong
+          >Your local profiles, transactions, and unsynced changes stay on this device.</strong
+        >
+        Repair does not clear IndexedDB or sign you out.
+      </p>
+      <p id="status" aria-live="polite">Connect to the internet before repairing.</p>
+      <div class="actions">
+        <button id="repair" data-testid="pwa-repair" type="button">Repair offline app</button>
+        <a id="open-app" data-testid="pwa-open-app" href="/" hidden>Open Cracker Tracker</a>
+      </div>
+    </main>
+
+    <script>
+      (() => {
+        const CACHE_PREFIX = "transactions-tracker-";
+        const repairButton = document.querySelector("#repair");
+        const openAppLink = document.querySelector("#open-app");
+        const status = document.querySelector("#status");
+
+        function setStatus(message, isError = false) {
+          status.textContent = message;
+          if (isError) status.setAttribute("role", "alert");
+          else status.removeAttribute("role");
+        }
+
+        async function assertCompleteBuild() {
+          const nonce = Date.now();
+          const metadataResponse = await fetch(`/offline-artifacts.json?repair=${nonce}`, {
+            cache: "no-store",
+          });
+          if (!metadataResponse.ok) throw new Error("metadata-unavailable");
+
+          const metadata = await metadataResponse.json();
+          if (!Array.isArray(metadata.precache) || metadata.precache.length === 0) {
+            throw new Error("metadata-invalid");
+          }
+
+          const checks = await Promise.all(
+            metadata.precache.map(async (url) => {
+              const separator = url.includes("?") ? "&" : "?";
+              const response = await fetch(`${url}${separator}repair=${nonce}`, {
+                cache: "no-store",
+                credentials: "omit",
+                redirect: "error",
+              });
+              const contentType = response.headers.get("content-type") ?? "";
+              const expectsDocument = url.endsWith("/") || url.endsWith(".html");
+              const unexpectedDocument = !expectsDocument && contentType.includes("text/html");
+              return response.ok && !unexpectedDocument;
+            }),
+          );
+
+          if (checks.some((complete) => !complete)) throw new Error("build-incomplete");
+        }
+
+        async function repair() {
+          if (!navigator.onLine) {
+            setStatus("Connect to the internet, then try again. Nothing was cleared.", true);
+            return;
+          }
+
+          repairButton.disabled = true;
+          setStatus("Checking the replacement app files…");
+
+          try {
+            await assertCompleteBuild();
+          } catch {
+            repairButton.disabled = false;
+            setStatus(
+              "The server does not have a complete app build yet. Nothing was cleared; try again later.",
+              true,
+            );
+            return;
+          }
+
+          setStatus("Removing the old offline app files…");
+          try {
+            const registrations = await navigator.serviceWorker?.getRegistrations();
+            await Promise.all(
+              (registrations ?? []).map((registration) => registration.unregister()),
+            );
+
+            if ("caches" in window) {
+              const names = await caches.keys();
+              await Promise.all(
+                names
+                  .filter((name) => name.startsWith(CACHE_PREFIX))
+                  .map((name) => caches.delete(name)),
+              );
+            }
+
+            openAppLink.href = `/?pwa-repaired=${Date.now()}`;
+            openAppLink.hidden = false;
+            repairButton.hidden = true;
+            setStatus("Offline app repaired. Reopen Cracker Tracker to download the fresh copy.");
+          } catch {
+            repairButton.disabled = false;
+            setStatus(
+              "The browser could not finish the repair. Close other Cracker Tracker windows and try again.",
+              true,
+            );
+          }
+        }
+
+        repairButton.addEventListener("click", repair);
+        setStatus(
+          navigator.onLine
+            ? "Ready to check and replace the downloaded app files."
+            : "Connect to the internet before repairing.",
+        );
+      })();
+    </script>
+  </body>
+</html>

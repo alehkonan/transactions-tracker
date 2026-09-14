@@ -61,7 +61,19 @@ self.addEventListener("fetch", (event) => {
 async function installCompleteCache() {
   const cache = await caches.open(CACHE_NAME);
   try {
-    await cache.addAll(PRECACHE);
+    const entries = await Promise.all(
+      PRECACHE.map(async (url) => {
+        const response = await fetch(url, {
+          credentials: url === SHELL_URL ? "omit" : "same-origin",
+          redirect: "error",
+        });
+        if (!response.ok || response.redirected) {
+          throw new Error(`Could not precache ${url}.`);
+        }
+        return { url, response };
+      }),
+    );
+    await Promise.all(entries.map(({ url, response }) => cache.put(url, response)));
     await cache.put(
       CACHE_METADATA_URL,
       new Response(JSON.stringify({ buildId: BUILD_ID, completedAt: Date.now() }), {
@@ -96,7 +108,9 @@ async function getCachedShell() {
 }
 
 async function getCachedAsset(request) {
-  const cached = await (await caches.open(CACHE_NAME)).match(request);
+  // The exact same-origin URL was already admitted through PRECACHE. Preview/CDN responses can vary
+  // on Origin, while cache.addAll() and a later module request carry different request headers.
+  const cached = await (await caches.open(CACHE_NAME)).match(request, { ignoreVary: true });
   return cached ?? fetch(request);
 }
 
@@ -154,6 +168,7 @@ async function getLiveClientBuilds(clients) {
   self.addEventListener("message", onMessage);
   try {
     for (const client of clients) {
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Client.postMessage has no targetOrigin parameter.
       client.postMessage({ type: MESSAGE_TYPE, action: "request-client-build-id", requestId });
     }
     await new Promise((resolve) => setTimeout(resolve, 250));

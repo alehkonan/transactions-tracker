@@ -103,9 +103,19 @@ export function ServiceWorkerRegistration() {
       className="z-navbar border-warning-border bg-surface text-warning fixed inset-e-3 top-14 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm md:top-3"
     >
       <CloudAlertIcon className="size-4 shrink-0" aria-hidden="true" />
-      {isUnavailable
-        ? "Offline mode unavailable"
-        : "Update ready. Finish your edits, then close all app windows and reopen."}
+      <span>
+        {isUnavailable
+          ? "Offline mode unavailable"
+          : "Update ready. Finish your edits, then close all app windows and reopen."}
+      </span>
+      {isUnavailable && (
+        <a
+          href="/pwa-recovery.html"
+          className="text-text min-h-7 rounded-md px-1.5 py-1 font-bold underline underline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none"
+        >
+          Repair
+        </a>
+      )}
     </output>
   );
 }
