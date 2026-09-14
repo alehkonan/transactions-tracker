@@ -21,7 +21,7 @@ The single password-based authentication credential a user may hold in addition 
 _Avoid_: Test password, local password
 
 **Local replica**:
-A user-bound copy of the working data and its pending obligations on one device. It survives reauthentication by the same user and is intentionally discarded on explicit sign-out or replacement by a different user.
+A user-bound copy of the working data and its pending obligations on one device, available for viewing and editing independently of server-session validity. It survives session expiry and reauthentication by the same user and is intentionally discarded on explicit sign-out or replacement by a different user.
 _Avoid_: Cache, session data
 
 **Accepted mutation**:

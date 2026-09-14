@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useCategories } from "~/modules/categories/useCategories";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { toTransactionRows } from "~/modules/transactions/to-transaction-rows";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
@@ -14,7 +14,7 @@ import type { TransactionRow } from "~/modules/transactions/to-transaction-rows"
  * `filterTransactions`), so changing one is a re-render rather than a round trip.
  */
 export function useTransactionRows(): TransactionRow[] {
-  const profileId = readSelectedProfileId();
+  const profileId = useSelectedProfileId();
   const transactions = useSyncStore((state) => state.transactions);
   const usdRates = useSyncStore((state) => state.usdRates);
   const accounts = useAccounts();

@@ -1,5 +1,6 @@
 import { commit, newRow } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
+import type { ReplicaContext } from "~/modules/sync/replica-identity";
 import type { CategoryPayload, SyncedCategory } from "~/modules/sync/sync-types";
 
 /** Creating, editing and deleting categories, locally. See `account-mutations.ts`. */
@@ -9,19 +10,35 @@ function findCategory(id: string): SyncedCategory | undefined {
   return useSyncStore.getState().categories.find((category) => category.id === id);
 }
 
-export function createCategory(profileId: string, name: string, colorId: number): Promise<void> {
+export function createCategory(
+  profileId: string,
+  name: string,
+  colorId: number,
+  replicaContext?: ReplicaContext,
+): Promise<void> {
   const payload: CategoryPayload = { name, colorId, profileId };
 
-  return commit([{ op: "upsert", table: "categories", row: newRow(payload), payload }]);
+  return commit(
+    [{ op: "upsert", table: "categories", row: newRow(payload), payload }],
+    replicaContext,
+  );
 }
 
-export function updateCategory(id: string, name: string, colorId: number): Promise<void> {
+export function updateCategory(
+  id: string,
+  name: string,
+  colorId: number,
+  replicaContext?: ReplicaContext,
+): Promise<void> {
   const category = findCategory(id);
   if (!category?.profileId) return Promise.resolve();
 
   const payload: CategoryPayload = { name, colorId, profileId: category.profileId };
 
-  return commit([{ op: "upsert", table: "categories", row: { ...category, ...payload }, payload }]);
+  return commit(
+    [{ op: "upsert", table: "categories", row: { ...category, ...payload }, payload }],
+    replicaContext,
+  );
 }
 
 /**
@@ -30,9 +47,9 @@ export function updateCategory(id: string, name: string, colorId: number): Promi
  * longer holds the category renders those rows as having none, which is exactly what the old
  * `onDelete: "set null"` produced.
  */
-export function deleteCategory(id: string): Promise<void> {
+export function deleteCategory(id: string, replicaContext?: ReplicaContext): Promise<void> {
   const category = findCategory(id);
   if (!category) return Promise.resolve();
 
-  return commit([{ op: "delete", table: "categories", row: category }]);
+  return commit([{ op: "delete", table: "categories", row: category }], replicaContext);
 }

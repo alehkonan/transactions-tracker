@@ -1,0 +1,65 @@
+import { expect } from "@playwright/test";
+import { test } from "../fixtures/auth";
+import { test as passkeyTest } from "../fixtures/passkey-auth";
+import type { Page } from "@playwright/test";
+
+async function signOut(page: Page) {
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Sign out on this device" })
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+}
+
+test("a password account signs out and signs in again", async ({
+  authCredentials,
+  onboardedPage: page,
+}) => {
+  await page.goto("/settings");
+  await signOut(page);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
+
+  await page.getByTestId("password-auth-username").fill(authCredentials.username);
+  await page.getByTestId("password-auth-password").fill("Wrong-Password!Still-Strong");
+  await page.getByTestId("password-auth-submit").click();
+  await expect(
+    page.getByText("Unable to sign in. Check your credentials and try again."),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+
+  await page.getByTestId("password-auth-password").fill(authCredentials.password);
+  await page.getByTestId("password-auth-submit").click();
+  await expect(page).toHaveURL(/\/profile$/, { timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Choose a profile" })).toBeVisible();
+});
+
+test("a duplicate password signup is rejected", async ({
+  authCredentials,
+  onboardedPage: page,
+}) => {
+  await page.goto("/settings");
+  await signOut(page);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
+
+  await page.getByTestId("password-auth-mode-sign-up").click();
+  await page.getByTestId("password-auth-username").fill(authCredentials.username);
+  await page.getByTestId("password-auth-password").fill(authCredentials.password);
+  await page.getByTestId("password-auth-confirm-password").fill(authCredentials.password);
+  await page.getByTestId("password-auth-submit").click();
+
+  await expect(page.getByText("That username is already taken.")).toBeVisible();
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+});
+
+passkeyTest(
+  "a registered discoverable passkey signs in again",
+  async ({ onboardedPasskeyPage: page }) => {
+    await page.goto("/settings");
+    await signOut(page);
+    await expect(page).toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
+
+    await page.getByTestId("passkey-auth-sign-in").click();
+    await expect(page).toHaveURL(/\/profile$/, { timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Choose a profile" })).toBeVisible();
+  },
+);

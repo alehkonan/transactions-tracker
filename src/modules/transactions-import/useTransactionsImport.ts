@@ -1,6 +1,6 @@
 import { create, type StateCreator } from "zustand";
 import { devtools } from "zustand/middleware";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { assertCurrentReplicaContext, captureReplicaContext } from "~/modules/sync/idb";
 import { commit } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { deleteTransactions } from "~/modules/transactions/transaction-mutations";
@@ -8,6 +8,7 @@ import { parseCsv } from "~/utils/parse-csv";
 import { buildImportPlan } from "./build-import-plan";
 import { csvToImportRows, getMissingHeaders, type ImportRow } from "./utils";
 import type { ImportFailure, ImportWarning } from "./build-import-plan";
+import type { ReplicaContext } from "~/modules/sync/replica-identity";
 
 type Step = "upload" | "processing";
 
@@ -23,6 +24,7 @@ type ImportReport = {
 type State = {
   file?: File;
   rows?: ImportRow[];
+  replicaContext?: ReplicaContext;
   step: Step;
   uploadError?: string;
   report?: ImportReport;
@@ -36,23 +38,52 @@ const initState: StateCreator<State> = () => ({
 
 export const useTransactionsImport = create(devtools(initState));
 
+function hasImportContext(
+  expected: ReplicaContext,
+  rows?: ImportRow[],
+  file?: File,
+  report?: ImportReport,
+): boolean {
+  const current = useTransactionsImport.getState();
+  return (
+    current.replicaContext?.replicaId === expected.replicaId &&
+    current.replicaContext.ownerUserId === expected.ownerUserId &&
+    (rows === undefined || current.rows === rows) &&
+    (file === undefined || current.file === file) &&
+    (report === undefined || current.report === report)
+  );
+}
+
 export const actions = {
   reset: () => {
     useTransactionsImport.setState(useTransactionsImport.getInitialState(), true);
   },
   selectFile: async (file: File) => {
-    useTransactionsImport.setState({ file, rows: undefined, uploadError: undefined });
+    const replicaContext = await captureReplicaContext();
+    useTransactionsImport.setState({
+      file,
+      rows: undefined,
+      replicaContext,
+      uploadError: undefined,
+    });
 
-    const csv = parseCsv(await file.text());
+    const contents = await file.text();
+    await assertCurrentReplicaContext(replicaContext);
+    if (!hasImportContext(replicaContext, undefined, file)) return;
+    const csv = parseCsv(contents);
 
     if (csv.rows.length === 0) {
-      useTransactionsImport.setState({ uploadError: "This file has no data rows to import." });
+      useTransactionsImport.setState({
+        replicaContext: undefined,
+        uploadError: "This file has no data rows to import.",
+      });
       return;
     }
 
     const missingHeaders = getMissingHeaders(csv);
     if (missingHeaders.length > 0) {
       useTransactionsImport.setState({
+        replicaContext: undefined,
         uploadError: `Missing required columns: ${missingHeaders.join(", ")}`,
       });
       return;
@@ -61,7 +92,12 @@ export const actions = {
     useTransactionsImport.setState({ rows: csvToImportRows(csv) });
   },
   clearFile: () => {
-    useTransactionsImport.setState({ file: undefined, rows: undefined, uploadError: undefined });
+    useTransactionsImport.setState({
+      file: undefined,
+      rows: undefined,
+      replicaContext: undefined,
+      uploadError: undefined,
+    });
   },
   /**
    * Imports the parsed file into the working set.
@@ -72,9 +108,9 @@ export const actions = {
    * the unsynced-changes indicator. Which also means it works with no connection at all.
    */
   startImport: async () => {
-    const { rows } = useTransactionsImport.getState();
-    const profileId = readSelectedProfileId();
-    if (!rows || profileId == null) return;
+    const { rows, replicaContext } = useTransactionsImport.getState();
+    const profileId = useSyncStore.getState().selectedProfileId;
+    if (!rows || !replicaContext || profileId == null) return;
 
     useTransactionsImport.setState({ step: "processing", report: undefined });
     const startedAt = Date.now();
@@ -88,7 +124,9 @@ export const actions = {
         colors,
       });
 
-      await commit(plan.changes);
+      await commit(plan.changes, replicaContext);
+      await assertCurrentReplicaContext(replicaContext);
+      if (!hasImportContext(replicaContext, rows)) return;
 
       useTransactionsImport.setState({
         report: {
@@ -101,20 +139,23 @@ export const actions = {
         },
       });
     } catch (error) {
-      useTransactionsImport.setState({
-        step: "upload",
-        uploadError: error instanceof Error ? error.message : "Import failed.",
-      });
+      if (hasImportContext(replicaContext, rows)) {
+        useTransactionsImport.setState({
+          step: "upload",
+          uploadError: error instanceof Error ? error.message : "Import failed.",
+        });
+      }
     }
   },
   discardImportedTransactions: async () => {
-    const { report } = useTransactionsImport.getState();
-    if (!report) return;
+    const { report, replicaContext } = useTransactionsImport.getState();
+    if (!report || !replicaContext) return;
 
     useTransactionsImport.setState({ isCancelling: true });
     // The accounts and categories the import created stay, as they always have: they are what the
     // file said exists, and deleting them would take any pre-existing rows filed under them along.
-    await deleteTransactions(report.createdTransactionIds);
-    actions.reset();
+    await deleteTransactions(report.createdTransactionIds, replicaContext);
+    await assertCurrentReplicaContext(replicaContext);
+    if (hasImportContext(replicaContext, undefined, undefined, report)) actions.reset();
   },
 };

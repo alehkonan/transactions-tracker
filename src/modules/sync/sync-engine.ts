@@ -1,29 +1,53 @@
-import { checkIntegrity, pullChanges, pushChanges } from "~/api/sync.functions";
 import {
-  clearLocalRows,
-  deleteLocalDatabase,
+  checkIntegrity,
+  confirmSyncIdentity,
+  pullChanges,
+  pushChanges,
+} from "~/api/sync.functions";
+import { hasLiveSessionHint } from "~/modules/auth/session-hint";
+import { runWithBrowserOperationLock } from "./browser-operation-lock";
+import {
+  assertCurrentReplicaContext,
+  captureSyncContext,
   readLocalCursors,
   readLocalSnapshot,
+  recoverInterruptedReplicaTransition,
+  replaceFullLocalSnapshot,
+  setReplicaSyncAuth,
+  subscribeToReplicaInvalidation,
   writeLocalPage,
 } from "./idb";
 import { compareIntegrity, localIntegrity } from "./integrity";
-import { outboxStorage, readOutboxState } from "./outbox";
+import { createOutboxStorage, readOutboxState } from "./outbox";
 import {
   drainOutbox,
   type OutboxDeliveryResult,
   type OutboxDrainOutcome,
 } from "./outbox-acceptance";
 import {
+  replicaContextFromDescriptor,
+  replicaSyncAuthFromDescriptor,
+  type BoundReplicaContext,
+  type ReplicaContext,
+} from "./replica-identity";
+import {
+  isReplicaOwnerMismatchError,
+  isTerminalSyncError,
+  readSyncResponseError,
+  SyncResponseError,
+} from "./sync-errors";
+import {
   runSync,
   type PullDeliveryResult,
   type SyncRunOutcome,
   type SyncRunPage,
 } from "./sync-run";
-import { PUSH_BATCH_LIMIT } from "./sync-types";
+import { PUSH_BATCH_LIMIT, SYNC_PROTOCOL_VERSION } from "./sync-types";
 import {
   applyServerRows,
   clearWorkingSet,
   refreshOutboxState,
+  replaceOutboxState,
   replaceRows,
   resetSyncState,
   useSyncStore,
@@ -51,8 +75,7 @@ import type {
  * Client-only: every entry point here is called from an effect or an event handler.
  */
 
-/** Names the browser-wide mutex and the channel. Distinct concepts, but exactly one scope. */
-const SYNC_LOCK = "transactions-tracker:sync";
+/** Cross-tab invalidation channel. Mutual exclusion is shared with auth in browser-operation-lock. */
 const SYNC_CHANNEL = "transactions-tracker:sync";
 
 /** How old the working set may get before an idle, visible tab refreshes it. */
@@ -63,35 +86,22 @@ const STALENESS_CHECK_MS = 60_000;
 /** How long a write waits for its neighbours before it goes out. */
 const PUSH_DEBOUNCE_MS = 1000;
 const MAX_PUSH_BACKOFF_MS = 30_000;
+const STARTUP_MARK_PREFIX = "transactions-tracker:";
+
+/** In-memory startup diagnostics only; no payloads are logged or transmitted. */
+function markStartup(name: string): void {
+  if (typeof performance !== "undefined" && typeof performance.mark === "function") {
+    performance.mark(`${STARTUP_MARK_PREFIX}${name}`);
+  }
+}
 
 /* -------------------------------------------------------------------------- */
 /* The mutex                                                                   */
 /* -------------------------------------------------------------------------- */
 
-/** The fallback mutex, for browsers with no Web Locks — one tab's work, serialized as before. */
-let queue: Promise<unknown> = Promise.resolve();
-
-type AsyncLockManager = {
-  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
-};
-
-/**
- * Runs sync work with nothing else syncing anywhere in this browser.
- *
- * `navigator.locks` is typed as always present but genuinely is not outside a secure context, so
- * the check is a runtime one the types do not cover. Where it is missing the mutex degrades to the
- * single-tab promise chain: still correct for the common case, just not across tabs.
- */
+/** Runs sync work under the same browser-wide lock as cookie-changing auth finalization. */
 function runExclusive<T>(work: () => Promise<T>): Promise<T> {
-  const locks =
-    typeof navigator !== "undefined" && "locks" in navigator
-      ? (navigator.locks as unknown as AsyncLockManager)
-      : null;
-  if (locks) return locks.request(SYNC_LOCK, work);
-
-  const next = queue.then(work, work);
-  queue = next.catch(() => undefined);
-  return next;
+  return runWithBrowserOperationLock(work);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -99,10 +109,16 @@ function runExclusive<T>(work: () => Promise<T>): Promise<T> {
 /* -------------------------------------------------------------------------- */
 
 type SyncMessage =
-  /** IndexedDB has moved on: rows, cursors or the outbox. Peers re-read it. */
-  | { type: "changed" }
-  /** The local database is gone — somebody signed out, or a different account signed in. */
-  | { type: "reset" };
+  /** IndexedDB has moved on: rows, cursors or the outbox. Peers re-read only this replica. */
+  | { type: "changed"; replicaId: string }
+  /** A dangerous lifecycle transition started; peers must stop showing the old workspace. */
+  | { type: "transition"; replicaId: string }
+  /** Server-confirmed same-user auth completed; peers may reopen this replica and sync. */
+  | { type: "auth-completed"; replicaId: string }
+  /** Auth finalization failed or was interrupted; peers may reopen local data but must not sync. */
+  | { type: "auth-required"; replicaId: string }
+  /** The old replica was explicitly discarded after successful sign-out. */
+  | { type: "replaced"; previousReplicaId: string; replicaId: string };
 
 let channel: BroadcastChannel | undefined;
 
@@ -124,8 +140,54 @@ function announce(message: SyncMessage): void {
  * a queued write is visible to every tab the moment it is on disk, whether or not the push that
  * carries it away is due yet.
  */
-export function announceLocalWrite(): void {
-  announce({ type: "changed" });
+export function announceLocalWrite(replicaContext: ReplicaContext): void {
+  announce({ type: "changed", replicaId: replicaContext.replicaId });
+}
+
+export function announceReplicaTransition(replicaContext: ReplicaContext): void {
+  announce({ type: "transition", replicaId: replicaContext.replicaId });
+}
+
+/** Publishes a completed same-user transition and resumes sync through the ordinary scheduler. */
+export function resumeSyncAfterSignIn(replicaContext: ReplicaContext, username?: string): void {
+  useSyncStore.setState({
+    replicaContext,
+    replicaUsername: username ?? useSyncStore.getState().replicaUsername,
+    syncAuth: "authenticated",
+    status: "idle",
+    error: null,
+  });
+  announce({ type: "auth-completed", replicaId: replicaContext.replicaId });
+  schedulePush(0, replicaContext);
+}
+
+/** Keeps local data available after uncertain auth while durably gated sync stays paused. */
+export function pauseSyncAfterAuthFailure(replicaContext: ReplicaContext): void {
+  useSyncStore.setState({
+    syncAuth: "login-required",
+    status: "error",
+    error: "Sign in again before synchronization resumes.",
+  });
+  announce({ type: "auth-required", replicaId: replicaContext.replicaId });
+}
+
+/** Clears callbacks and memory only after durable replacement has committed. */
+export async function finishReplicaReplacement(
+  previous: ReplicaContext,
+  replacement: ReplicaContext,
+): Promise<void> {
+  bootPromise = undefined;
+  clearTimeout(pushTimer);
+  pushTimer = undefined;
+  failedPushes = 0;
+  resetSyncState();
+  const { actions } = await import("~/modules/transactions-import/useTransactionsImport");
+  actions.reset();
+  announce({
+    type: "replaced",
+    previousReplicaId: previous.replicaId,
+    replicaId: replacement.replicaId,
+  });
 }
 
 /**
@@ -135,15 +197,54 @@ export function announceLocalWrite(): void {
  * always on disk before it is in memory, so a straight replace can only ever move this tab forward.
  * At this size the read is a few tens of milliseconds.
  */
-async function hydrateFromLocal(): Promise<void> {
+async function hydrateFromLocal(): Promise<boolean> {
   const snapshot = await readLocalSnapshot();
+  const replicaContext = replicaContextFromDescriptor(snapshot.descriptor);
+  if (snapshot.descriptor.legacyOwnership.kind === "recovery-required") {
+    replaceOutboxState(snapshot.outbox);
+    useSyncStore.setState({
+      replicaContext,
+      replicaUsername: null,
+      recoveryRequired: true,
+      isLocalBooted: true,
+      syncAuth: "unknown",
+      status: "error",
+      error: "This legacy local replica needs recovery before it can be synchronized.",
+    });
+    return false;
+  }
+  await assertCurrentReplicaContext(replicaContext);
 
-  replaceRows(snapshot.rows, snapshot.colors, snapshot.usdRates);
+  const visibleReplicaId = useSyncStore.getState().replicaContext?.replicaId;
+  if (visibleReplicaId != null && visibleReplicaId !== replicaContext.replicaId) {
+    resetSyncState();
+    window.location.reload();
+    return false;
+  }
+
+  replaceRows(
+    replicaContext,
+    snapshot.descriptor.identity?.username ?? null,
+    snapshot.rows,
+    snapshot.colors,
+    snapshot.usdRates,
+    snapshot.selectedProfileId,
+  );
+  replaceOutboxState(snapshot.outbox);
+  const syncAuth = replicaSyncAuthFromDescriptor(snapshot.descriptor);
   useSyncStore.setState((state) => ({
     // A cursor is what says the local copy is a complete picture rather than a partial one.
     isHydrated: state.isHydrated || snapshot.cursors != null,
+    lastSyncedAt: snapshot.lastSyncedAt,
+    syncAuth,
+    isLocalBooted: true,
+    ...(syncAuth === "login-required" || syncAuth === "owner-mismatch"
+      ? { status: "error" as const, error: "Sign in again before synchronization resumes." }
+      : !state.isHydrated
+        ? { status: "idle" as const, error: null }
+        : {}),
   }));
-  await refreshOutboxState();
+  return true;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -159,50 +260,130 @@ function isSyncResult<T>(value: T | Response): value is T {
   return typeof value === "object" && value != null && !(value instanceof Response);
 }
 
+async function classifyRejectedSyncResponse(
+  response: Response,
+): Promise<
+  | { kind: "unauthorized"; error: unknown }
+  | { kind: "terminal"; error: unknown }
+  | { kind: "retryable"; error: unknown }
+> {
+  const error = await readSyncResponseError(response);
+  if (error.code === "UNAUTHORIZED") return { kind: "unauthorized", error };
+  if (isTerminalSyncError(error)) return { kind: "terminal", error };
+  return { kind: "retryable", error };
+}
+
 function toMessage(error: unknown): string {
   if (error instanceof Response) return `The server rejected the request (${error.status}).`;
   if (error instanceof Error) return error.message;
   return "Could not reach the server.";
 }
 
-/**
- * Throws the local copy away, rows and cursors, leaving the queue of unpushed writes intact.
- *
- * Both halves have to go together: IndexedDB is what the next boot reads, and the store is what the
- * next merge writes back to it, so dropping one and keeping the other would restore exactly the
- * divergence being repaired.
- */
-async function dropLocalCopy(): Promise<void> {
-  await clearLocalRows();
-  clearWorkingSet();
-}
-
 async function pullPage(
+  replicaContext: BoundReplicaContext,
   cursors: SyncCursors | undefined,
   withCounts: boolean,
 ): Promise<PullDeliveryResult> {
   try {
     const result: PullChangesResult | Response = await pullChanges({
-      data: { cursors, withCounts },
+      data: {
+        protocolVersion: SYNC_PROTOCOL_VERSION,
+        expectedOwnerUserId: replicaContext.ownerUserId,
+        cursors,
+        withCounts,
+      },
     });
-    if (!(result instanceof Response)) return { kind: "accepted", result };
-    if (result.status === 401) return { kind: "unauthorized", error: result };
-    return { kind: "retryable", error: result };
+    if (!(result instanceof Response)) {
+      if (
+        result.protocolVersion !== SYNC_PROTOCOL_VERSION ||
+        result.ownerUserId !== replicaContext.ownerUserId
+      ) {
+        return {
+          kind: "terminal",
+          error: new SyncResponseError(
+            "REPLICA_OWNER_MISMATCH",
+            409,
+            "The sync response owner did not match.",
+          ),
+        };
+      }
+      return { kind: "accepted", result };
+    }
+    return classifyRejectedSyncResponse(result);
   } catch (error) {
+    if (error instanceof Response) return classifyRejectedSyncResponse(error);
     return { kind: "retryable", error };
   }
 }
 
-async function commitPulledPage(result: PullChangesResult): Promise<void> {
-  await writeLocalPage({
+async function confirmRemoteReplicaOwner(
+  replicaContext: BoundReplicaContext,
+): Promise<SyncRunOutcome | null> {
+  try {
+    const result: { protocolVersion: number; ownerUserId: number } | Response =
+      await confirmSyncIdentity({
+        data: {
+          protocolVersion: SYNC_PROTOCOL_VERSION,
+          expectedOwnerUserId: replicaContext.ownerUserId,
+        },
+      });
+    if (!(result instanceof Response)) {
+      if (
+        result.protocolVersion === SYNC_PROTOCOL_VERSION &&
+        result.ownerUserId === replicaContext.ownerUserId
+      ) {
+        return null;
+      }
+      return {
+        kind: "terminal",
+        phase: "pull",
+        pushed: 0,
+        error: new SyncResponseError(
+          "REPLICA_OWNER_MISMATCH",
+          409,
+          "The sync response owner did not match.",
+        ),
+      };
+    }
+
+    const rejected = await classifyRejectedSyncResponse(result);
+    if (rejected.kind === "unauthorized") {
+      return { kind: "unauthorized", phase: "pull", pushed: 0, error: rejected.error };
+    }
+    if (rejected.kind === "terminal") {
+      return { kind: "terminal", phase: "pull", pushed: 0, error: rejected.error };
+    }
+    return { kind: "retryable", phase: "pull", pushed: 0, error: rejected.error };
+  } catch (error) {
+    if (error instanceof Response) {
+      const rejected = await classifyRejectedSyncResponse(error);
+      if (rejected.kind === "unauthorized") {
+        return { kind: "unauthorized", phase: "pull", pushed: 0, error: rejected.error };
+      }
+      if (rejected.kind === "terminal") {
+        return { kind: "terminal", phase: "pull", pushed: 0, error: rejected.error };
+      }
+      return { kind: "retryable", phase: "pull", pushed: 0, error: rejected.error };
+    }
+    return { kind: "retryable", phase: "pull", pushed: 0, error };
+  }
+}
+
+async function commitPulledPage(
+  replicaContext: ReplicaContext,
+  result: PullChangesResult,
+): Promise<void> {
+  await writeLocalPage(replicaContext, {
     rows: result.rows,
     cursors: result.nextCursors,
+    pending: result.pending,
     colors: result.colors,
     usdRates: result.usdRates,
   });
 }
 
-async function applyPulledPage(page: SyncRunPage): Promise<void> {
+async function applyPulledPage(replicaContext: ReplicaContext, page: SyncRunPage): Promise<void> {
+  await assertCurrentReplicaContext(replicaContext);
   const { result } = page;
   applyServerRows(result.rows, result.colors);
   useSyncStore.setState((state) => ({
@@ -217,21 +398,43 @@ async function applyPulledPage(page: SyncRunPage): Promise<void> {
 }
 
 async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
-  useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
+  let replicaContext: BoundReplicaContext;
+  try {
+    replicaContext = await captureSyncContext();
+  } catch (error) {
+    useSyncStore.setState({ status: "error", error: toMessage(error) });
+    return { kind: "retryable", phase: "pull", pushed: 0, error };
+  }
 
-  const outcome = await runSync(mode, {
-    remote: { pull: pullPage },
-    replica: {
-      readCursors: readLocalCursors,
-      hasQueuedWrites: async () => (await readOutboxState()).count > 0,
-      clearCachedRows: dropLocalCopy,
-      commitPulledPage: commitPulledPage,
-    },
-    push: { drain: drainPageOutbox },
-    onPage: applyPulledPage,
-  });
+  useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
+  const admissionFailure = await confirmRemoteReplicaOwner(replicaContext);
+  const outcome =
+    admissionFailure ??
+    (await runSync(mode, {
+      remote: { pull: (cursors, withCounts) => pullPage(replicaContext, cursors, withCounts) },
+      replica: {
+        readCursors: () => readLocalCursors(replicaContext),
+        hasQueuedWrites: async () => (await readOutboxState(replicaContext)).count > 0,
+        captureFullReplacement: async () => {
+          const snapshot = await readLocalSnapshot();
+          await assertCurrentReplicaContext(replicaContext);
+          return { localRevision: snapshot.localRevision };
+        },
+        replaceFullSnapshot: (snapshot) => replaceFullLocalSnapshot(replicaContext, snapshot),
+        commitPulledPage: (result) => commitPulledPage(replicaContext, result),
+      },
+      push: { drain: () => drainPageOutbox(replicaContext) },
+      onPage: (page) => applyPulledPage(replicaContext, page),
+    }));
+
+  try {
+    await assertCurrentReplicaContext(replicaContext);
+  } catch {
+    return outcome;
+  }
 
   if (outcome.kind === "completed") {
+    if (outcome.replaced && !(await hydrateFromLocal())) return outcome;
     if (outcome.pushed > 0) failedPushes = 0;
     useSyncStore.setState({
       status: "idle",
@@ -240,19 +443,38 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
       syncTotalRows: null,
       lastSyncedAt: Date.now(),
     });
-    if (outcome.changedRows > 0) announce({ type: "changed" });
+    if (outcome.changedRows > 0 || outcome.replaced) {
+      announce({ type: "changed", replicaId: replicaContext.replicaId });
+    }
     return outcome;
   }
 
   if (outcome.kind === "unauthorized") {
-    useSyncStore.setState({ status: "unauthorized", error: toMessage(outcome.error) });
+    await setReplicaSyncAuth(replicaContext, "login-required");
+    useSyncStore.setState({
+      syncAuth: "login-required",
+      status: "unauthorized",
+      error: toMessage(outcome.error),
+    });
   } else if (outcome.kind === "terminal") {
-    useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
+    if (isReplicaOwnerMismatchError(outcome.error)) {
+      await setReplicaSyncAuth(replicaContext, "owner-mismatch");
+      useSyncStore.setState({
+        syncAuth: "owner-mismatch",
+        status: "error",
+        error: toMessage(outcome.error),
+      });
+    } else {
+      useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
+    }
   } else if (outcome.kind === "retryable") {
     useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
     if (outcome.phase === "push") {
       failedPushes++;
-      schedulePush(Math.min(MAX_PUSH_BACKOFF_MS, PUSH_DEBOUNCE_MS * 2 ** failedPushes));
+      schedulePush(
+        Math.min(MAX_PUSH_BACKOFF_MS, PUSH_DEBOUNCE_MS * 2 ** failedPushes),
+        replicaContext,
+      );
     }
   } else if (outcome.kind === "didNotConverge") {
     useSyncStore.setState({
@@ -280,44 +502,71 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
  * work — every mutation carries a whole row, so applying one twice lands on the same state.
  */
 async function sendPagePush(
+  replicaContext: BoundReplicaContext,
   mutations: readonly Mutation[],
 ): Promise<OutboxDeliveryResult<PushChangesResult>> {
   try {
     const result: PushChangesResult | Response = await pushChanges({
-      data: { mutations: [...mutations] },
+      data: {
+        protocolVersion: SYNC_PROTOCOL_VERSION,
+        expectedOwnerUserId: replicaContext.ownerUserId,
+        mutations: [...mutations],
+      },
     });
-    if (!(result instanceof Response)) return { kind: "accepted", result };
-    if (result.status === 401) return { kind: "unauthorized", error: result };
-    if (result.status === 409) return { kind: "terminal", error: result };
-    return { kind: "retryable", error: result };
+    if (!(result instanceof Response)) {
+      if (
+        result.protocolVersion !== SYNC_PROTOCOL_VERSION ||
+        result.ownerUserId !== replicaContext.ownerUserId
+      ) {
+        return {
+          kind: "terminal",
+          error: new SyncResponseError(
+            "REPLICA_OWNER_MISMATCH",
+            409,
+            "The sync response owner did not match.",
+          ),
+        };
+      }
+      return { kind: "accepted", result };
+    }
+    return classifyRejectedSyncResponse(result);
   } catch (error) {
-    if (error instanceof Response && error.status === 409) return { kind: "terminal", error };
+    if (error instanceof Response) return classifyRejectedSyncResponse(error);
     return { kind: "retryable", error };
   }
 }
 
-async function applyAcceptedPageBatch(result: PushChangesResult): Promise<void> {
-  await refreshOutboxState();
+async function applyAcceptedPageBatch(
+  replicaContext: ReplicaContext,
+  result: PushChangesResult,
+): Promise<void> {
+  await refreshOutboxState(replicaContext);
   applyServerRows(result.canonicalRows, result.colors);
-  announce({ type: "changed" });
+  announce({ type: "changed", replicaId: replicaContext.replicaId });
 
   if (result.conflicts.length > 0) {
     useSyncStore.setState((state) => ({ conflicts: [...state.conflicts, ...result.conflicts] }));
   }
 }
 
-async function drainPageOutbox(): Promise<OutboxDrainOutcome> {
+async function drainPageOutbox(replicaContext: BoundReplicaContext): Promise<OutboxDrainOutcome> {
+  await assertCurrentReplicaContext(replicaContext);
   useSyncStore.setState({ isPushing: true });
   try {
     return await drainOutbox({
-      storage: outboxStorage,
+      storage: createOutboxStorage(replicaContext),
       batchLimit: PUSH_BATCH_LIMIT,
       toPayload: ({ seq: _seq, ...mutation }) => mutation,
-      send: sendPagePush,
-      onAccepted: applyAcceptedPageBatch,
+      send: (mutations) => sendPagePush(replicaContext, mutations),
+      onAccepted: (result) => applyAcceptedPageBatch(replicaContext, result),
     });
   } finally {
-    useSyncStore.setState({ isPushing: false });
+    try {
+      await assertCurrentReplicaContext(replicaContext);
+      useSyncStore.setState({ isPushing: false });
+    } catch {
+      // A replaced replica owns a fresh status lifecycle; this old drain must not publish into it.
+    }
   }
 }
 
@@ -332,6 +581,7 @@ let failedPushes = 0;
  * created. Doing it here puts that behind the sync indicator instead of on the loading path.
  */
 export function pushNow(): Promise<SyncRunOutcome> {
+  if (!canAttemptSync()) return Promise.resolve(blockedSyncOutcome());
   clearTimeout(pushTimer);
   pushTimer = undefined;
   return runExclusive(() => runPageSync("normal"));
@@ -344,9 +594,25 @@ export function pushNow(): Promise<SyncRunOutcome> {
  * seven days of no visits, and an entry that never got pushed is the one thing here that exists
  * nowhere else.
  */
-export function schedulePush(delayMs: number = PUSH_DEBOUNCE_MS): void {
-  if (pushTimer != null) return;
-  pushTimer = setTimeout(() => void pushNow(), delayMs);
+export function schedulePush(delayMs: number = PUSH_DEBOUNCE_MS, expected?: ReplicaContext): void {
+  if (!canAttemptSync() || pushTimer != null) return;
+  pushTimer = setTimeout(() => {
+    void (async () => {
+      try {
+        if (expected) await assertCurrentReplicaContext(expected);
+        await pushNow();
+      } catch (error) {
+        if (expected) {
+          try {
+            await assertCurrentReplicaContext(expected);
+          } catch {
+            return;
+          }
+        }
+        useSyncStore.setState({ status: "error", error: toMessage(error) });
+      }
+    })();
+  }, delayMs);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -373,13 +639,26 @@ export type IntegrityReport =
  */
 export function verifyIntegrity(): Promise<IntegrityReport> {
   return runExclusive(async () => {
+    const replicaContext = await captureSyncContext();
     const before = useSyncStore.getState();
     if (!before.isHydrated || before.outboxCount > 0 || before.pending.length > 0) {
       return { outcome: "unsettled" };
     }
 
-    const server: IntegrityResult | Response = await checkIntegrity();
-    if (!isSyncResult(server)) throw server;
+    const server: IntegrityResult | Response = await checkIntegrity({
+      data: {
+        protocolVersion: SYNC_PROTOCOL_VERSION,
+        expectedOwnerUserId: replicaContext.ownerUserId,
+      },
+    });
+    if (!isSyncResult(server)) throw await readSyncResponseError(server);
+    if (
+      server.protocolVersion !== SYNC_PROTOCOL_VERSION ||
+      server.ownerUserId !== replicaContext.ownerUserId
+    ) {
+      throw new Error("The integrity response owner did not match.");
+    }
+    await assertCurrentReplicaContext(replicaContext);
 
     // Folded after the answer arrives rather than before it, so the local side of the comparison is
     // the more recent of the two — a peer tab's write landing mid-call reads as data the server has
@@ -400,13 +679,14 @@ export function verifyIntegrity(): Promise<IntegrityReport> {
 }
 
 /**
- * Drops the local copy and pulls the whole working set again.
+ * Pulls a complete working set into memory and swaps it into IndexedDB only once it is complete.
  *
- * The only repair there is, and deliberately the blunt one: the sync path cannot tell *which* of its
- * assumptions failed, so it does not try to patch the difference. Refuses while writes are queued —
- * they are the one thing here that a re-pull could not bring back.
+ * The repair remains deliberately blunt because the sync path cannot know which assumption failed,
+ * but the existing workspace stays usable until the complete replacement has passed its final fence.
+ * It refuses while writes are queued — they are the one thing a re-pull could not bring back.
  */
 export function resyncFromScratch(): Promise<SyncRunOutcome> {
+  if (!canAttemptSync()) return Promise.resolve(blockedSyncOutcome());
   return runExclusive(() => runPageSync("resync"));
 }
 
@@ -416,6 +696,7 @@ export function resyncFromScratch(): Promise<SyncRunOutcome> {
 
 /** Brings this browser up to date: sends what is queued if anything is, otherwise just pulls. */
 export function syncNow(): Promise<SyncRunOutcome> {
+  if (!canAttemptSync()) return Promise.resolve(blockedSyncOutcome());
   return runExclusive(() => runPageSync("normal"));
 }
 
@@ -425,6 +706,21 @@ export function syncNow(): Promise<SyncRunOutcome> {
  * The check is against `lastSyncedAt`, which every tab updates from its own pulls, so a tab coming
  * back to the foreground next to one that has been syncing all along does nothing.
  */
+function blockedSyncOutcome(): SyncRunOutcome {
+  return { kind: "blocked", reason: "queued-writes" };
+}
+
+/** Every automatic and explicit trigger enters sync through this admission check. */
+function canAttemptSync(): boolean {
+  const { isOnline, syncAuth } = useSyncStore.getState();
+  return (
+    isOnline &&
+    syncAuth !== "unknown" &&
+    syncAuth !== "login-required" &&
+    syncAuth !== "owner-mismatch"
+  );
+}
+
 async function syncIfStale(): Promise<void> {
   const { status, isOnline, lastSyncedAt, outboxCount } = useSyncStore.getState();
 
@@ -464,7 +760,10 @@ export function startSyncTriggers(): () => void {
   }, STALENESS_CHECK_MS);
 
   const onVisibilityChange = () => {
-    if (document.visibilityState === "visible") void syncIfStale();
+    if (document.visibilityState !== "visible") return;
+    void hydrateFromLocal()
+      .then((current) => (current ? syncIfStale() : undefined))
+      .catch(() => undefined);
   };
 
   const onOnline = () => {
@@ -477,17 +776,61 @@ export function startSyncTriggers(): () => void {
     void syncNow();
   };
 
+  const stopWatchingReplica = subscribeToReplicaInvalidation(() => {
+    bootPromise = undefined;
+    clearTimeout(pushTimer);
+    pushTimer = undefined;
+    resetSyncState();
+    useSyncStore.setState({
+      status: "error",
+      error: "Local storage changed in another tab. Reload to continue safely.",
+    });
+  });
+
   let reloadTimer: ReturnType<typeof setTimeout> | undefined;
   const onPeerMessage = (event: MessageEvent<SyncMessage>) => {
-    if (event.data?.type === "reset") {
-      // Signing out in one tab has to empty this one too, and a reload is what lands on `/login`:
-      // the root guard reads the session cookie that sign-out has just cleared.
+    const message = event.data;
+    const currentReplicaId = useSyncStore.getState().replicaContext?.replicaId;
+    if (!message || currentReplicaId == null) return;
+
+    if (message.type === "transition") {
+      if (message.replicaId !== currentReplicaId) return;
+      clearTimeout(pushTimer);
+      pushTimer = undefined;
+      clearWorkingSet();
+      useSyncStore.setState({
+        status: "error",
+        error: "This local workspace is changing in another tab. Reopen it to continue safely.",
+      });
+      return;
+    }
+
+    if (message.type === "replaced") {
+      if (message.previousReplicaId !== currentReplicaId) return;
+      resetSyncState();
       window.location.reload();
       return;
     }
 
+    if (message.replicaId !== currentReplicaId) return;
     clearTimeout(reloadTimer);
-    reloadTimer = setTimeout(() => void hydrateFromLocal(), PEER_RELOAD_DEBOUNCE_MS);
+    reloadTimer = setTimeout(() => {
+      void hydrateFromLocal()
+        .then((current) => {
+          if (!current) return current;
+          if (message.type === "auth-completed") {
+            useSyncStore.setState({ status: "idle", error: null });
+          } else if (message.type === "auth-required") {
+            useSyncStore.setState({
+              syncAuth: "login-required",
+              status: "error",
+              error: "Sign in again before synchronization resumes.",
+            });
+          }
+          return current;
+        })
+        .catch(() => undefined);
+    }, PEER_RELOAD_DEBOUNCE_MS);
   };
 
   document.addEventListener("visibilitychange", onVisibilityChange);
@@ -499,6 +842,7 @@ export function startSyncTriggers(): () => void {
   return () => {
     clearInterval(staleness);
     clearTimeout(reloadTimer);
+    stopWatchingReplica();
     document.removeEventListener("visibilitychange", onVisibilityChange);
     window.removeEventListener("online", onOnline);
     window.removeEventListener("offline", onOffline);
@@ -522,17 +866,53 @@ let bootPromise: Promise<SyncRunOutcome> | undefined;
  */
 export function bootSync(): Promise<SyncRunOutcome> {
   bootPromise ??= (async (): Promise<SyncRunOutcome> => {
+    markStartup("boot-start");
+    let localSnapshotOpened = false;
+    markStartup("local-read-start");
     try {
-      // Writes can outlive the session that made them — the browser was closed, or offline, before
-      // the debounce fired. `hydrateFromLocal` reads the outbox with the rows, so the first pull
-      // knows which rows it must not apply the server's older copy over.
-      await hydrateFromLocal();
+      // Local inspection is deliberately outside the browser-wide network/auth lock. A browser that
+      // lacks Web Locks may still open and edit an active replica; only unsafe sync/auth transitions
+      // fail closed.
+      localSnapshotOpened = await hydrateFromLocal();
     } catch (error) {
-      // Private-mode Safari and friends: no local copy, so every boot is a first run.
       console.warn("Could not read the local database:", error);
+      useSyncStore.setState({ isLocalBooted: true, status: "error", error: toMessage(error) });
+    } finally {
+      markStartup("local-read-end");
+      if (useSyncStore.getState().isLocalBooted) markStartup("local-ready");
     }
 
+    if (useSyncStore.getState().recoveryRequired) return blockedSyncOutcome();
+
+    let recoveredTransition: ReplicaContext | null;
+    try {
+      recoveredTransition = await runExclusive(recoverInterruptedReplicaTransition);
+    } catch (error) {
+      useSyncStore.setState({ status: "error", error: toMessage(error) });
+      return { kind: "retryable", phase: "pull", pushed: 0, error };
+    }
+
+    if (recoveredTransition) {
+      if (!localSnapshotOpened) await hydrateFromLocal();
+      const error = new Error("Sign in again before synchronization resumes.");
+      pauseSyncAfterAuthFailure(recoveredTransition);
+      return { kind: "unauthorized", phase: "pull", pushed: 0, error };
+    }
+
+    const state = useSyncStore.getState();
+    if (state.replicaContext?.ownerUserId != null && !hasLiveSessionHint()) {
+      await setReplicaSyncAuth(state.replicaContext, "login-required");
+      useSyncStore.setState({
+        syncAuth: "login-required",
+        status: "error",
+        error: "Sign in again before synchronization resumes.",
+      });
+      return blockedSyncOutcome();
+    }
+
+    markStartup("sync-start");
     const outcome = await syncNow();
+    markStartup("sync-end");
     // Best-effort eviction protection. The browser decides whether to grant this idempotent request;
     // when granted, it covers both IndexedDB and the service worker's Cache Storage.
     void navigator.storage?.persist?.().catch(() => {});
@@ -542,19 +922,8 @@ export function bootSync(): Promise<SyncRunOutcome> {
   return bootPromise;
 }
 
-/**
- * Forgets everything local — the rows, the cursors, the queued writes and the in-memory copy — so
- * the next boot starts from scratch. Used when the browser changes hands, which is the one case
- * where keeping a cache of somebody's finances around is not a convenience. A session that merely
- * expires keeps its copy, so coming back is still instant.
- */
-export async function resetLocalData(): Promise<void> {
+/** Retries the complete local boot after a transient storage failure. */
+export function retryBootSync(): Promise<SyncRunOutcome> {
   bootPromise = undefined;
-  clearTimeout(pushTimer);
-  pushTimer = undefined;
-  failedPushes = 0;
-  resetSyncState();
-  await deleteLocalDatabase();
-  // Any other tab is now showing data that no longer exists on this device.
-  announce({ type: "reset" });
+  return bootSync();
 }

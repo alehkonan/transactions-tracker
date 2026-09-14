@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { toAccountsWithBalance } from "~/modules/accounts/compute-balances";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 
@@ -12,7 +12,7 @@ import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
  * array on every render is a new snapshot to Zustand, and the derivation then re-runs forever.
  */
 export function useAccounts(): AccountWithBalance[] {
-  const profileId = readSelectedProfileId();
+  const profileId = useSelectedProfileId();
   const accounts = useSyncStore((state) => state.accounts);
   const transactions = useSyncStore((state) => state.transactions);
 

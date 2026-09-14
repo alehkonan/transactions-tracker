@@ -1,0 +1,32 @@
+import { expect, test } from "@playwright/test";
+
+const configuredUsername = process.env.E2E_TEST_USERNAME!;
+const configuredPassword = process.env.E2E_TEST_PASSWORD!;
+const invalidCredentialsMessage = "Unable to sign in. Check your credentials and try again.";
+const hasConfiguredCredentials = Boolean(configuredUsername?.trim() && configuredPassword?.trim());
+
+test.skip(!hasConfiguredCredentials, "E2E_TEST_USERNAME and E2E_TEST_PASSWORD are not configured.");
+
+test("the configured password user can sign in", async ({ page }) => {
+  await page.goto("/login");
+  await page.waitForLoadState("networkidle");
+  await page.getByTestId("password-auth-username").fill(configuredUsername);
+  await page.getByTestId("password-auth-password").fill(configuredPassword);
+  await page.getByTestId("password-auth-submit").click();
+
+  const outcome = await Promise.race([
+    page.waitForURL(/\/profile$/, { timeout: 30_000 }).then(() => "signed-in" as const),
+    page
+      .getByText(invalidCredentialsMessage)
+      .waitFor({ state: "visible", timeout: 30_000 })
+      .then(() => "rejected" as const),
+  ]);
+
+  if (outcome === "rejected") {
+    throw new Error(
+      `Configured E2E user "${configuredUsername}" could not sign in. Ensure the user exists in the target database and that E2E_TEST_PASSWORD is correct.`,
+    );
+  }
+
+  await expect(page.getByRole("heading", { name: "Choose a profile" })).toBeVisible();
+});

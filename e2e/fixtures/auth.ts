@@ -34,11 +34,11 @@ export const test = base.extend<E2EFixtures>({
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
 
-    await page.getByRole("button", { name: "Create account", exact: true }).click();
-    await page.getByLabel("Username", { exact: true }).fill(authCredentials.username);
-    await page.getByLabel("Password", { exact: true }).fill(authCredentials.password);
-    await page.getByLabel("Confirm password", { exact: true }).fill(authCredentials.password);
-    await page.getByRole("button", { name: "Create account", exact: true }).last().click();
+    await page.getByTestId("password-auth-mode-sign-up").click();
+    await page.getByTestId("password-auth-username").fill(authCredentials.username);
+    await page.getByTestId("password-auth-password").fill(authCredentials.password);
+    await page.getByTestId("password-auth-confirm-password").fill(authCredentials.password);
+    await page.getByTestId("password-auth-submit").click();
     await expect(page).toHaveURL(/\/profile$/, { timeout: 30_000 });
 
     await use(page);

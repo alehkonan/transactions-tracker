@@ -1,6 +1,7 @@
 import { use } from "react";
 import { DialogContext } from "~/components/Dialog";
-import { readSelectedProfileId } from "~/modules/profile/profile-cookie";
+import { useSelectedProfileId } from "~/modules/profile/local-selection";
+import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import {
   getSignedTransactionAmount,
@@ -21,10 +22,11 @@ type Options = {
 /** Persists the submitted form values (create or update) and closes the dialog. Throws on failure. */
 export function useTransactionFormSubmit({ transaction }: Options) {
   const { onClose } = use(DialogContext);
+  const replicaContext = useReplicaBinding();
+  const profileId = useSelectedProfileId();
 
   const submit = async (values: TransactionFormValues) => {
-    const profileId = readSelectedProfileId();
-    if (profileId == null) return;
+    if (profileId == null || !replicaContext) return;
 
     const shared = {
       createdAt: values.createdAt,
@@ -40,12 +42,16 @@ export function useTransactionFormSubmit({ transaction }: Options) {
       const stored = useSyncStore.getState().transactions.find((row) => row.id === transaction.id);
       if (!stored) return;
 
-      await updateTransaction(stored, {
-        ...shared,
-        type: values.type,
-        accountId: values.accountId || null,
-        amount: signedAmount,
-      });
+      await updateTransaction(
+        stored,
+        {
+          ...shared,
+          type: values.type,
+          accountId: values.accountId || null,
+          amount: signedAmount,
+        },
+        replicaContext,
+      );
     } else {
       // A transfer moves money between two of the user's own accounts, so it's
       // recorded as two TRANSFER-typed rows (one per account) rather than
@@ -75,7 +81,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
               },
             ];
 
-      await createTransactions(profileId, inputs);
+      await createTransactions(profileId, inputs, replicaContext);
     }
 
     onClose();

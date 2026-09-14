@@ -1,168 +1,187 @@
-/* eslint-disable no-await-in-loop -- batches must drain sequentially to preserve outbox order. */
-
-// This file is a template. Vite stamps the build id, precache list and IndexedDB constants into the
-// copy emitted to dist/client. Keeping the worker standalone means it can run after the page closes.
+// This file is a template. Vite stamps the build id, shell, precache list and portable acceptance kernel
+// into the copy emitted to dist/client. Keeping the worker standalone avoids application imports.
 const BUILD_ID = __BUILD_ID__;
-const CACHE_PREFIX = "transactions-tracker-";
-const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
-const PRECACHE = ["/", ...__PRECACHE__];
 const DATABASE_NAME = __DATABASE_NAME__;
 const DATABASE_VERSION = __DATABASE_VERSION__;
-const OUTBOX_STORE = "outbox";
-const PUSH_BATCH_LIMIT = 500;
-const SYNC_LOCK = "transactions-tracker:sync";
+const SHELL_URL = __SHELL_URL__;
+const PRECACHE = __PRECACHE__;
+const NAVIGATION_PATHS = new Set(__NAVIGATION_PATHS__);
+if (typeof DATABASE_NAME !== "string" || !Number.isInteger(DATABASE_VERSION)) {
+  throw new Error("The service worker has an invalid IndexedDB contract.");
+}
+const CACHE_PREFIX = "transactions-tracker-";
+const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
+const CACHE_METADATA_URL = `/_offline-cache/${BUILD_ID}`;
+const MESSAGE_TYPE = "transactions-tracker:service-worker";
+const OFFLINE_RECOVERY_HTML =
+  '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Offline</title><body><main><h1>Offline</h1><p>This app update is not available offline yet. Reconnect and try again.</p></main></body></html>';
 
 /* __OUTBOX_ACCEPTANCE_KERNEL__ */
-const drainOutboxKernel = __outboxAcceptanceKernel.drainOutbox;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)));
-  // A new worker should take over immediately. The controller-change handler in the page reloads
-  // once so open tabs do not keep running the previous deploy's code against the new server.
-  self.skipWaiting();
+  event.waitUntil(installCompleteCache());
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((names) =>
-        Promise.all(
-          names
-            .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
-            .map((name) => caches.delete(name)),
-        ),
-      )
-      .then(() => self.clients.claim()),
-  );
+  // Do not claim open uncontrolled documents. They keep their current navigation until the user
+  // closes and reopens them, rather than being switched underneath a dirty form.
+  event.waitUntil(cleanUpCaches());
+});
+
+self.addEventListener("message", (event) => {
+  const message = event.data;
+  if (message?.type !== MESSAGE_TYPE) return;
+
+  if (message.action === "get-build-id") {
+    event.source?.postMessage({ type: MESSAGE_TYPE, action: "build-id", buildId: BUILD_ID });
+  }
 });
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return; // POSTs are live data; the page engine owns their failures.
 
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (!response.ok) return response;
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put("/", response.clone());
-            return response;
-          });
-        })
-        .catch(() => caches.match("/")),
-    );
+    const pathname =
+      url.pathname.endsWith("/") && url.pathname !== "/" ? url.pathname.slice(0, -1) : url.pathname;
+    if (!NAVIGATION_PATHS.has(pathname)) return;
+    event.respondWith(getCachedShell());
     return;
   }
 
-  const url = new URL(request.url);
-  if (url.origin === self.location.origin && url.pathname.startsWith("/assets/")) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          if (response.ok) {
-            void caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
-          }
-          return response;
+  const exactUrl = `${url.pathname}${url.search}`;
+  if (PRECACHE.includes(exactUrl)) {
+    event.respondWith(getCachedAsset(request));
+  }
+});
+
+async function installCompleteCache() {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const entries = await Promise.all(
+      PRECACHE.map(async (url) => {
+        const response = await fetch(url, {
+          credentials: url === SHELL_URL ? "omit" : "same-origin",
+          redirect: "error",
         });
+        if (!response.ok || response.redirected) {
+          throw new Error(`Could not precache ${url}.`);
+        }
+        return { url, response };
       }),
     );
-  }
-});
-
-function openDatabase() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-    request.addEventListener("success", () => resolve(request.result));
-    request.addEventListener("error", () => reject(request.error));
-    request.addEventListener("blocked", () => reject(new Error("The local database is blocked.")));
-  });
-}
-
-function readBatch(database, limit) {
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction(OUTBOX_STORE, "readonly");
-    const request = transaction.objectStore(OUTBOX_STORE).getAll(null, limit);
-    request.addEventListener("success", () => resolve(request.result));
-    request.addEventListener("error", () => reject(request.error));
-  });
-}
-
-function dropEntries(database, seqs) {
-  if (seqs.length === 0) return Promise.resolve();
-
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction(OUTBOX_STORE, "readwrite");
-    const store = transaction.objectStore(OUTBOX_STORE);
-    for (const seq of seqs) store.delete(seq);
-    transaction.addEventListener("complete", () => resolve());
-    transaction.addEventListener("error", () => reject(transaction.error));
-    transaction.addEventListener("abort", () => reject(transaction.error));
-  });
-}
-
-async function sendWorkerPush(mutations) {
-  let response;
-  try {
-    response = await fetch("/api/push", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mutations }),
-    });
+    await Promise.all(entries.map(({ url, response }) => cache.put(url, response)));
+    await cache.put(
+      CACHE_METADATA_URL,
+      new Response(JSON.stringify({ buildId: BUILD_ID, completedAt: Date.now() }), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
   } catch (error) {
-    return { kind: "retryable", error };
+    await caches.delete(CACHE_NAME);
+    throw error;
   }
-
-  // A session may expire while the tab is closed. Keep the outbox: a later sign-in will send it.
-  if (response.status === 401) return { kind: "unauthorized" };
-  // Identity reuse is permanent for this queued content. Retain it without asking Background Sync to
-  // retry forever; foreground sync can surface the terminal protocol error when a page is open.
-  if (response.status === 409) return { kind: "terminal", error: response };
-  if (!response.ok)
-    return { kind: "retryable", error: new Error(`Push failed with status ${response.status}.`) };
-
-  let result;
-  try {
-    result = await response.json();
-  } catch (error) {
-    return { kind: "retryable", error };
-  }
-  if (!result || !Array.isArray(result.applied)) {
-    return { kind: "retryable", error: new Error("The server returned an invalid push receipt.") };
-  }
-
-  return { kind: "accepted", result };
 }
 
-function withExclusive(work) {
-  const locks = typeof navigator !== "undefined" && "locks" in navigator ? navigator.locks : null;
-  return locks ? locks.request(SYNC_LOCK, work) : work();
-}
+async function getCachedShell() {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(SHELL_URL);
+  if (cached) return cached;
 
-async function drainOutbox() {
-  const database = await openDatabase();
   try {
-    const outcome = await drainOutboxKernel({
-      storage: {
-        readBatch: (limit) => readBatch(database, limit),
-        dropEntries: (seqs) => dropEntries(database, seqs),
-      },
-      batchLimit: PUSH_BATCH_LIMIT,
-      toPayload: ({ seq: _seq, ...mutation }) => mutation,
-      send: sendWorkerPush,
-      withExclusive,
+    const response = await fetch(SHELL_URL, { credentials: "omit", redirect: "error" });
+    const contentType = response.headers.get("Content-Type") ?? "";
+    if (!response.ok || !contentType.toLowerCase().includes("text/html")) {
+      throw new Error("The versioned shell response is not HTML.");
+    }
+    await cache.put(SHELL_URL, response.clone());
+    return response;
+  } catch {
+    return new Response(OFFLINE_RECOVERY_HTML, {
+      status: 503,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
     });
+  }
+}
 
-    // An expired session leaves the entries in place for a later authenticated trigger.
-    if (outcome.kind === "retryable") throw outcome.error;
+async function getCachedAsset(request) {
+  // The exact same-origin URL was already admitted through PRECACHE. Preview/CDN responses can vary
+  // on Origin, while cache.addAll() and a later module request carry different request headers.
+  const cached = await (await caches.open(CACHE_NAME)).match(request, { ignoreVary: true });
+  return cached ?? fetch(request);
+}
+
+async function cleanUpCaches() {
+  const cacheNames = (await caches.keys()).filter((name) => name.startsWith(CACHE_PREFIX));
+  const completeCaches = await Promise.all(
+    cacheNames.map(async (name) => {
+      const buildId = name.slice(CACHE_PREFIX.length);
+      const metadata = await (await caches.open(name)).match(`/_offline-cache/${buildId}`);
+      if (!metadata) return null;
+      const { completedAt } = await metadata.json();
+      return { name, buildId, completedAt: Number(completedAt) || 0 };
+    }),
+  );
+  const complete = completeCaches
+    .filter((cache) => cache !== null)
+    .toSorted((left, right) => right.completedAt - left.completedAt);
+  const incomplete = cacheNames.filter((name) => !complete.some((cache) => cache.name === name));
+
+  // A partial install cannot serve a shell. Complete caches are retained until the live-client
+  // handshake proves no document could need them.
+  await Promise.all(incomplete.map((name) => caches.delete(name)));
+
+  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const clientBuilds = await getLiveClientBuilds(clients);
+  if (clientBuilds === null) return;
+
+  const preservedBuilds = new Set([
+    BUILD_ID,
+    ...complete.slice(0, 2).map((cache) => cache.buildId),
+    ...clientBuilds,
+  ]);
+  await Promise.all(
+    complete
+      .filter((cache) => !preservedBuilds.has(cache.buildId))
+      .map((cache) => caches.delete(cache.name)),
+  );
+}
+
+async function getLiveClientBuilds(clients) {
+  if (clients.length === 0) return new Set();
+
+  const requestId = crypto.randomUUID();
+  const replies = new Map();
+  const onMessage = (event) => {
+    const message = event.data;
+    if (
+      message?.type !== MESSAGE_TYPE ||
+      message.action !== "client-build-id" ||
+      message.requestId !== requestId
+    )
+      return;
+    replies.set(event.source?.id, message.buildId);
+  };
+  self.addEventListener("message", onMessage);
+  try {
+    for (const client of clients) {
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Client.postMessage has no targetOrigin parameter.
+      client.postMessage({ type: MESSAGE_TYPE, action: "request-client-build-id", requestId });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
   } finally {
-    database.close();
+    self.removeEventListener("message", onMessage);
   }
-}
 
-self.addEventListener("sync", (event) => {
-  if (event.tag === "outbox-sync") event.waitUntil(drainOutbox());
-});
+  // No response is not proof that a document is gone; defer eviction conservatively.
+  if (
+    replies.size !== clients.length ||
+    [...replies.values()].some((buildId) => typeof buildId !== "string")
+  ) {
+    return null;
+  }
+  return new Set(replies.values());
+}

@@ -6,6 +6,7 @@ import {
   removePasskey,
   startAddPasskey,
 } from "~/api/auth.functions";
+import { runAuthenticatedRequest } from "~/modules/auth/complete-sign-in";
 import { getSecurityErrorMessage, unwrapServerResponse } from "~/modules/auth/security-errors";
 
 type Credentials = Exclude<Awaited<ReturnType<typeof listCredentials>>, Response>;
@@ -29,7 +30,9 @@ export function useSecuritySettings() {
     setIsLoading(true);
     setError(null);
     try {
-      setCredentials(await unwrapServerResponse(await listCredentials()));
+      setCredentials(
+        await unwrapServerResponse(await runAuthenticatedRequest(() => listCredentials())),
+      );
     } catch (caught) {
       setCredentials(null);
       setError(getSecurityErrorMessage(caught));
@@ -65,9 +68,13 @@ export function useSecuritySettings() {
 
     setIsMutating(true);
     try {
-      const optionsJSON = await unwrapServerResponse(await startAddPasskey());
+      const optionsJSON = await unwrapServerResponse(
+        await runAuthenticatedRequest(() => startAddPasskey()),
+      );
       const response = await startRegistration({ optionsJSON });
-      await unwrapServerResponse(await finishAddPasskey({ data: response }));
+      await unwrapServerResponse(
+        await runAuthenticatedRequest(() => finishAddPasskey({ data: response })),
+      );
       await refresh();
     } catch (caught) {
       setError(getSecurityErrorMessage(caught));
@@ -81,7 +88,9 @@ export function useSecuritySettings() {
       setError(null);
       setIsMutating(true);
       try {
-        await unwrapServerResponse(await removePasskey({ data: { credentialId } }));
+        await unwrapServerResponse(
+          await runAuthenticatedRequest(() => removePasskey({ data: { credentialId } })),
+        );
         await refresh();
       } catch (caught) {
         setError(getSecurityErrorMessage(caught));

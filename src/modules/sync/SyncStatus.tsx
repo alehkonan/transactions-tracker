@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import {
   CloudAlertIcon,
   CloudCheckIcon,
@@ -37,6 +38,7 @@ import type { JSX } from "react";
  * reloading the page.
  */
 export function SyncStatus() {
+  const navigate = useNavigate();
   const isOnline = useSyncStore((state) => state.isOnline);
   const status = useSyncStore((state) => state.status);
   const pending = useSyncStore((state) => state.pending);
@@ -44,6 +46,7 @@ export function SyncStatus() {
   const syncTotalRows = useSyncStore((state) => state.syncTotalRows);
   const outboxCount = useSyncStore((state) => state.outboxCount);
   const isPushing = useSyncStore((state) => state.isPushing);
+  const syncAuth = useSyncStore((state) => state.syncAuth);
 
   const view = describe({
     isOnline,
@@ -53,6 +56,7 @@ export function SyncStatus() {
     syncTotalRows,
     outboxCount,
     isPushing,
+    syncAuth,
   });
 
   return (
@@ -63,7 +67,14 @@ export function SyncStatus() {
       <button
         type="button"
         // Draining the outbox is the more urgent half, and it pulls once it is done anyway.
-        onClick={() => void (outboxCount > 0 ? pushNow() : syncNow())}
+        onClick={() => {
+          if (syncAuth === "login-required" || syncAuth === "owner-mismatch") {
+            const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+            void navigate({ to: "/login", search: { returnTo } });
+            return;
+          }
+          void (outboxCount > 0 ? pushNow() : syncNow());
+        }}
         disabled={view.isBusy}
         aria-label={`${view.label}. ${view.title}`}
         title={view.title}
@@ -92,6 +103,7 @@ type StatusInput = {
   syncTotalRows: number | null;
   outboxCount: number;
   isPushing: boolean;
+  syncAuth: "unknown" | "authenticated" | "login-required" | "owner-mismatch";
 };
 
 type StatusView = {
@@ -114,6 +126,18 @@ const ICON = "size-4 shrink-0";
  * could actually lose.
  */
 function describe(state: StatusInput): StatusView {
+  if (state.syncAuth === "login-required" || state.syncAuth === "owner-mismatch") {
+    const changes =
+      state.outboxCount > 0 ? ` ${count(state.outboxCount)} saved on this device.` : "";
+    return {
+      icon: <CloudAlertIcon className={ICON} />,
+      label: state.isOnline ? "Sign in to sync" : "Offline — sign in to sync",
+      title: `${state.isOnline ? "Sign in to synchronize." : "Offline and sign-in is required before synchronization can resume."}${changes}`,
+      tone: "danger",
+      isBusy: false,
+    };
+  }
+
   if (!state.isOnline) {
     return {
       icon: <CloudOffIcon className={ICON} />,
@@ -178,6 +202,16 @@ function describe(state: StatusInput): StatusView {
       label: "Sync failed — tap to retry",
       title: "Could not reach the server. Tap to try again.",
       tone: "danger",
+      isBusy: false,
+    };
+  }
+
+  if (state.syncAuth !== "authenticated") {
+    return {
+      icon: <CloudAlertIcon className={ICON} />,
+      label: "Sync not started",
+      title: "Synchronization has not completed yet.",
+      tone: "muted",
       isBusy: false,
     };
   }

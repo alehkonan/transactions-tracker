@@ -1,8 +1,9 @@
 import { uuidV7 } from "~/utils/uuid-v7";
-import { writeLocalMutations } from "./idb";
+import { assertCurrentReplicaContext, captureReplicaContext, writeLocalMutations } from "./idb";
 import { announceLocalWrite, schedulePush } from "./sync-engine";
 import { SYNCED_TABLES } from "./sync-types";
 import { applyLocalRows, refreshOutboxState, useSyncStore } from "./useSyncStore";
+import type { ReplicaContext } from "./replica-identity";
 import type { Mutation, MutationPayloads, SyncedRows, SyncedTable } from "./sync-types";
 
 /**
@@ -45,30 +46,6 @@ type CascadeChange = {
 export type LocalChange = UpsertChange | DeleteChange | CascadeChange;
 
 type RowsByTable = { [Table in SyncedTable]: RowFor<Table>[] };
-
-type BackgroundSyncRegistration = ServiceWorkerRegistration & {
-  sync: { register(tag: string): Promise<void> };
-};
-
-/** Asks Chromium to retry the durable outbox even after this page closes. */
-function registerOutboxSync(): void {
-  if (
-    !import.meta.env.PROD ||
-    typeof navigator === "undefined" ||
-    !("serviceWorker" in navigator)
-  ) {
-    return;
-  }
-
-  void navigator.serviceWorker.ready
-    .then((registration) => {
-      if (!("sync" in registration)) return;
-      return (registration as BackgroundSyncRegistration).sync.register("outbox-sync");
-    })
-    .catch(() => {
-      // Unsupported Background Sync and registration failures leave the page-driven retry path intact.
-    });
-}
 
 function emptyRows(): RowsByTable {
   return { profiles: [], accounts: [], categories: [], transactions: [] };
@@ -113,9 +90,13 @@ function readBaseUpdatedAt(changes: LocalChange[]): Map<string, number> {
  * never end up saved-but-unsent or sent-but-unsaved. The push is scheduled rather than awaited:
  * every caller of this is a form that should close now, not once the network agrees.
  */
-export async function commit(changes: LocalChange[]): Promise<void> {
+export async function commit(
+  changes: LocalChange[],
+  capturedContext?: ReplicaContext,
+): Promise<void> {
   if (changes.length === 0) return;
 
+  const replicaContext = capturedContext ?? (await captureReplicaContext());
   const bases = readBaseUpdatedAt(changes);
   const rows = emptyRows();
   const mutations: Mutation[] = [];
@@ -153,14 +134,16 @@ export async function commit(changes: LocalChange[]): Promise<void> {
 
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.
-  await writeLocalMutations(rows, mutations);
-  await refreshOutboxState();
+  await writeLocalMutations(replicaContext, rows, mutations);
+  await assertCurrentReplicaContext(replicaContext);
+  await refreshOutboxState(replicaContext);
   applyLocalRows(rows);
   // On disk is on disk: any other tab on this browser is looking at the same database and should
   // show the change now, not once the push that carries it away has been round-tripped.
-  announceLocalWrite();
-  registerOutboxSync();
-  schedulePush();
+  announceLocalWrite(replicaContext);
+  // Background Sync stays disabled until worker settlement is fenced to the replica owner. The
+  // foreground engine remains the only path allowed to send and settle this durable outbox.
+  schedulePush(undefined, replicaContext);
 }
 
 /**

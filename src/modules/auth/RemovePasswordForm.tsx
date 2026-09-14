@@ -4,6 +4,7 @@ import { removePassword } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
 import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
+import { runAuthenticatedRequest } from "~/modules/auth/complete-sign-in";
 import { getSecurityErrorMessage, unwrapServerResponse } from "~/modules/auth/security-errors";
 
 type Values = { currentPassword: string };
@@ -21,7 +22,9 @@ export function RemovePasswordForm({ onRemoved }: Props) {
 
   const onSubmit = handleSubmit(async ({ currentPassword }) => {
     try {
-      await unwrapServerResponse(await removePassword({ data: { currentPassword } }));
+      await unwrapServerResponse(
+        await runAuthenticatedRequest(() => removePassword({ data: { currentPassword } })),
+      );
       await onRemoved();
       onClose();
     } catch (caught) {

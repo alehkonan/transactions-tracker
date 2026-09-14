@@ -8,13 +8,9 @@ import { loggerMiddleware } from "./logger.middleware";
 import { setSelectedProfileCookie } from "./selected-profile.server";
 
 /**
- * Records the caller's profile choice, having first proven they own it. That check is why this is
- * a mutation rather than something the client can set for itself: the resulting cookie is signed,
- * so every request afterwards trusts the id without asking the database again.
- *
- * Not a data endpoint, which is why it survives the move to `pushChanges`: creating a profile is a
- * client mutation now (see `modules/profile/profile-mutations.ts`), but only the server can sign a
- * cookie, so choosing one still has to come here.
+ * Compatibility endpoint for pre-local-first clients that still persist profile selection in a
+ * signed cookie. Current clients select profiles in replica-scoped IndexedDB metadata and never call
+ * this function. Remove it only after the production client/worker cutover gate is complete.
  */
 export const selectProfile = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware, authMiddleware])

@@ -29,7 +29,7 @@ export function encodeSessionHint(hint: SessionHint): string {
  * Reads the hint, tolerating the bare-timestamp form it used to have: a browser holding one of those
  * has a perfectly live session, and treating it as absent would sign the user out for no reason.
  */
-export function readSessionHint(): SessionHint | null {
+function readSessionHint(): SessionHint | null {
   const raw = readCookie(SESSION_HINT_COOKIE);
   if (!raw) return null;
 

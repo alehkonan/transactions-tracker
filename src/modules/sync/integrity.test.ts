@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compareIntegrity, isCursorStale, localIntegrity, tableIntegrity } from "./integrity";
 import { STALE_CURSOR_AFTER_DAYS } from "./sync-types";
-import type { IntegrityResult, SyncCursors, SyncedRow, SyncedRows } from "./sync-types";
+import type { IntegritySnapshot, SyncCursors, SyncedRow, SyncedRows } from "./sync-types";
 
 const row = (id: string, updatedAt: string): SyncedRow => ({
   id,
@@ -46,7 +46,7 @@ describe("compareIntegrity", () => {
   const rows = (transactions: SyncedRow[]): SyncedRows =>
     ({ profiles: [A], accounts: [B], categories: [], transactions }) as unknown as SyncedRows;
 
-  const local: IntegrityResult = localIntegrity(rows([C]));
+  const local: IntegritySnapshot = localIntegrity(rows([C]));
 
   it("reports nothing when both sides agree", () => {
     expect(compareIntegrity(local, localIntegrity(rows([C])))).toEqual([]);

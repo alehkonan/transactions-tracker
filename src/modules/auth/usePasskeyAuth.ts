@@ -8,7 +8,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { getSignInOptions, getSignUpOptions, signIn, signUp } from "~/api/auth.functions";
-import { resetLocalData } from "~/modules/sync/sync-engine";
+import { completeSignIn, getSignInReturnPath } from "~/modules/auth/complete-sign-in";
 
 /**
  * A cancelled ceremony is the user closing the OS passkey sheet — expected, not an error worth
@@ -40,7 +40,7 @@ async function unwrapServerResponse<T>(value: T): Promise<T> {
  * returning visitor who already has a passkey for this site is offered it by the browser and
  * signed in without pressing anything.
  */
-export function usePasskeyAuth() {
+export function usePasskeyAuth(enabled = true) {
   const navigate = useNavigate();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,14 +49,12 @@ export function usePasskeyAuth() {
   const [isSupported, setIsSupported] = useState(true);
 
   const onSignedIn = useCallback(async () => {
-    // Whatever is in IndexedDB belongs to whoever was signed in before — possibly somebody else on a
-    // shared browser. Dropping it means the app boots into a clean full pull for this account.
-    await resetLocalData();
-    await navigate({ to: "/", replace: true });
+    await navigate({ to: getSignInReturnPath(), replace: true });
   }, [navigate]);
 
   const handleSignUp = useCallback(
     async (username: string) => {
+      if (!enabled) return;
       setError(null);
       setIsPending(true);
       try {
@@ -66,7 +64,7 @@ export function usePasskeyAuth() {
           await getSignUpOptions({ data: { username } }),
         );
         const response = await startRegistration({ optionsJSON });
-        await unwrapServerResponse(await signUp({ data: response }));
+        await completeSignIn("sign-up", () => signUp({ data: response }));
         await onSignedIn();
       } catch (caught) {
         setError(toErrorMessage(caught));
@@ -74,29 +72,33 @@ export function usePasskeyAuth() {
         setIsPending(false);
       }
     },
-    [onSignedIn],
+    [enabled, onSignedIn],
   );
 
   const handleSignIn = useCallback(async () => {
+    if (!enabled) return;
     setError(null);
     setIsPending(true);
     try {
       WebAuthnAbortService.cancelCeremony();
       const optionsJSON = await unwrapServerResponse(await getSignInOptions());
       const response = await startAuthentication({ optionsJSON });
-      await unwrapServerResponse(await signIn({ data: response }));
+      await completeSignIn("sign-in", (expectedUserId) =>
+        signIn({ data: expectedUserId == null ? response : { ...response, expectedUserId } }),
+      );
       await onSignedIn();
     } catch (caught) {
       setError(toErrorMessage(caught));
     } finally {
       setIsPending(false);
     }
-  }, [onSignedIn]);
+  }, [enabled, onSignedIn]);
 
   useEffect(() => {
     let cancelled = false;
 
     const startAutofill = async () => {
+      if (!enabled) return;
       if (!browserSupportsWebAuthn()) {
         setIsSupported(false);
         return;
@@ -108,7 +110,9 @@ export function usePasskeyAuth() {
         if (cancelled) return;
 
         const response = await startAuthentication({ optionsJSON, useBrowserAutofill: true });
-        await unwrapServerResponse(await signIn({ data: response }));
+        await completeSignIn("sign-in", (expectedUserId) =>
+          signIn({ data: expectedUserId == null ? response : { ...response, expectedUserId } }),
+        );
         if (!cancelled) await onSignedIn();
       } catch (caught) {
         // The conditional request is a background convenience — an abort (because the user pressed
@@ -126,7 +130,7 @@ export function usePasskeyAuth() {
       cancelled = true;
       WebAuthnAbortService.cancelCeremony();
     };
-  }, [onSignedIn]);
+  }, [enabled, onSignedIn]);
 
   return { isSupported, isPending, error, handleSignUp, handleSignIn };
 }

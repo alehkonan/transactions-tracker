@@ -12,6 +12,8 @@ const emptyRows: SyncedRows = {
 
 function page(pending: SyncedTable[]): PullChangesResult {
   return {
+    protocolVersion: 2,
+    ownerUserId: 41,
     rows: emptyRows,
     nextCursors: {},
     pending,
@@ -26,7 +28,8 @@ function dependencies(overrides: Partial<SyncRunDependencies> = {}): SyncRunDepe
     replica: {
       readCursors: async () => undefined,
       hasQueuedWrites: async () => false,
-      clearCachedRows: async () => {},
+      captureFullReplacement: async () => ({ localRevision: 0 }),
+      replaceFullSnapshot: async () => {},
       commitPulledPage: async () => {},
     },
     push: {
@@ -52,7 +55,8 @@ describe("runSync", () => {
         replica: {
           readCursors: async () => undefined,
           hasQueuedWrites: async () => true,
-          clearCachedRows: async () => {},
+          captureFullReplacement: async () => ({ localRevision: 0 }),
+          replaceFullSnapshot: async () => {},
           commitPulledPage: async () => {
             events.push("commit");
           },
@@ -72,7 +76,7 @@ describe("runSync", () => {
       }),
     );
 
-    expect(outcome).toEqual({ kind: "completed", changedRows: 0, pushed: 2 });
+    expect(outcome).toEqual({ kind: "completed", changedRows: 0, pushed: 2, replaced: false });
     expect(events).toEqual(["push", "pull:true", "commit"]);
   });
 
@@ -100,12 +104,12 @@ describe("runSync", () => {
       }),
     );
 
-    expect(outcome).toEqual({ kind: "completed", changedRows: 0, pushed: 0 });
+    expect(outcome).toEqual({ kind: "completed", changedRows: 0, pushed: 0, replaced: false });
     expect(pulled).toEqual([true, false]);
     expect(readiness).toEqual([true, true]);
   });
 
-  it("clears a stale cache before starting a normal pull", async () => {
+  it("stages a stale-cache replacement before starting a normal pull", async () => {
     const events: string[] = [];
     const staleCursors: SyncCursors = {
       profiles: { updatedAt: "not-a-timestamp", id: null },
@@ -117,10 +121,13 @@ describe("runSync", () => {
         replica: {
           readCursors: async () => staleCursors,
           hasQueuedWrites: async () => false,
-          clearCachedRows: async () => {
-            events.push("clear");
+          captureFullReplacement: async () => ({ localRevision: 7 }),
+          replaceFullSnapshot: async () => {
+            events.push("replace");
           },
-          commitPulledPage: async () => {},
+          commitPulledPage: async () => {
+            events.push("commit");
+          },
         },
         remote: {
           pull: async (cursors) => {
@@ -131,8 +138,35 @@ describe("runSync", () => {
       }),
     );
 
-    expect(outcome).toEqual({ kind: "completed", changedRows: 0, pushed: 0 });
-    expect(events).toEqual(["clear", "pull-from-scratch"]);
+    expect(outcome).toEqual({ kind: "completed", changedRows: 0, pushed: 0, replaced: true });
+    expect(events).toEqual(["pull-from-scratch", "replace"]);
+  });
+
+  it("does not replace the current replica when a staged full refresh is unauthorized", async () => {
+    let committed = false;
+    let replaced = false;
+
+    const outcome = await runSync(
+      "resync",
+      dependencies({
+        replica: {
+          readCursors: async () => undefined,
+          hasQueuedWrites: async () => false,
+          captureFullReplacement: async () => ({ localRevision: 3 }),
+          replaceFullSnapshot: async () => {
+            replaced = true;
+          },
+          commitPulledPage: async () => {
+            committed = true;
+          },
+        },
+        remote: { pull: async () => ({ kind: "unauthorized" }) },
+      }),
+    );
+
+    expect(outcome).toEqual({ kind: "unauthorized", phase: "pull", pushed: 0 });
+    expect(committed).toBe(false);
+    expect(replaced).toBe(false);
   });
 
   it("blocks a resync while writes remain queued", async () => {
@@ -143,7 +177,8 @@ describe("runSync", () => {
         replica: {
           readCursors: async () => undefined,
           hasQueuedWrites: async () => true,
-          clearCachedRows: async () => {},
+          captureFullReplacement: async () => ({ localRevision: 0 }),
+          replaceFullSnapshot: async () => {},
           commitPulledPage: async () => {},
         },
         remote: {
@@ -169,7 +204,8 @@ describe("runSync", () => {
         replica: {
           readCursors: async () => undefined,
           hasQueuedWrites: async () => true,
-          clearCachedRows: async () => {},
+          captureFullReplacement: async () => ({ localRevision: 0 }),
+          replaceFullSnapshot: async () => {},
           commitPulledPage: async () => {},
         },
         push: { drain: async () => ({ kind: "terminal", accepted: 0, error: failure }) },
@@ -184,6 +220,30 @@ describe("runSync", () => {
 
     expect(outcome).toEqual({ kind: "terminal", phase: "push", pushed: 0, error: failure });
     expect(pulled).toBe(false);
+  });
+
+  it("surfaces a terminal owner mismatch from pull without committing a page", async () => {
+    const failure = new Error("Replica owner mismatch.");
+    let committed = false;
+
+    const outcome = await runSync(
+      "normal",
+      dependencies({
+        remote: { pull: async () => ({ kind: "terminal", error: failure }) },
+        replica: {
+          readCursors: async () => undefined,
+          hasQueuedWrites: async () => false,
+          captureFullReplacement: async () => ({ localRevision: 0 }),
+          replaceFullSnapshot: async () => {},
+          commitPulledPage: async () => {
+            committed = true;
+          },
+        },
+      }),
+    );
+
+    expect(outcome).toEqual({ kind: "terminal", phase: "pull", pushed: 0, error: failure });
+    expect(committed).toBe(false);
   });
 
   it("returns explicit unauthorized and convergence outcomes", async () => {

@@ -1,3 +1,4 @@
+import { SYNC_PROTOCOL_VERSION } from "~/modules/sync/sync-types";
 import { applyMutations, type AppliedBatch } from "./apply-mutations.server";
 import { runDatabaseTransaction, runReadDatabaseTransaction } from "./database-resilience.server";
 import { readCanonicalRows, readColors } from "./push.server";
@@ -65,6 +66,8 @@ export function createPushExecution<Database>(
     });
 
     return {
+      protocolVersion: SYNC_PROTOCOL_VERSION,
+      ownerUserId: userId,
       applied: appliedBatch?.applied ?? [],
       canonicalRows,
       conflicts: appliedBatch?.conflicts ?? [],

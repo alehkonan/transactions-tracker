@@ -33,6 +33,7 @@ import {
   verifyPassword,
 } from "./password-credential.server";
 import { createSession, destroySession, revokeOtherSessions } from "./session.server";
+import { completeSignIn } from "./sign-in-finalization.server";
 import {
   RP_NAME,
   consumeChallenge,
@@ -49,6 +50,10 @@ const passwordSchema = z.string().refine(isPasswordAllowed, {
 const passwordAuthenticationSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
+});
+const expectedUserIdSchema = z.number().int().positive().optional();
+const passwordSignInSchema = passwordAuthenticationSchema.extend({
+  expectedUserId: expectedUserIdSchema,
 });
 const credentialIdSchema = z.object({ credentialId: z.string().min(1) });
 
@@ -96,6 +101,9 @@ const authenticationResponseSchema = credentialBaseSchema.extend({
     signature: z.string(),
     userHandle: optionalField(z.string()),
   }),
+});
+const signInResponseSchema = authenticationResponseSchema.extend({
+  expectedUserId: expectedUserIdSchema,
 });
 
 const clientDataSchema = z.object({ challenge: z.string() });
@@ -251,9 +259,10 @@ export const getSignInOptions = createServerFn({ method: "POST" })
 /** Step two of sign-in: verifies the assertion against the stored public key and opens a session. */
 export const signIn = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware])
-  .validator(authenticationResponseSchema)
+  .validator(signInResponseSchema)
   .handler(async ({ data }) => {
-    const challenge = readChallenge(data.response.clientDataJSON);
+    const { expectedUserId, ...response } = data;
+    const challenge = readChallenge(response.response.clientDataJSON);
     if (!challenge) throw badRequest("Malformed sign-in response.");
 
     const consumed = await consumeChallenge(challenge, "AUTHENTICATION");
@@ -270,13 +279,13 @@ export const signIn = createServerFn({ method: "POST" })
       })
       .from(credentialsTable)
       .innerJoin(usersTable, eq(usersTable.id, credentialsTable.userId))
-      .where(eq(credentialsTable.id, data.id));
+      .where(eq(credentialsTable.id, response.id));
 
     if (!record) throw badRequest("That passkey is not registered here.");
 
     // For a discoverable credential the authenticator also reports whose key it is; if it
     // disagrees with our own mapping, something is wrong and we should not sign anyone in.
-    const { userHandle } = data.response;
+    const { userHandle } = response.response;
     if (userHandle && userHandle !== record.user.webauthnUserId) {
       throw badRequest("That passkey does not match this account.");
     }
@@ -288,7 +297,7 @@ export const signIn = createServerFn({ method: "POST" })
 
     const { rpID, origin } = getRelyingParty();
     const verification = await verifyAuthenticationResponse({
-      response: data,
+      response,
       expectedChallenge: challenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
@@ -311,9 +320,7 @@ export const signIn = createServerFn({ method: "POST" })
       .where(eq(credentialsTable.id, record.credential.id));
 
     const user = { id: record.user.id, username: record.user.username };
-    await createSession(user);
-
-    return user;
+    return completeSignIn(user, expectedUserId);
   });
 
 export const signOut = createServerFn({ method: "POST" })
@@ -321,6 +328,11 @@ export const signOut = createServerFn({ method: "POST" })
   .handler(async () => {
     await destroySession();
   });
+
+/** Confirms the server identity used to bind or reconcile a local replica. */
+export const getSyncIdentity = createServerFn()
+  .middleware([loggerMiddleware, authMiddleware])
+  .handler(({ context }) => context.user);
 
 function trustedNetlifyAddress(): string | undefined {
   if (process.env.NETLIFY !== "true") return undefined;
@@ -390,7 +402,7 @@ export const passwordSignUp = createServerFn({ method: "POST" })
 /** Signs in through the password flow without revealing whether the username exists. */
 export const passwordSignIn = createServerFn({ method: "POST" })
   .middleware([loggerMiddleware])
-  .validator(passwordAuthenticationSchema)
+  .validator(passwordSignInSchema)
   .handler(async ({ data }) => {
     await enforceSignInRateLimit({
       username: data.username,
@@ -413,8 +425,7 @@ export const passwordSignIn = createServerFn({ method: "POST" })
     if (!(await verifyPassword(data.password, record?.passwordHash))) throw invalidCredentials();
 
     await clearSignInUsernameRateLimit(data.username);
-    await createSession(record.user);
-    return record.user;
+    return completeSignIn(record.user, data.expectedUserId);
   });
 
 /** Returns non-secret metadata for every credential attached to the current account. */

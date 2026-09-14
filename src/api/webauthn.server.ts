@@ -13,19 +13,23 @@ type ChallengeType = (typeof webauthnChallengesTable.$inferSelect)["type"];
 /**
  * The relying party the browser will bind credentials to.
  *
- * `AUTH_RP_ID`/`AUTH_ORIGIN` should be set in any deployed environment; the request-derived
- * fallback keeps local development working across `localhost` and the LAN host Vite also serves
- * on. Note that WebAuthn requires a secure context, so in practice dev means `localhost` only.
+ * Netlify deployments use the configured production identity. Local Vite dev and preview derive it
+ * from the request even when `.env` also carries production values, so a localhost ceremony cannot
+ * accidentally receive a credential scoped to the deployed domain. WebAuthn requires a secure
+ * context, so in practice local development means `localhost` only.
  */
 export function getRelyingParty(): { rpID: string; origin: string } {
-  const configuredRpId = process.env.AUTH_RP_ID;
-  const configuredOrigin = process.env.AUTH_ORIGIN;
-  if (configuredRpId && configuredOrigin) {
-    return { rpID: configuredRpId, origin: configuredOrigin };
+  if (process.env.NETLIFY !== "true") {
+    const url = getRequestUrl();
+    return { rpID: url.hostname, origin: url.origin };
   }
 
-  const url = getRequestUrl();
-  return { rpID: configuredRpId ?? url.hostname, origin: configuredOrigin ?? url.origin };
+  const rpID = process.env.AUTH_RP_ID;
+  const origin = process.env.AUTH_ORIGIN;
+  if (!rpID || !origin) {
+    throw new Error("AUTH_RP_ID and AUTH_ORIGIN are required in deployed environments");
+  }
+  return { rpID, origin };
 }
 
 /** Generates the opaque `user.id` handed to the authenticator as the WebAuthn user handle. */
