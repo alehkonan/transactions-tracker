@@ -8,13 +8,10 @@ import {
 import { signCookieValue } from "./signed-cookie.server";
 
 /**
- * This browser's profile selection, as two cookies written and cleared together.
- *
- * Nothing on the server reads them any more. The write path is scoped to the caller's user and
- * every pushed row names its own profile, so which one is *selected* is a client-side view concern
- * — `readSelectedProfileId` and the root guard, both off the readable hint. The signed half is kept
- * because it is the durable record that this server checked ownership when the choice was made, and
- * because clearing it in step with the hint is what stops a stale selection outliving its session.
+ * Legacy profile-selection cookies retained for pre-local-first clients during production cutover.
+ * Current clients use replica-scoped IndexedDB metadata; these cookies do not control local access
+ * or sync authorization. Keep clearing both halves with session changes until the compatibility
+ * endpoint is removed.
  *
  * Only safe to call from inside a server function's `.handler(...)` (or another `.server.ts`
  * module) — this file is stripped from the client bundle, same as `get-db.server.ts`.

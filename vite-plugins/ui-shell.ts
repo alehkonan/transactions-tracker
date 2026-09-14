@@ -9,8 +9,6 @@ export const UI_PATHS = [
   "/transactions-import",
 ] as const;
 
-export type UiPath = (typeof UI_PATHS)[number];
-
 export function isUiPath(pathname: string): boolean {
   if (pathname === "/") return true;
   const canonicalPath = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;

@@ -32,7 +32,7 @@ const LAST_SYNCED_AT_KEY = "lastSyncedAt";
 /** The queue of local writes waiting to be pushed, in the order they were made. */
 export const OUTBOX_STORE = "outbox";
 
-export type OutboxSnapshot = {
+type OutboxSnapshot = {
   count: number;
   rowKeys: Set<string>;
   entries: SequencedMutation[];
@@ -52,28 +52,28 @@ export type LocalSnapshot = {
   outbox: OutboxSnapshot;
 };
 
-export class ReplicaContextChangedError extends Error {
+class ReplicaContextChangedError extends Error {
   constructor() {
     super("The local replica changed while the operation was in progress.");
     this.name = "ReplicaContextChangedError";
   }
 }
 
-export class ReplicaRecoveryRequiredError extends Error {
+class ReplicaRecoveryRequiredError extends Error {
   constructor() {
     super("The legacy local replica requires recovery before it can be bound or synchronized.");
     this.name = "ReplicaRecoveryRequiredError";
   }
 }
 
-export class ReplicaIdentityRequiredError extends Error {
+class ReplicaIdentityRequiredError extends Error {
   constructor() {
     super("The local replica must be bound to a server-confirmed identity before synchronization.");
     this.name = "ReplicaIdentityRequiredError";
   }
 }
 
-export class ReplicaSyncAuthRequiredError extends Error {
+class ReplicaSyncAuthRequiredError extends Error {
   constructor() {
     super("Sign in again before synchronization resumes.");
     this.name = "ReplicaSyncAuthRequiredError";
@@ -817,17 +817,6 @@ export function replaceFullLocalSnapshot(
   );
 }
 
-export function clearLocalRows(expected: ReplicaContext): Promise<void> {
-  return guardedTransaction(SYNCED_TABLES, expected, (transaction) => {
-    for (const table of SYNCED_TABLES) transaction.objectStore(table).clear();
-    const meta = transaction.objectStore(META_STORE);
-    meta.delete(CURSORS_KEY);
-    meta.delete(SELECTED_PROFILE_KEY);
-    meta.put([], COMPLETE_TABLES_KEY);
-    meta.delete(LAST_SYNCED_AT_KEY);
-  });
-}
-
 export function selectLocalProfile(
   expected: ReplicaContext,
   selectedProfileId: string | null,
@@ -855,33 +844,6 @@ export function setReplicaSyncAuth(
 ): Promise<void> {
   return guardedTransaction([], expected, (transaction, descriptor) => {
     transaction.objectStore(META_STORE).put({ ...descriptor, syncAuth }, DESCRIPTOR_KEY);
-  });
-}
-
-export function bindReplicaIdentity(
-  expected: ReplicaContext,
-  identity: Omit<ReplicaIdentity, "replicaId">,
-): Promise<void> {
-  return guardedTransaction([], expected, (transaction, descriptor) => {
-    if (descriptor.legacyOwnership.kind === "recovery-required") {
-      throw new ReplicaRecoveryRequiredError();
-    }
-    if (
-      (descriptor.identity != null && descriptor.identity.ownerUserId !== identity.ownerUserId) ||
-      (descriptor.legacyOwnership.kind === "candidate" &&
-        descriptor.legacyOwnership.ownerUserId !== identity.ownerUserId)
-    ) {
-      throw new ReplicaContextChangedError();
-    }
-    transaction.objectStore(META_STORE).put(
-      {
-        ...descriptor,
-        identity: { ...identity, replicaId: descriptor.replicaId },
-        syncAuth: "authenticated",
-        legacyOwnership: { kind: "migrated" },
-      } satisfies ReplicaDescriptor,
-      DESCRIPTOR_KEY,
-    );
   });
 }
 
@@ -932,20 +894,4 @@ export async function createLocalRecoveryExport(): Promise<LocalRecoveryExport> 
     rows,
     outbox: outboxState.entries,
   };
-}
-
-/** Legacy deletion helper; blocked deletion is an error and rejected opens are retryable. */
-export async function deleteLocalDatabase(): Promise<void> {
-  const database = await openDatabase().catch(() => undefined);
-  database?.close();
-  databasePromise = undefined;
-
-  await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(INDEXED_DB_NAME);
-    request.addEventListener("success", () => resolve());
-    request.addEventListener("error", () => reject(request.error));
-    request.addEventListener("blocked", () =>
-      reject(new Error("Deleting the local database is blocked by another tab.")),
-    );
-  });
 }

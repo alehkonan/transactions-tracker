@@ -284,6 +284,3 @@ export type PushChangesResult = SyncSuccessContext & {
   /** The palette, refreshed: a push may have minted colors for categories that carried a hex. */
   colors: Color[];
 };
-
-/** The plain HTTP route uses JSON rather than the RPC transport, so every Date is an ISO string. */
-export type HttpPushChangesResult = SerializeDates<PushChangesResult>;

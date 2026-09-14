@@ -41,7 +41,7 @@ export async function clearAuthCookies(page: Page): Promise<void> {
   await context.addCookies(cookies.filter((cookie) => !AUTH_COOKIE_NAMES.has(cookie.name)));
 }
 
-export async function readReplicaCounts(page: Page): Promise<Record<string, number>> {
+async function readReplicaCounts(page: Page): Promise<Record<string, number>> {
   return page.evaluate(async () => {
     const request = indexedDB.open("transactions-tracker");
     const database = await new Promise<IDBDatabase>((resolve, reject) => {

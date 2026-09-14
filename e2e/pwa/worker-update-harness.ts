@@ -6,7 +6,7 @@ import { extname, resolve, sep } from "node:path";
 const PUBLIC_ROOT = resolve(process.cwd(), "dist", "client");
 const BUILD_ID_PATTERN = /^[a-f\d]{20}$/;
 
-export type ReleaseName = "A" | "B";
+type ReleaseName = "A" | "B";
 export type FaultMode = "interrupt" | "missing" | "redirect";
 
 type ArtifactMetadata = {

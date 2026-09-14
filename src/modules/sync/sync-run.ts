@@ -53,7 +53,7 @@ function changedRows(result: PullChangesResult): number {
   return Object.values(result.rows).reduce((total, rows) => total + rows.length, 0);
 }
 
-export type FullReplacementSnapshot = {
+type FullReplacementSnapshot = {
   rows: PullChangesResult["rows"];
   cursors: SyncCursors;
   colors: PullChangesResult["colors"];
