@@ -58,6 +58,15 @@ const CURSOR_OVERLAP_MS = 10_000;
  * plus the transactions they already hold (see `compute-balances.ts`), so it cannot disagree with
  * them. Spelled out rather than `getTableColumns` minus one, so adding a column is a decision.
  */
+/** Admits a sync run before the client reads or transmits any durable local obligations. */
+export const confirmSyncIdentity = createServerFn({ method: "POST" })
+  .middleware([loggerMiddleware, authMiddleware])
+  .validator((data: unknown) => data)
+  .handler(({ data, context }) => {
+    validateSyncRequest(checkIntegritySchema, data, context.user.id);
+    return { protocolVersion: SYNC_PROTOCOL_VERSION, ownerUserId: context.user.id };
+  });
+
 const accountSyncColumns = {
   id: accountsTable.id,
   name: accountsTable.name,

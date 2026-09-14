@@ -436,6 +436,9 @@ export function completeReplicaSignIn(
   identity: Omit<ReplicaIdentity, "replicaId">,
 ): Promise<void> {
   return transitionedTransaction([], expected, transitionId, (transaction, descriptor) => {
+    if (descriptor.legacyOwnership.kind === "recovery-required") {
+      throw new ReplicaRecoveryRequiredError();
+    }
     const existingOwner = effectiveContext(descriptor).ownerUserId;
     if (existingOwner != null && existingOwner !== identity.ownerUserId) {
       throw new ReplicaContextChangedError();

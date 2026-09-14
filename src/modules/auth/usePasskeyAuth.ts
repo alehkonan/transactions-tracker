@@ -40,7 +40,7 @@ async function unwrapServerResponse<T>(value: T): Promise<T> {
  * returning visitor who already has a passkey for this site is offered it by the browser and
  * signed in without pressing anything.
  */
-export function usePasskeyAuth() {
+export function usePasskeyAuth(enabled = true) {
   const navigate = useNavigate();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +54,7 @@ export function usePasskeyAuth() {
 
   const handleSignUp = useCallback(
     async (username: string) => {
+      if (!enabled) return;
       setError(null);
       setIsPending(true);
       try {
@@ -71,10 +72,11 @@ export function usePasskeyAuth() {
         setIsPending(false);
       }
     },
-    [onSignedIn],
+    [enabled, onSignedIn],
   );
 
   const handleSignIn = useCallback(async () => {
+    if (!enabled) return;
     setError(null);
     setIsPending(true);
     try {
@@ -90,12 +92,13 @@ export function usePasskeyAuth() {
     } finally {
       setIsPending(false);
     }
-  }, [onSignedIn]);
+  }, [enabled, onSignedIn]);
 
   useEffect(() => {
     let cancelled = false;
 
     const startAutofill = async () => {
+      if (!enabled) return;
       if (!browserSupportsWebAuthn()) {
         setIsSupported(false);
         return;
@@ -127,7 +130,7 @@ export function usePasskeyAuth() {
       cancelled = true;
       WebAuthnAbortService.cancelCeremony();
     };
-  }, [onSignedIn]);
+  }, [enabled, onSignedIn]);
 
   return { isSupported, isPending, error, handleSignUp, handleSignIn };
 }

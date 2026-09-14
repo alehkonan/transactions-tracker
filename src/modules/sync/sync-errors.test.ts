@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readSyncResponseError } from "./sync-errors";
+import { isReplicaOwnerMismatchError, readSyncResponseError } from "./sync-errors";
 
 describe("readSyncResponseError", () => {
   it.each([
@@ -16,5 +16,6 @@ describe("readSyncResponseError", () => {
 
     expect(error.code).toBe(expected);
     expect(error.status).toBe(status);
+    expect(isReplicaOwnerMismatchError(error)).toBe(expected === "REPLICA_OWNER_MISMATCH");
   });
 });

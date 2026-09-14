@@ -67,7 +67,7 @@ export function completeSignIn(
 ): Promise<SessionUser> {
   return runWithBrowserOperationLock(async () => {
     await recoverInterruptedReplicaTransition();
-    const replicaContext = await captureReplicaContext({ allowRecovery: true });
+    const replicaContext = await captureReplicaContext();
     if (intent === "sign-up" && replicaContext.ownerUserId != null) {
       throw new Error(
         "Sign out explicitly before creating a different account. Your current local data was not changed.",
@@ -95,7 +95,7 @@ export function completeSignIn(
         replicaId: replicaContext.replicaId,
         ownerUserId: identity.id,
       };
-      resumeSyncAfterSignIn(confirmedContext);
+      resumeSyncAfterSignIn(confirmedContext, identity.username);
       return identity;
     } catch (error) {
       const restored = await cancelReplicaTransition(replicaContext, transitionId).then(

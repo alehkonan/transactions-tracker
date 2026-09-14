@@ -35,7 +35,7 @@ export type SyncStatus =
   | "syncing"
   /** The last pull failed — usually just offline, so whatever is already held stays usable. */
   | "error"
-  /** The server rejected the call: the session is gone and the app has to go back to `/login`. */
+  /** The server rejected sync; local data remains open while reauthentication is required. */
   | "unauthorized";
 
 type SyncState = {
@@ -48,6 +48,10 @@ type SyncState = {
   isLocalBooted: boolean;
   /** Durable identity captured with the rows currently published in memory. */
   replicaContext: ReplicaContext | null;
+  /** Display-only owner name from durable replica metadata, never from an auth hint. */
+  replicaUsername: string | null;
+  /** An ambiguous v2 replica must be exported or explicitly discarded before auth/sync can proceed. */
+  recoveryRequired: boolean;
   /** Local-only view selection, persisted in the replica metadata rather than a cookie. */
   selectedProfileId: string | null;
   /** Durable admission state mirrored from the replica descriptor. */
@@ -100,6 +104,8 @@ function initialState(): SyncState {
     isHydrated: false,
     isLocalBooted: false,
     replicaContext: null,
+    replicaUsername: null,
+    recoveryRequired: false,
     selectedProfileId: null,
     syncAuth: "unknown",
     status: "idle",
@@ -180,21 +186,27 @@ export function applyServerRows(rows: Partial<SyncedRows>, colors?: Color[]): vo
 /** Replaces the whole working set with what IndexedDB holds — a boot, or a peer tab's write. */
 export function replaceRows(
   replicaContext: ReplicaContext,
+  replicaUsername: string | null,
   rows: SyncedRows,
   colors: Color[],
   usdRates: Record<string, number>,
   selectedProfileId: string | null,
 ) {
-  useSyncStore.setState({ replicaContext, ...rows, colors, usdRates, selectedProfileId });
+  useSyncStore.setState({
+    replicaContext,
+    replicaUsername,
+    recoveryRequired: false,
+    ...rows,
+    colors,
+    usdRates,
+    selectedProfileId,
+  });
 }
 
 /**
- * Drops the replicated rows and everything that describes how complete they were, putting the app
- * back behind the loading gate while they are pulled again from nothing.
- *
- * The counterpart of `clearLocalRows`, and used with it: a working set that outlived the database it
- * was read from would be re-persisted by the next merge, which is exactly the divergence being
- * repaired. Queued writes and the palette are untouched, for the same reasons they are on disk.
+ * Hides an invalidated in-memory working set while a durable replica lifecycle transition is in
+ * progress in another tab. Full refreshes do not use this path: they stage a complete replacement
+ * while the current working set remains visible.
  */
 export function clearWorkingSet(): void {
   useSyncStore.setState({

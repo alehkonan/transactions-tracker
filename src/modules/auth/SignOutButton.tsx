@@ -1,5 +1,4 @@
 import { Toast } from "@base-ui/react/toast";
-import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { signOut } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
@@ -12,8 +11,7 @@ import {
 } from "~/modules/auth/complete-sign-in";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 
-export function SignOutButton() {
-  const router = useRouter();
+export function SignOutButton({ label = "Sign out" }: { label?: string }) {
   const toastManager = Toast.useToastManager();
   const visibleOutboxCount = useSyncStore((state) => state.outboxCount);
   const [confirmedOutboxCount, setConfirmedOutboxCount] = useState<number | null>(null);
@@ -38,8 +36,7 @@ export function SignOutButton() {
     setIsPending(true);
     try {
       await completeSignOut(() => signOut(), confirmedOutboxCount ?? visibleOutboxCount);
-      // Invalidating re-runs the root guard, which now finds no session and redirects to /login.
-      await router.invalidate();
+      window.location.assign("/login");
     } catch (error) {
       if (error instanceof SignOutObligationsChangedError) {
         setConfirmedOutboxCount(error.outboxCount);
@@ -72,7 +69,7 @@ export function SignOutButton() {
       aria-label={confirmationTitle}
       renderTrigger={({ onOpen }) => (
         <Button variant="danger" onClick={() => void openConfirmation(onOpen)} disabled={isPending}>
-          {isPending ? "Signing out…" : "Sign out"}
+          {isPending ? "Signing out…" : label}
         </Button>
       )}
     >

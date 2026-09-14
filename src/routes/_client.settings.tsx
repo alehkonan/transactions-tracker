@@ -3,7 +3,6 @@ import { ChevronRightIcon } from "lucide-react";
 import { PageContainer } from "~/components/PageContainer";
 import { Title } from "~/components/Title";
 import { SecuritySection } from "~/modules/auth/SecuritySection";
-import { readSessionHint } from "~/modules/auth/session-hint";
 import { SignOutButton } from "~/modules/auth/SignOutButton";
 import { CategoryTag } from "~/modules/categories/CategoryTag";
 import { CreateCategoryButton } from "~/modules/categories/CreateCategoryButton";
@@ -21,9 +20,7 @@ export const Route = createFileRoute("/_client/settings")({
     const profiles = useSyncStore((state) => state.profiles);
     const profileId = useSelectedProfileId();
     const profile = profiles.find((candidate) => candidate.id === profileId);
-    // From the hint cookie rather than a `getSession()` call: the name is only being displayed, and
-    // this page has no business being the one thing in the app that needs the network.
-    const username = readSessionHint()?.username;
+    const username = useSyncStore((state) => state.replicaUsername);
 
     return (
       <PageContainer>
@@ -55,7 +52,7 @@ export const Route = createFileRoute("/_client/settings")({
                     <p className="text-text-muted text-sm">The account currently signed in.</p>
                   </div>
                   <span className="text-text max-w-[50%] min-w-0 text-right font-medium wrap-break-word">
-                    {username ?? "Signed in"}
+                    {username ?? "Local replica owner"}
                   </span>
                 </div>
 

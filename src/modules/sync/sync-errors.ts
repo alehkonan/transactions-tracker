@@ -25,6 +25,10 @@ const knownCodes = new Set<SyncErrorCode>([
 ]);
 
 /** Preserves the machine-readable server reason instead of collapsing every permanent failure to 409. */
+export function isReplicaOwnerMismatchError(error: unknown): error is SyncResponseError {
+  return error instanceof SyncResponseError && error.code === "REPLICA_OWNER_MISMATCH";
+}
+
 export function isTerminalSyncError(error: SyncResponseError): boolean {
   return (
     error.code === "REPLICA_OWNER_MISMATCH" ||

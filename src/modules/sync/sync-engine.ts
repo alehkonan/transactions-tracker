@@ -1,4 +1,9 @@
-import { checkIntegrity, pullChanges, pushChanges } from "~/api/sync.functions";
+import {
+  checkIntegrity,
+  confirmSyncIdentity,
+  pullChanges,
+  pushChanges,
+} from "~/api/sync.functions";
 import { hasLiveSessionHint } from "~/modules/auth/session-hint";
 import { runWithBrowserOperationLock } from "./browser-operation-lock";
 import {
@@ -25,7 +30,12 @@ import {
   type BoundReplicaContext,
   type ReplicaContext,
 } from "./replica-identity";
-import { isTerminalSyncError, readSyncResponseError } from "./sync-errors";
+import {
+  isReplicaOwnerMismatchError,
+  isTerminalSyncError,
+  readSyncResponseError,
+  SyncResponseError,
+} from "./sync-errors";
 import {
   runSync,
   type PullDeliveryResult,
@@ -76,6 +86,14 @@ const STALENESS_CHECK_MS = 60_000;
 /** How long a write waits for its neighbours before it goes out. */
 const PUSH_DEBOUNCE_MS = 1000;
 const MAX_PUSH_BACKOFF_MS = 30_000;
+const STARTUP_MARK_PREFIX = "transactions-tracker:";
+
+/** In-memory startup diagnostics only; no payloads are logged or transmitted. */
+function markStartup(name: string): void {
+  if (typeof performance !== "undefined" && typeof performance.mark === "function") {
+    performance.mark(`${STARTUP_MARK_PREFIX}${name}`);
+  }
+}
 
 /* -------------------------------------------------------------------------- */
 /* The mutex                                                                   */
@@ -131,8 +149,14 @@ export function announceReplicaTransition(replicaContext: ReplicaContext): void 
 }
 
 /** Publishes a completed same-user transition and resumes sync through the ordinary scheduler. */
-export function resumeSyncAfterSignIn(replicaContext: ReplicaContext): void {
-  useSyncStore.setState({ replicaContext, syncAuth: "authenticated", status: "idle", error: null });
+export function resumeSyncAfterSignIn(replicaContext: ReplicaContext, username?: string): void {
+  useSyncStore.setState({
+    replicaContext,
+    replicaUsername: username ?? useSyncStore.getState().replicaUsername,
+    syncAuth: "authenticated",
+    status: "idle",
+    error: null,
+  });
   announce({ type: "auth-completed", replicaId: replicaContext.replicaId });
   schedulePush(0, replicaContext);
 }
@@ -176,6 +200,19 @@ export async function finishReplicaReplacement(
 async function hydrateFromLocal(): Promise<boolean> {
   const snapshot = await readLocalSnapshot();
   const replicaContext = replicaContextFromDescriptor(snapshot.descriptor);
+  if (snapshot.descriptor.legacyOwnership.kind === "recovery-required") {
+    replaceOutboxState(snapshot.outbox);
+    useSyncStore.setState({
+      replicaContext,
+      replicaUsername: null,
+      recoveryRequired: true,
+      isLocalBooted: true,
+      syncAuth: "unknown",
+      status: "error",
+      error: "This legacy local replica needs recovery before it can be synchronized.",
+    });
+    return false;
+  }
   await assertCurrentReplicaContext(replicaContext);
 
   const visibleReplicaId = useSyncStore.getState().replicaContext?.replicaId;
@@ -187,6 +224,7 @@ async function hydrateFromLocal(): Promise<boolean> {
 
   replaceRows(
     replicaContext,
+    snapshot.descriptor.identity?.username ?? null,
     snapshot.rows,
     snapshot.colors,
     snapshot.usdRates,
@@ -202,7 +240,9 @@ async function hydrateFromLocal(): Promise<boolean> {
     isLocalBooted: true,
     ...(syncAuth === "login-required" || syncAuth === "owner-mismatch"
       ? { status: "error" as const, error: "Sign in again before synchronization resumes." }
-      : {}),
+      : !state.isHydrated
+        ? { status: "idle" as const, error: null }
+        : {}),
   }));
   return true;
 }
@@ -258,7 +298,14 @@ async function pullPage(
         result.protocolVersion !== SYNC_PROTOCOL_VERSION ||
         result.ownerUserId !== replicaContext.ownerUserId
       ) {
-        return { kind: "terminal", error: new Error("The sync response owner did not match.") };
+        return {
+          kind: "terminal",
+          error: new SyncResponseError(
+            "REPLICA_OWNER_MISMATCH",
+            409,
+            "The sync response owner did not match.",
+          ),
+        };
       }
       return { kind: "accepted", result };
     }
@@ -266,6 +313,59 @@ async function pullPage(
   } catch (error) {
     if (error instanceof Response) return classifyRejectedSyncResponse(error);
     return { kind: "retryable", error };
+  }
+}
+
+async function confirmRemoteReplicaOwner(
+  replicaContext: BoundReplicaContext,
+): Promise<SyncRunOutcome | null> {
+  try {
+    const result: { protocolVersion: number; ownerUserId: number } | Response =
+      await confirmSyncIdentity({
+        data: {
+          protocolVersion: SYNC_PROTOCOL_VERSION,
+          expectedOwnerUserId: replicaContext.ownerUserId,
+        },
+      });
+    if (!(result instanceof Response)) {
+      if (
+        result.protocolVersion === SYNC_PROTOCOL_VERSION &&
+        result.ownerUserId === replicaContext.ownerUserId
+      ) {
+        return null;
+      }
+      return {
+        kind: "terminal",
+        phase: "pull",
+        pushed: 0,
+        error: new SyncResponseError(
+          "REPLICA_OWNER_MISMATCH",
+          409,
+          "The sync response owner did not match.",
+        ),
+      };
+    }
+
+    const rejected = await classifyRejectedSyncResponse(result);
+    if (rejected.kind === "unauthorized") {
+      return { kind: "unauthorized", phase: "pull", pushed: 0, error: rejected.error };
+    }
+    if (rejected.kind === "terminal") {
+      return { kind: "terminal", phase: "pull", pushed: 0, error: rejected.error };
+    }
+    return { kind: "retryable", phase: "pull", pushed: 0, error: rejected.error };
+  } catch (error) {
+    if (error instanceof Response) {
+      const rejected = await classifyRejectedSyncResponse(error);
+      if (rejected.kind === "unauthorized") {
+        return { kind: "unauthorized", phase: "pull", pushed: 0, error: rejected.error };
+      }
+      if (rejected.kind === "terminal") {
+        return { kind: "terminal", phase: "pull", pushed: 0, error: rejected.error };
+      }
+      return { kind: "retryable", phase: "pull", pushed: 0, error: rejected.error };
+    }
+    return { kind: "retryable", phase: "pull", pushed: 0, error };
   }
 }
 
@@ -307,22 +407,25 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
   }
 
   useSyncStore.setState({ status: "syncing", error: null, syncedRows: 0, syncTotalRows: null });
-  const outcome = await runSync(mode, {
-    remote: { pull: (cursors, withCounts) => pullPage(replicaContext, cursors, withCounts) },
-    replica: {
-      readCursors: () => readLocalCursors(replicaContext),
-      hasQueuedWrites: async () => (await readOutboxState(replicaContext)).count > 0,
-      captureFullReplacement: async () => {
-        const snapshot = await readLocalSnapshot();
-        await assertCurrentReplicaContext(replicaContext);
-        return { localRevision: snapshot.localRevision };
+  const admissionFailure = await confirmRemoteReplicaOwner(replicaContext);
+  const outcome =
+    admissionFailure ??
+    (await runSync(mode, {
+      remote: { pull: (cursors, withCounts) => pullPage(replicaContext, cursors, withCounts) },
+      replica: {
+        readCursors: () => readLocalCursors(replicaContext),
+        hasQueuedWrites: async () => (await readOutboxState(replicaContext)).count > 0,
+        captureFullReplacement: async () => {
+          const snapshot = await readLocalSnapshot();
+          await assertCurrentReplicaContext(replicaContext);
+          return { localRevision: snapshot.localRevision };
+        },
+        replaceFullSnapshot: (snapshot) => replaceFullLocalSnapshot(replicaContext, snapshot),
+        commitPulledPage: (result) => commitPulledPage(replicaContext, result),
       },
-      replaceFullSnapshot: (snapshot) => replaceFullLocalSnapshot(replicaContext, snapshot),
-      commitPulledPage: (result) => commitPulledPage(replicaContext, result),
-    },
-    push: { drain: () => drainPageOutbox(replicaContext) },
-    onPage: (page) => applyPulledPage(replicaContext, page),
-  });
+      push: { drain: () => drainPageOutbox(replicaContext) },
+      onPage: (page) => applyPulledPage(replicaContext, page),
+    }));
 
   try {
     await assertCurrentReplicaContext(replicaContext);
@@ -354,7 +457,16 @@ async function runPageSync(mode: "normal" | "resync"): Promise<SyncRunOutcome> {
       error: toMessage(outcome.error),
     });
   } else if (outcome.kind === "terminal") {
-    useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
+    if (isReplicaOwnerMismatchError(outcome.error)) {
+      await setReplicaSyncAuth(replicaContext, "owner-mismatch");
+      useSyncStore.setState({
+        syncAuth: "owner-mismatch",
+        status: "error",
+        error: toMessage(outcome.error),
+      });
+    } else {
+      useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
+    }
   } else if (outcome.kind === "retryable") {
     useSyncStore.setState({ status: "error", error: toMessage(outcome.error) });
     if (outcome.phase === "push") {
@@ -406,7 +518,14 @@ async function sendPagePush(
         result.protocolVersion !== SYNC_PROTOCOL_VERSION ||
         result.ownerUserId !== replicaContext.ownerUserId
       ) {
-        return { kind: "terminal", error: new Error("The sync response owner did not match.") };
+        return {
+          kind: "terminal",
+          error: new SyncResponseError(
+            "REPLICA_OWNER_MISMATCH",
+            409,
+            "The sync response owner did not match.",
+          ),
+        };
       }
       return { kind: "accepted", result };
     }
@@ -747,6 +866,24 @@ let bootPromise: Promise<SyncRunOutcome> | undefined;
  */
 export function bootSync(): Promise<SyncRunOutcome> {
   bootPromise ??= (async (): Promise<SyncRunOutcome> => {
+    markStartup("boot-start");
+    let localSnapshotOpened = false;
+    markStartup("local-read-start");
+    try {
+      // Local inspection is deliberately outside the browser-wide network/auth lock. A browser that
+      // lacks Web Locks may still open and edit an active replica; only unsafe sync/auth transitions
+      // fail closed.
+      localSnapshotOpened = await hydrateFromLocal();
+    } catch (error) {
+      console.warn("Could not read the local database:", error);
+      useSyncStore.setState({ isLocalBooted: true, status: "error", error: toMessage(error) });
+    } finally {
+      markStartup("local-read-end");
+      if (useSyncStore.getState().isLocalBooted) markStartup("local-ready");
+    }
+
+    if (useSyncStore.getState().recoveryRequired) return blockedSyncOutcome();
+
     let recoveredTransition: ReplicaContext | null;
     try {
       recoveredTransition = await runExclusive(recoverInterruptedReplicaTransition);
@@ -755,18 +892,8 @@ export function bootSync(): Promise<SyncRunOutcome> {
       return { kind: "retryable", phase: "pull", pushed: 0, error };
     }
 
-    try {
-      // Writes can outlive the session that made them — the browser was closed, or offline, before
-      // the debounce fired. `hydrateFromLocal` reads the outbox with the rows, so the first pull
-      // knows which rows it must not apply the server's older copy over.
-      await hydrateFromLocal();
-    } catch (error) {
-      // Private-mode Safari and friends: no local copy, so every boot is a first run.
-      console.warn("Could not read the local database:", error);
-      useSyncStore.setState({ isLocalBooted: true, status: "error", error: toMessage(error) });
-    }
-
     if (recoveredTransition) {
+      if (!localSnapshotOpened) await hydrateFromLocal();
       const error = new Error("Sign in again before synchronization resumes.");
       pauseSyncAfterAuthFailure(recoveredTransition);
       return { kind: "unauthorized", phase: "pull", pushed: 0, error };
@@ -783,7 +910,9 @@ export function bootSync(): Promise<SyncRunOutcome> {
       return blockedSyncOutcome();
     }
 
+    markStartup("sync-start");
     const outcome = await syncNow();
+    markStartup("sync-end");
     // Best-effort eviction protection. The browser decides whether to grant this idempotent request;
     // when granted, it covers both IndexedDB and the service worker's Cache Storage.
     void navigator.storage?.persist?.().catch(() => {});
@@ -791,4 +920,10 @@ export function bootSync(): Promise<SyncRunOutcome> {
   })();
 
   return bootPromise;
+}
+
+/** Retries the complete local boot after a transient storage failure. */
+export function retryBootSync(): Promise<SyncRunOutcome> {
+  bootPromise = undefined;
+  return bootSync();
 }

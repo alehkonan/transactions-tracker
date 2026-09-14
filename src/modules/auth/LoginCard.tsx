@@ -9,7 +9,8 @@ import { PasswordAuthForm } from "~/modules/auth/PasswordAuthForm";
 import { SignOutButton } from "~/modules/auth/SignOutButton";
 import { usePasskeyAuth } from "~/modules/auth/usePasskeyAuth";
 import { type PasswordAuthMode, usePasswordAuthForm } from "~/modules/auth/usePasswordAuthForm";
-import { captureReplicaContext } from "~/modules/sync/idb";
+import { readReplicaDescriptor } from "~/modules/sync/idb";
+import { LocalRecoveryPanel } from "~/modules/sync/LocalRecoveryPanel";
 
 type PasskeySignUpFormValues = {
   username: string;
@@ -17,20 +18,42 @@ type PasskeySignUpFormValues = {
 
 export function LoginCard() {
   const [mode, setMode] = useState<PasswordAuthMode>("sign-in");
-  const passkey = usePasskeyAuth();
+  const [localReplicaState, setLocalReplicaState] = useState<
+    "checking" | "unbound" | "bound" | "recovery-required"
+  >("checking");
+  const authEnabled = localReplicaState === "unbound" || localReplicaState === "bound";
+  const passkey = usePasskeyAuth(authEnabled);
   const password = usePasswordAuthForm(mode);
   const { control, handleSubmit } = useForm<PasskeySignUpFormValues>({
     defaultValues: { username: "" },
   });
-  const [hasBoundReplica, setHasBoundReplica] = useState(false);
   const isPending = passkey.isPending || password.isPending;
   const onPasskeySignUp = handleSubmit(({ username }) => passkey.handleSignUp(username));
 
   useEffect(() => {
-    void captureReplicaContext({ allowRecovery: true })
-      .then((context) => setHasBoundReplica(context.ownerUserId != null))
-      .catch(() => setHasBoundReplica(false));
+    void readReplicaDescriptor()
+      .then((descriptor) => {
+        if (descriptor.legacyOwnership.kind === "recovery-required") {
+          setLocalReplicaState("recovery-required");
+        } else if (descriptor.identity != null || descriptor.legacyOwnership.kind === "candidate") {
+          setLocalReplicaState("bound");
+        } else {
+          setLocalReplicaState("unbound");
+        }
+        return undefined;
+      })
+      .catch(() => setLocalReplicaState("unbound"));
   }, []);
+
+  if (localReplicaState === "recovery-required") {
+    return (
+      <Card>
+        <LocalRecoveryPanel />
+      </Card>
+    );
+  }
+
+  const hasBoundReplica = localReplicaState === "bound";
 
   return (
     <Card>
@@ -60,7 +83,7 @@ export function LoginCard() {
             className={mode === "sign-in" ? undefined : "border-0"}
             aria-pressed={mode === "sign-in"}
             data-testid="password-auth-mode-sign-in"
-            disabled={isPending}
+            disabled={isPending || localReplicaState === "checking"}
             onClick={() => setMode("sign-in")}
           >
             Sign in
@@ -70,7 +93,7 @@ export function LoginCard() {
             className={mode === "sign-up" ? undefined : "border-0"}
             aria-pressed={mode === "sign-up"}
             data-testid="password-auth-mode-sign-up"
-            disabled={isPending}
+            disabled={isPending || localReplicaState === "checking"}
             onClick={() => setMode("sign-up")}
           >
             Create account
@@ -84,7 +107,7 @@ export function LoginCard() {
           onSubmit={password.onSubmit}
           error={password.error}
           isPending={password.isPending}
-          isDisabled={isPending}
+          isDisabled={isPending || localReplicaState === "checking"}
         />
 
         <div className="flex items-center gap-2">
@@ -107,14 +130,14 @@ export function LoginCard() {
                 label="Username for a new passkey account"
                 autoComplete="username webauthn"
                 placeholder="Pick a name"
-                disabled={isPending}
+                disabled={isPending || !authEnabled}
                 rules={{ required: "Pick a username to create an account." }}
                 description="Shown when your device asks which passkey to use."
               />
               <Button
                 variant="secondary"
                 type="submit"
-                disabled={isPending}
+                disabled={isPending || !authEnabled}
                 data-testid="passkey-auth-sign-up"
               >
                 <KeyRoundIcon className="size-4" />
@@ -124,7 +147,7 @@ export function LoginCard() {
             <Button
               variant="secondary"
               onClick={passkey.handleSignIn}
-              disabled={isPending}
+              disabled={isPending || !authEnabled}
               data-testid="passkey-auth-sign-in"
             >
               Sign in with a passkey
