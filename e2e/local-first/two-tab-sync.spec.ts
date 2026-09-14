@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { E2E_ACCOUNT_NAME, createTransaction, test, waitForSynced } from "./fixtures/auth";
+import { E2E_ACCOUNT_NAME, createTransaction, test, waitForSynced } from "../fixtures/auth";
 
 test("a transaction written in one tab appears in the other without a reload", async ({
   onboardedPage: pageA,

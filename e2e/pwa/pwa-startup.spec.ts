@@ -5,16 +5,44 @@ const CACHE_PREFIX = "transactions-tracker-";
 /** A ready registration alone is insufficient: offline assertions require a controlling worker. */
 async function ensureControlledShell(page: import("@playwright/test").Page): Promise<string> {
   await page.goto("/login");
-  await page.evaluate(async () => {
-    await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error("No service worker became ready within 10 seconds.")),
-          10_000,
-        ),
-      ),
+  const workerState = await page.evaluate(async () => {
+    const ready = await Promise.race([
+      navigator.serviceWorker.ready.then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), 10_000)),
     ]);
+    if (ready) return { ready: true, registration: "active", failedPrecache: [] as string[] };
+
+    const registration = await navigator.serviceWorker.getRegistration();
+    const artifacts = (await fetch("/offline-artifacts.json", { cache: "no-store" }).then(
+      (response) => response.json(),
+    )) as { precache: string[] };
+    const failedPrecache = (
+      await Promise.all(
+        artifacts.precache.map(async (url) => {
+          try {
+            const response = await fetch(url, { cache: "no-store" });
+            return response.ok ? null : `${url} (${response.status})`;
+          } catch (error) {
+            return `${url} (${error instanceof Error ? error.message : "fetch failed"})`;
+          }
+        }),
+      )
+    ).filter((failure): failure is string => failure != null);
+
+    return {
+      ready: false,
+      registration:
+        registration?.installing?.state ??
+        registration?.waiting?.state ??
+        registration?.active?.state ??
+        "missing",
+      failedPrecache,
+    };
+  });
+  expect(workerState, "service worker installation diagnostics").toMatchObject({
+    ready: true,
+    registration: "active",
+    failedPrecache: [],
   });
 
   if (!(await page.evaluate(() => navigator.serviceWorker.controller != null))) {
@@ -43,7 +71,7 @@ async function ensureControlledShell(page: import("@playwright/test").Page): Pro
 
 test("an anonymous production shell installs a valid controlling worker", async ({ page }) => {
   const buildId = await ensureControlledShell(page);
-  expect(buildId).toMatch(/^build-\d+$/);
+  expect(buildId).toMatch(/^[a-f\d]{20}$/);
 });
 
 test("a controlled shell does not wait for a slow navigation response", async ({ page }) => {

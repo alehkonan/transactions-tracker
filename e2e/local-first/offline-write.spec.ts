@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { createTransaction, test, waitForSynced } from "./fixtures/auth";
+import { createTransaction, test, waitForSynced } from "../fixtures/auth";
 
 test("an offline transaction queues locally and pushes after reconnect", async ({
   onboardedPage: page,

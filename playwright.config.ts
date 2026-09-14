@@ -9,7 +9,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
-    baseURL: "http://localhost:5454",
+    baseURL: "http://localhost:5455",
     trace: "on-first-retry",
     acceptDownloads: false,
   },
@@ -20,9 +20,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm dev",
-    url: "http://localhost:5454",
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    command: "pnpm build && pnpm preview --port 5455",
+    url: "http://localhost:5455/offline-artifacts.json",
+    reuseExistingServer: false,
+    timeout: 120_000,
   },
 });

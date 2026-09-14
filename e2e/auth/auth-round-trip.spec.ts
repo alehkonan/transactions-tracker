@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
-import { test } from "./fixtures/auth";
-import { test as passkeyTest } from "./fixtures/passkey-auth";
+import { test } from "../fixtures/auth";
+import { test as passkeyTest } from "../fixtures/passkey-auth";
 import type { Page } from "@playwright/test";
 
 async function signOut(page: Page) {

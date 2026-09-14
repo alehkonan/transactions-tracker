@@ -5,7 +5,7 @@ import {
   contextWithStaleHints,
   test,
   waitForSynced,
-} from "./fixtures/auth";
+} from "../fixtures/auth";
 
 test.describe("boot gate", () => {
   test("hydrates first-run and returning data, stays usable in a warm offline tab, and rejects a dead session", async ({
@@ -35,7 +35,7 @@ test.describe("boot gate", () => {
     try {
       const stalePage = await staleContext.newPage();
       await stalePage.goto("/");
-      await expect(stalePage).toHaveURL(/\/login$/, { timeout: 30_000 });
+      await expect(stalePage).toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
     } finally {
       await staleContext.close();
     }

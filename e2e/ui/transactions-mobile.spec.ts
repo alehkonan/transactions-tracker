@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { createTransaction, E2E_ACCOUNT_NAME, test } from "./fixtures/auth";
+import { createTransaction, E2E_ACCOUNT_NAME, test } from "../fixtures/auth";
 
 const TRANSACTION_COMMENT = "Mobile add action remains reachable";
 const FILTER_LAYOUT_COMMENT = "Clearing filters restores the ledger height";
