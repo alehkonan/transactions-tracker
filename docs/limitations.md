@@ -21,7 +21,7 @@ Runtime database work now uses:
 - `lock_timeout = 1500ms`;
 - `statement_timeout = 6s`;
 - `idle_in_transaction_session_timeout = 7s`;
-- `transaction_timeout = 8s` on PostgreSQL 17 or newer.
+- `transaction_timeout = 20s` on PostgreSQL 17 or newer.
 
 Retryable database failures are returned as sanitized `503 Service Unavailable` responses with `Retry-After: 2`, leaving the local outbox intact. These deadlines intentionally fail before the platform boundary; they do not make a slow database fast. On PostgreSQL versions before 17, there is no whole-transaction wall-clock deadline, only the statement, lock, and idle-transaction protections.
 

@@ -453,7 +453,7 @@ on `globalThis` in production too.
 
 **Runtime database work is fail-fast.** Pull, push, integrity, and session database operations run in
 bounded transactions with a 1.5s lock timeout, 6s statement timeout, 7s idle-transaction timeout, and
-an 8s whole-transaction timeout on PostgreSQL 17+. These database-side limits must remain below the
+a 20s whole-transaction timeout on PostgreSQL 17+. These database-side limits must remain below the
 platform request boundary so a terminated request does not leave work or locks behind. Logs record
 request and phase durations plus sanitized PostgreSQL classifications, never row payloads or secrets.
 
