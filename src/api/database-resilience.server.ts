@@ -6,7 +6,7 @@ import type { PgTransactionConfig } from "drizzle-orm/pg-core";
 const LOCK_TIMEOUT = "1500ms";
 const STATEMENT_TIMEOUT = "6s";
 const IDLE_TRANSACTION_TIMEOUT = "7s";
-const TRANSACTION_TIMEOUT = "8s";
+const TRANSACTION_TIMEOUT = "20s";
 
 /**
  * Runs request-path database work with PostgreSQL-enforced deadlines.
@@ -14,7 +14,7 @@ const TRANSACTION_TIMEOUT = "8s";
  * The settings are local to this transaction, which is safe for transaction pooling: no session state
  * can leak to the next client that Supavisor assigns to the backend. PostgreSQL remains responsible for
  * stopping the work if the HTTP request disappears before application code can observe the failure.
- * PostgreSQL 17+ also receives an eight-second whole-transaction timeout; older versions retain the
+ * PostgreSQL 17+ also receives a twenty-second whole-transaction timeout; older versions retain the
  * statement/lock/idle protections and expose the remaining total duration through phase logs.
  */
 export async function runDatabaseTransaction<T>(
