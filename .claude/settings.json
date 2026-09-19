@@ -29,20 +29,5 @@
     ],
     "ask": ["Bash(gh pr create:*)", "Bash(git commit:*)"],
     "deny": ["Read(*.env*)", "Bash(rm:*)", "Bash(curl:*)", "Bash(git push:*)"]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "if": "Bash(perl *)",
-            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/no-perl.sh",
-            "args": []
-          }
-        ]
-      }
-    ]
   }
 }
