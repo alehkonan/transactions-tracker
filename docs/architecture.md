@@ -191,9 +191,11 @@ every pushed row, via `ownership.server.ts` (all throwing 403):
   updates nothing rather than taking a stranger's row over.
 
 **Record ids from the client are never trusted on their own.** Every synced row names the profile it
-belongs to, and that claim is what gets checked. Transactions carry a denormalized `profileId` and
-scope directly on it — every write has to set it to the owning account's profile, since nothing in
-the database enforces that the two agree.
+belongs to, and that claim is what gets checked. Submitted ids are not authorization or affected-row
+evidence: balance recomputation only receives profiles proven owned by a scoped read or returned by a
+successful guarded write. Transactions carry a denormalized `profileId` and scope directly on it —
+every write has to set it to the owning account's profile, since nothing in the database enforces that
+the two agree.
 
 There is no profile middleware: the server never needs to know which profile is _selected_, only that
 the one a row names belongs to the caller.

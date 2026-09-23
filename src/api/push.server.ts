@@ -8,7 +8,18 @@ import {
 } from "~/database/tables";
 import type { TouchedIds } from "./apply-mutations.server";
 import type { Executor } from "~/database/get-db.server";
-import type { Color, SyncedRows } from "~/modules/sync/sync-types";
+import type { Color, SyncedRows, SyncedTable } from "~/modules/sync/sync-types";
+
+export type CanonicalRowReadOperation =
+  | "canonical.read-owned-profiles"
+  | `canonical.read.${SyncedTable}`;
+
+type CanonicalRowReadOperationRunner = <Result>(
+  operation: CanonicalRowReadOperation,
+  query: () => Promise<Result>,
+) => Promise<Result>;
+
+const runCanonicalRowRead: CanonicalRowReadOperationRunner = (_operation, query) => query();
 
 /**
  * The columns an account may replicate. Its derived `balance` stays server-side and is recomputed by
@@ -31,6 +42,7 @@ export async function readCanonicalRows(
   db: Executor,
   userId: number,
   touched: TouchedIds,
+  runOperation: CanonicalRowReadOperationRunner = runCanonicalRowRead,
 ): Promise<SyncedRows> {
   const ids = {
     profiles: [...touched.profiles],
@@ -39,52 +51,59 @@ export async function readCanonicalRows(
     transactions: [...touched.transactions],
   };
 
-  const ownProfiles = await db
-    .select({ id: profilesTable.id })
-    .from(profilesTable)
-    .where(eq(profilesTable.userId, userId));
+  const ownProfiles = await runOperation("canonical.read-owned-profiles", () =>
+    db.select({ id: profilesTable.id }).from(profilesTable).where(eq(profilesTable.userId, userId)),
+  );
   const profileIds = ownProfiles.map((profile) => profile.id);
 
   const [profiles, accounts, categories, transactions] = await Promise.all([
     ids.profiles.length === 0
       ? []
-      : db
-          .select()
-          .from(profilesTable)
-          .where(and(inArray(profilesTable.id, ids.profiles), eq(profilesTable.userId, userId))),
+      : runOperation("canonical.read.profiles", () =>
+          db
+            .select()
+            .from(profilesTable)
+            .where(and(inArray(profilesTable.id, ids.profiles), eq(profilesTable.userId, userId))),
+        ),
     ids.accounts.length === 0
       ? []
-      : db
-          .select(accountSyncColumns)
-          .from(accountsTable)
-          .where(
-            and(
-              inArray(accountsTable.id, ids.accounts),
-              inArray(accountsTable.profileId, profileIds),
+      : runOperation("canonical.read.accounts", () =>
+          db
+            .select(accountSyncColumns)
+            .from(accountsTable)
+            .where(
+              and(
+                inArray(accountsTable.id, ids.accounts),
+                inArray(accountsTable.profileId, profileIds),
+              ),
             ),
-          ),
+        ),
     ids.categories.length === 0
       ? []
-      : db
-          .select()
-          .from(categoriesTable)
-          .where(
-            and(
-              inArray(categoriesTable.id, ids.categories),
-              inArray(categoriesTable.profileId, profileIds),
+      : runOperation("canonical.read.categories", () =>
+          db
+            .select()
+            .from(categoriesTable)
+            .where(
+              and(
+                inArray(categoriesTable.id, ids.categories),
+                inArray(categoriesTable.profileId, profileIds),
+              ),
             ),
-          ),
+        ),
     ids.transactions.length === 0
       ? []
-      : db
-          .select()
-          .from(transactionsTable)
-          .where(
-            and(
-              inArray(transactionsTable.id, ids.transactions),
-              inArray(transactionsTable.profileId, profileIds),
+      : runOperation("canonical.read.transactions", () =>
+          db
+            .select()
+            .from(transactionsTable)
+            .where(
+              and(
+                inArray(transactionsTable.id, ids.transactions),
+                inArray(transactionsTable.profileId, profileIds),
+              ),
             ),
-          ),
+        ),
   ]);
 
   return { profiles, accounts, categories, transactions };
