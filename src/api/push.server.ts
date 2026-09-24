@@ -19,9 +19,7 @@ import type {
   SyncedTransaction,
 } from "~/modules/sync/sync-types";
 
-export type CanonicalRowReadOperation =
-  | "canonical.read-owned-profiles"
-  | `canonical.read.${SyncedTable}`;
+type CanonicalRowReadOperation = "canonical.read-owned-profiles" | `canonical.read.${SyncedTable}`;
 
 type CanonicalRowReadOperationRunner = <Result>(
   operation: CanonicalRowReadOperation,
