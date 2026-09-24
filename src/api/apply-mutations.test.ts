@@ -69,15 +69,12 @@ describe("createApplyMutations", () => {
           appliedAt: new Date(`2026-09-18T01:00:0${index}.000Z`),
         })),
       ],
-      "authorization.owned-profiles": mutations.map(() => [{ id: profileId }]),
+      "authorization.owned-profiles": [[{ id: profileId, name: "Main", deletedAt: null }]],
       "conflict.read.accounts": mutations.map((_, index) => [
         { id: accountId, updatedAt: serverTimes[index] },
       ]),
-      "authorization.target-profiles": mutations.map(() => undefined),
-      "mutation.upsert.accounts": mutations.map(() => [{ id: accountId }]),
-      "canonical.read-owned-profiles": mutations.map(() => [{ id: profileId }]),
+      "mutation.upsert.accounts": mutations.map(() => [{ id: accountId, profileId }]),
       "canonical.read.accounts": canonicalAccounts,
-      "acceptance.profile-labels": mutations.map(() => [{ id: profileId, name: "Main" }]),
       "receipt.persist-outcomes": mutations.map(() => undefined),
       "balance.recompute": [undefined],
     });
@@ -88,23 +85,22 @@ describe("createApplyMutations", () => {
     const expectedRunOperations = mutations.flatMap(
       () =>
         [
-          "authorization.owned-profiles",
           "conflict.read.accounts",
-          "authorization.target-profiles",
           "mutation.upsert.accounts",
-          "canonical.read-owned-profiles",
           "canonical.read.accounts",
-          "acceptance.profile-labels",
           "receipt.persist-outcomes",
         ] satisfies ApplyMutationOperation[],
     );
     expect(operations).toEqual([
       "receipt.claim",
       "receipt.read",
+      "authorization.owned-profiles",
       ...expectedRunOperations,
       "balance.recompute",
     ]);
-    expect(operations.length).toBeGreaterThan(mutations.length + 9);
+    expect(
+      operations.filter((operation) => operation === "authorization.owned-profiles"),
+    ).toHaveLength(1);
     expect(result.conflicts.map((conflict) => conflict.mutationId)).toEqual(
       mutations.map((mutation) => mutation.mutationId),
     );
@@ -131,8 +127,8 @@ describe("createApplyMutations", () => {
           },
         ],
       ],
+      "authorization.owned-profiles": [[]],
       "conflict.read.profiles": [[]],
-      "authorization.live-profiles": [[]],
       "mutation.tombstone.profiles": [[]],
     });
     const applyMutations = createApplyMutations(runOperation);
@@ -143,8 +139,8 @@ describe("createApplyMutations", () => {
     expect(operations).toEqual([
       "receipt.claim",
       "receipt.read",
+      "authorization.owned-profiles",
       "conflict.read.profiles",
-      "authorization.live-profiles",
       "mutation.tombstone.profiles",
     ]);
   });
@@ -203,15 +199,13 @@ describe("createApplyMutations", () => {
           appliedAt: new Date("2026-09-18T12:00:01.000Z"),
         })),
       ],
+      "authorization.owned-profiles": [[]],
       "conflict.read.profiles": [[]],
-      "mutation.upsert.profiles": [[{ id: profileId }]],
-      "authorization.owned-profiles": [[{ id: profileId }], [{ id: profileId }]],
+      "mutation.upsert.profiles": [[{ id: profileId, name: "Main" }]],
       "conflict.read.accounts": [[]],
       "conflict.read.transactions": [[]],
-      "authorization.target-profiles": [undefined, undefined],
-      "mutation.upsert.accounts": [[{ id: accountId }]],
-      "authorization.transaction-accounts": [undefined],
-      "mutation.upsert.transactions": [[{ id: transactionId }]],
+      "mutation.upsert.accounts": [[{ id: accountId, profileId }]],
+      "mutation.upsert.transactions": [[{ id: transactionId, profileId }]],
       "balance.recompute": [undefined],
     });
     const applyMutations = createApplyMutations(runOperation);
@@ -223,19 +217,124 @@ describe("createApplyMutations", () => {
     expect(operations).toEqual([
       "receipt.claim",
       "receipt.read",
+      "authorization.owned-profiles",
       "conflict.read.profiles",
       "mutation.upsert.profiles",
-      "authorization.owned-profiles",
       "conflict.read.accounts",
-      "authorization.target-profiles",
       "mutation.upsert.accounts",
-      "authorization.owned-profiles",
       "conflict.read.transactions",
-      "authorization.target-profiles",
-      "authorization.transaction-accounts",
       "mutation.upsert.transactions",
       "balance.recompute",
     ]);
+  });
+
+  it("uses a profile rename only for later acceptance presentation", async () => {
+    const accountMutationId = "00000000-0000-7000-8000-000000000062";
+    const mutations = [
+      {
+        mutationId: "00000000-0000-7000-8000-000000000061",
+        rowId: profileId,
+        baseUpdatedAt: 1,
+        table: "profiles",
+        op: "upsert",
+        payload: { name: "Renamed" },
+      },
+      {
+        mutationId: accountMutationId,
+        rowId: accountId,
+        baseUpdatedAt: 1,
+        table: "accounts",
+        op: "upsert",
+        payload: {
+          name: "Wallet",
+          initialBalance: "0.00",
+          currencyCode: "USD",
+          status: "ACTIVE",
+          type: "CURRENT",
+          profileId,
+        },
+      },
+    ] satisfies Mutation[];
+    const serverUpdatedAt = new Date("2026-09-18T00:00:00.000Z");
+    const { runOperation } = createRecordingRunner({
+      "receipt.claim": [mutations.map(({ mutationId }) => ({ mutationId }))],
+      "receipt.read": [
+        mutations.map((mutation) => ({
+          mutationId: mutation.mutationId,
+          intentFingerprint: fingerprintMutation(mutation),
+          conflictOutcome: null,
+          appliedAt: new Date("2026-09-18T00:00:01.000Z"),
+        })),
+      ],
+      "authorization.owned-profiles": [[{ id: profileId, name: "Main", deletedAt: null }]],
+      "conflict.read.profiles": [[{ id: profileId, updatedAt: serverUpdatedAt }]],
+      "mutation.upsert.profiles": [[{ id: profileId, name: "Renamed" }]],
+      "canonical.read.profiles": [
+        [
+          {
+            id: profileId,
+            name: "Renamed",
+            userId,
+            updatedAt: serverUpdatedAt,
+            deletedAt: null,
+          },
+        ],
+      ],
+      "conflict.read.accounts": [[{ id: accountId, updatedAt: serverUpdatedAt }]],
+      "mutation.upsert.accounts": [[{ id: accountId, profileId }]],
+      "canonical.read.accounts": [
+        [
+          {
+            id: accountId,
+            name: "Wallet",
+            initialBalance: "0.00",
+            currencyCode: "USD",
+            status: "ACTIVE",
+            type: "CURRENT",
+            profileId,
+            updatedAt: serverUpdatedAt,
+            deletedAt: null,
+          },
+        ],
+      ],
+      "receipt.persist-outcomes": [undefined, undefined],
+      "balance.recompute": [undefined],
+    });
+
+    const result = await createApplyMutations(runOperation)({} as Executor, userId, mutations);
+
+    expect(result.conflicts.map((conflict) => conflict.presentationContext.profileName)).toEqual([
+      "Main",
+      "Renamed",
+    ]);
+  });
+
+  it("skips authorization context loads for an all-receipted replay", async () => {
+    const mutation = {
+      mutationId: "00000000-0000-7000-8000-000000000051",
+      rowId: accountId,
+      baseUpdatedAt: null,
+      table: "accounts",
+      op: "delete",
+    } satisfies Mutation;
+    const { operations, runOperation } = createRecordingRunner({
+      "receipt.claim": [[]],
+      "receipt.read": [
+        [
+          {
+            mutationId: mutation.mutationId,
+            intentFingerprint: fingerprintMutation(mutation),
+            conflictOutcome: null,
+            appliedAt: new Date("2026-09-18T00:00:00.000Z"),
+          },
+        ],
+      ],
+    });
+
+    const result = await createApplyMutations(runOperation)({} as Executor, userId, [mutation]);
+
+    expect(result.applied).toEqual([mutation.mutationId]);
+    expect(operations).toEqual(["receipt.claim", "receipt.read"]);
   });
 
   it("does not schedule balance recomputation for a guarded foreign profile collision", async () => {
@@ -259,6 +358,7 @@ describe("createApplyMutations", () => {
           },
         ],
       ],
+      "authorization.owned-profiles": [[]],
       "conflict.read.profiles": [[]],
       "mutation.upsert.profiles": [[]],
     });
@@ -270,6 +370,7 @@ describe("createApplyMutations", () => {
     expect(operations).toEqual([
       "receipt.claim",
       "receipt.read",
+      "authorization.owned-profiles",
       "conflict.read.profiles",
       "mutation.upsert.profiles",
     ]);

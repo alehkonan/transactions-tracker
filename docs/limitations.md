@@ -66,7 +66,7 @@ Canonical rereads are scoped by user/profile, which prevents the previously iden
 
 ## Sync query cost
 
-- Push batches can repeat authorization and conflict reads across mutation runs.
+- Push batches use one transaction-local authorization context, but still repeat conflict reads across mutation runs.
 - Balance recomputation currently touches every live account in each affected profile rather than only accounts whose transactions changed.
 - Every foreground sync run first performs an identity-only authenticated preflight. It adds one request, but prevents a mismatched live session from receiving local mutation IDs, row IDs, payloads, or cursors before owner rejection.
 - A first pull page performs ownership, four table-page, palette, optional backlog-count, and optional currency-rate operations. With `max: 1`, SQL launched together is still serialized on one connection.

@@ -7,12 +7,11 @@ import {
   profilesTable,
   transactionsTable,
 } from "~/database/tables";
-import { fingerprintMutation, MutationIntentMismatchError } from "./mutation-receipts.server";
 import {
-  assertAccountsInProfile,
-  assertCategoriesInProfile,
-  assertProfilesOwnedBy,
-} from "./ownership.server";
+  createBatchAuthorization,
+  type BatchAuthorizationOperation,
+} from "./batch-authorization.server";
+import { fingerprintMutation, MutationIntentMismatchError } from "./mutation-receipts.server";
 import { readCanonicalRows, type CanonicalRowReadOperation } from "./push.server";
 import { withSyncPhase } from "./sync-observability.server";
 import type { SQL } from "drizzle-orm";
@@ -32,16 +31,11 @@ export type ApplyMutationOperation =
   | "receipt.claim"
   | "receipt.read"
   | `conflict.read.${SyncedTable}`
-  | "authorization.owned-profiles"
-  | "authorization.live-profiles"
-  | "authorization.target-profiles"
-  | "authorization.transaction-accounts"
-  | "authorization.transaction-categories"
+  | BatchAuthorizationOperation
   | `mutation.tombstone.${SyncedTable}`
   | `mutation.upsert.${SyncedTable}`
   | "color.insert"
   | "color.read"
-  | "acceptance.profile-labels"
   | "receipt.persist-outcomes"
   | "balance.recompute";
 
@@ -127,34 +121,6 @@ const syncedTables = {
 
 /** The ids this batch touched, per table — what the caller reads canonical rows back for. */
 export type TouchedIds = Record<SyncedTable, Set<string>>;
-
-/**
- * The caller's profiles, re-read per run rather than once.
- *
- * A batch can create a profile and then write into it, so "which profiles are mine" is a question
- * whose answer changes as the batch is applied. It is one indexed read of a table holding a handful
- * of rows.
- */
-async function ownProfileIds(
-  db: Executor,
-  userId: number,
-  runOperation: ApplyMutationOperationRunner,
-): Promise<string[]> {
-  const rows = await runOperation("authorization.owned-profiles", () =>
-    withSyncPhase(
-      "push.authorization",
-      () =>
-        db
-          .select({ id: profilesTable.id })
-          .from(profilesTable)
-          .where(eq(profilesTable.userId, userId)),
-      { authorizationCheck: "owned_profiles" },
-      (profiles) => ({ rowCount: profiles.length }),
-    ),
-  );
-
-  return rows.map((row) => row.id);
-}
 
 /**
  * Reports rows this run is about to write over that have moved on since the client last saw them.
@@ -478,9 +444,11 @@ async function executeApplyMutations(
     };
     for (const staleBase of staleBases) staleTouched[staleBase.table].add(staleBase.rowId);
 
+    if (!authorization) throw new Error("Batch authorization was not initialized.");
     const canonicalRows = await withSyncPhase(
       "push.acceptance_outcomes",
-      () => readCanonicalRows(db, userId, staleTouched, runOperation),
+      () =>
+        readCanonicalRows(db, userId, staleTouched, runOperation, authorization.ownedProfileIds()),
       { conflictCount: staleBases.length },
     );
     const contexts = staleBases.map((staleBase) => {
@@ -498,19 +466,6 @@ async function executeApplyMutations(
         profileId: acceptanceProfileId(mutation, canonicalRow),
       };
     });
-    const contextProfileIds = [...new Set(contexts.flatMap((context) => context.profileId ?? []))];
-    const contextProfiles =
-      contextProfileIds.length === 0
-        ? []
-        : await runOperation("acceptance.profile-labels", () =>
-            db
-              .select({ id: profilesTable.id, name: profilesTable.name })
-              .from(profilesTable)
-              .where(
-                and(eq(profilesTable.userId, userId), inArray(profilesTable.id, contextProfileIds)),
-              ),
-          );
-    const profileNameById = new Map(contextProfiles.map((profile) => [profile.id, profile.name]));
     const newOutcomes: PushConflict[] = contexts.map(
       ({ staleBase, mutation, receipt, canonicalRow, profileId }) => ({
         mutationId: staleBase.mutationId,
@@ -525,7 +480,7 @@ async function executeApplyMutations(
         acceptedAt: receipt.appliedAt.toISOString(),
         presentationContext: {
           profileId,
-          profileName: profileId == null ? null : (profileNameById.get(profileId) ?? null),
+          profileName: profileId == null ? null : authorization.profileName(profileId),
           entityLabel: acceptanceEntityLabel(mutation, canonicalRow),
         },
         canonicalRow: serializeCanonicalRow(canonicalRow),
@@ -554,10 +509,17 @@ async function executeApplyMutations(
     );
   };
 
+  const authorization =
+    unreceiptedMutations.length === 0
+      ? null
+      : await createBatchAuthorization(db, userId, unreceiptedMutations, runOperation);
+
   // Mutation runs must remain sequential: later rows can depend on parents created earlier in the batch.
   /* oxlint-disable no-await-in-loop */
   for (const run of toRuns(unreceiptedMutations)) {
+    if (!authorization) throw new Error("Batch authorization was not initialized.");
     const ids = run.mutations.map((mutation) => mutation.rowId);
+    const authorized = authorization.authorize(run.mutations);
 
     if (run.table === "profiles") {
       // A profile's own scope is its owner. Nothing is asserted up front: an insert stamps `userId`
@@ -570,25 +532,7 @@ async function executeApplyMutations(
         // Profiles are tombstoned rather than hard-deleted so delta pulls can carry the deletion to
         // other devices. That means the database FK cascade does not run; mirror it explicitly for
         // every child table before tombstoning the profile itself.
-        const ownedLiveProfiles = await runOperation("authorization.live-profiles", () =>
-          withSyncPhase(
-            "push.authorization",
-            () =>
-              db
-                .select({ id: profilesTable.id })
-                .from(profilesTable)
-                .where(
-                  and(
-                    inArray(profilesTable.id, ids),
-                    eq(profilesTable.userId, userId),
-                    isNull(profilesTable.deletedAt),
-                  ),
-                ),
-            { authorizationCheck: "live_profiles", mutationCount: run.mutations.length },
-            (profiles) => ({ rowCount: profiles.length }),
-          ),
-        );
-        const ownedLiveProfileIds = ownedLiveProfiles.map((profile) => profile.id);
+        const ownedLiveProfileIds = authorized.liveTargetProfileIds;
         for (const id of ownedLiveProfileIds) profileIds.add(id);
 
         const affectedRowIds = await withSyncPhase(
@@ -630,6 +574,10 @@ async function executeApplyMutations(
         );
         recordAppliedMutations(run, affectedRowIds, appliedMutationIds);
         await persistAcceptanceOutcomes(runStaleBases);
+        authorization.observe(
+          run.mutations,
+          affectedRowIds.map((id) => ({ id })),
+        );
         continue;
       }
 
@@ -652,7 +600,7 @@ async function executeApplyMutations(
                 set: { name: excluded(profilesTable.name), updatedAt: now() },
                 setWhere: and(scope, isNull(profilesTable.deletedAt)),
               })
-              .returning({ id: profilesTable.id }),
+              .returning({ id: profilesTable.id, name: profilesTable.name }),
           { table: run.table, operation: run.op, mutationCount: run.mutations.length },
         ),
       );
@@ -664,12 +612,13 @@ async function executeApplyMutations(
 
       for (const { id } of affectedRowIds) profileIds.add(id);
       await persistAcceptanceOutcomes(runStaleBases);
+      authorization.observe(run.mutations, affectedRowIds);
       continue;
     }
 
-    const owned = await ownProfileIds(db, userId, runOperation);
+    const owned = authorized.ownedProfileIds;
     const table = syncedTables[run.table];
-    // A row outside the caller's profiles is not theirs to see, let alone write.
+    // A row outside the caller's proven profiles is not theirs to see, let alone write.
     const scope = inArray(table.profileId, owned);
 
     const runStaleBases = await findStaleBases(db, run, scope, runOperation);
@@ -713,26 +662,12 @@ async function executeApplyMutations(
       for (const id of owned) profileIds.add(id);
 
       await persistAcceptanceOutcomes(runStaleBases);
+      authorization.observe(
+        run.mutations,
+        affectedRowIds.map((id) => ({ id })),
+      );
       continue;
     }
-
-    // Everything below is an upsert, so every mutation carries a payload naming the profile it
-    // belongs to — the one claim the whole write path rests on.
-    const targetProfileIds = run.mutations.flatMap((mutation) =>
-      mutation.payload.profileId == null ? [] : [mutation.payload.profileId],
-    );
-    await runOperation("authorization.target-profiles", () =>
-      withSyncPhase(
-        "push.authorization",
-        () => assertProfilesOwnedBy(userId, targetProfileIds, db),
-        {
-          authorizationCheck: "target_profiles",
-          table: run.table,
-          mutationCount: run.mutations.length,
-        },
-      ),
-    );
-    for (const id of targetProfileIds) profileIds.add(id);
 
     if (run.table === "accounts") {
       const affectedRowIds = await runOperation("mutation.upsert.accounts", () =>
@@ -767,7 +702,7 @@ async function executeApplyMutations(
                   isNull(accountsTable.deletedAt),
                 ),
               })
-              .returning({ id: accountsTable.id }),
+              .returning({ id: accountsTable.id, profileId: accountsTable.profileId }),
           { table: run.table, operation: run.op, mutationCount: run.mutations.length },
         ),
       );
@@ -778,6 +713,10 @@ async function executeApplyMutations(
       );
 
       await persistAcceptanceOutcomes(runStaleBases);
+      authorization.observe(run.mutations, affectedRowIds);
+      for (const { profileId } of affectedRowIds) {
+        if (profileId != null) profileIds.add(profileId);
+      }
       continue;
     }
 
@@ -823,7 +762,7 @@ async function executeApplyMutations(
                   isNull(categoriesTable.deletedAt),
                 ),
               })
-              .returning({ id: categoriesTable.id }),
+              .returning({ id: categoriesTable.id, profileId: categoriesTable.profileId }),
           { table: run.table, operation: run.op, mutationCount: run.mutations.length },
         ),
       );
@@ -834,51 +773,12 @@ async function executeApplyMutations(
       );
 
       await persistAcceptanceOutcomes(runStaleBases);
+      authorization.observe(run.mutations, affectedRowIds);
+      for (const { profileId } of affectedRowIds) {
+        if (profileId != null) profileIds.add(profileId);
+      }
       continue;
     }
-
-    // Transactions. The account and category a row is filed against are client ids too, so they get
-    // the same treatment as the profile — grouped by profile, since one batch may span several.
-    const byProfile = new Map<
-      string,
-      { accountIds: (string | null)[]; categoryIds: (string | null)[] }
-    >();
-    for (const { payload } of run.mutations) {
-      const group = byProfile.get(payload.profileId) ?? { accountIds: [], categoryIds: [] };
-      group.accountIds.push(payload.accountId);
-      group.categoryIds.push(payload.categoryId);
-      byProfile.set(payload.profileId, group);
-    }
-    await withSyncPhase(
-      "push.authorization",
-      () => {
-        const referenceChecks: Promise<void>[] = [];
-        for (const [profileId, group] of byProfile) {
-          const accountIds = group.accountIds.filter((id) => id != null);
-          const categoryIds = group.categoryIds.filter((id) => id != null);
-          if (accountIds.length > 0) {
-            referenceChecks.push(
-              runOperation("authorization.transaction-accounts", () =>
-                assertAccountsInProfile(profileId, accountIds, db),
-              ),
-            );
-          }
-          if (categoryIds.length > 0) {
-            referenceChecks.push(
-              runOperation("authorization.transaction-categories", () =>
-                assertCategoriesInProfile(profileId, categoryIds, db),
-              ),
-            );
-          }
-        }
-        return Promise.all(referenceChecks);
-      },
-      {
-        authorizationCheck: "transaction_references",
-        profileCount: byProfile.size,
-        mutationCount: run.mutations.length,
-      },
-    );
 
     const affectedRowIds = await runOperation("mutation.upsert.transactions", () =>
       withSyncPhase(
@@ -920,7 +820,7 @@ async function executeApplyMutations(
                 isNull(transactionsTable.deletedAt),
               ),
             })
-            .returning({ id: transactionsTable.id }),
+            .returning({ id: transactionsTable.id, profileId: transactionsTable.profileId }),
         { table: run.table, operation: run.op, mutationCount: run.mutations.length },
       ),
     );
@@ -930,6 +830,8 @@ async function executeApplyMutations(
       appliedMutationIds,
     );
     await persistAcceptanceOutcomes(runStaleBases);
+    authorization.observe(run.mutations, affectedRowIds);
+    for (const { profileId } of affectedRowIds) profileIds.add(profileId);
   }
   /* oxlint-enable no-await-in-loop */
 

@@ -43,6 +43,7 @@ export async function readCanonicalRows(
   userId: number,
   touched: TouchedIds,
   runOperation: CanonicalRowReadOperationRunner = runCanonicalRowRead,
+  provenProfileIds?: string[],
 ): Promise<SyncedRows> {
   const ids = {
     profiles: [...touched.profiles],
@@ -51,10 +52,16 @@ export async function readCanonicalRows(
     transactions: [...touched.transactions],
   };
 
-  const ownProfiles = await runOperation("canonical.read-owned-profiles", () =>
-    db.select({ id: profilesTable.id }).from(profilesTable).where(eq(profilesTable.userId, userId)),
-  );
-  const profileIds = ownProfiles.map((profile) => profile.id);
+  const profileIds =
+    provenProfileIds ??
+    (
+      await runOperation("canonical.read-owned-profiles", () =>
+        db
+          .select({ id: profilesTable.id })
+          .from(profilesTable)
+          .where(eq(profilesTable.userId, userId)),
+      )
+    ).map((profile) => profile.id);
 
   const [profiles, accounts, categories, transactions] = await Promise.all([
     ids.profiles.length === 0
