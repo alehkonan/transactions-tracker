@@ -7,8 +7,17 @@ import {
   transactionsTable,
 } from "~/database/tables";
 import type { TouchedIds } from "./apply-mutations.server";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { Executor } from "~/database/get-db.server";
-import type { Color, SyncedRows, SyncedTable } from "~/modules/sync/sync-types";
+import type {
+  Color,
+  SyncedAccount,
+  SyncedCategory,
+  SyncedProfile,
+  SyncedRows,
+  SyncedTable,
+  SyncedTransaction,
+} from "~/modules/sync/sync-types";
 
 export type CanonicalRowReadOperation =
   | "canonical.read-owned-profiles"
@@ -25,7 +34,15 @@ const runCanonicalRowRead: CanonicalRowReadOperationRunner = (_operation, query)
  * The columns an account may replicate. Its derived `balance` stays server-side and is recomputed by
  * `applyMutations` instead of becoming another value for two offline devices to fight over.
  */
-const accountSyncColumns = {
+export const profileSyncColumns = {
+  id: profilesTable.id,
+  name: profilesTable.name,
+  userId: profilesTable.userId,
+  updatedAt: profilesTable.updatedAt,
+  deletedAt: profilesTable.deletedAt,
+} satisfies Record<keyof SyncedProfile, AnyPgColumn>;
+
+export const accountSyncColumns = {
   id: accountsTable.id,
   name: accountsTable.name,
   initialBalance: accountsTable.initialBalance,
@@ -35,7 +52,30 @@ const accountSyncColumns = {
   profileId: accountsTable.profileId,
   updatedAt: accountsTable.updatedAt,
   deletedAt: accountsTable.deletedAt,
-};
+} satisfies Record<keyof SyncedAccount, AnyPgColumn>;
+
+export const categorySyncColumns = {
+  id: categoriesTable.id,
+  name: categoriesTable.name,
+  profileId: categoriesTable.profileId,
+  colorId: categoriesTable.colorId,
+  updatedAt: categoriesTable.updatedAt,
+  deletedAt: categoriesTable.deletedAt,
+} satisfies Record<keyof SyncedCategory, AnyPgColumn>;
+
+export const transactionSyncColumns = {
+  id: transactionsTable.id,
+  type: transactionsTable.type,
+  necessityLevel: transactionsTable.necessityLevel,
+  amount: transactionsTable.amount,
+  comment: transactionsTable.comment,
+  createdAt: transactionsTable.createdAt,
+  accountId: transactionsTable.accountId,
+  categoryId: transactionsTable.categoryId,
+  profileId: transactionsTable.profileId,
+  updatedAt: transactionsTable.updatedAt,
+  deletedAt: transactionsTable.deletedAt,
+} satisfies Record<keyof SyncedTransaction, AnyPgColumn>;
 
 /** Reads exactly the rows touched by a push, in the shape shared with the local stores. */
 export async function readCanonicalRows(
@@ -68,7 +108,7 @@ export async function readCanonicalRows(
       ? []
       : runOperation("canonical.read.profiles", () =>
           db
-            .select()
+            .select(profileSyncColumns)
             .from(profilesTable)
             .where(and(inArray(profilesTable.id, ids.profiles), eq(profilesTable.userId, userId))),
         ),
@@ -89,7 +129,7 @@ export async function readCanonicalRows(
       ? []
       : runOperation("canonical.read.categories", () =>
           db
-            .select()
+            .select(categorySyncColumns)
             .from(categoriesTable)
             .where(
               and(
@@ -102,7 +142,7 @@ export async function readCanonicalRows(
       ? []
       : runOperation("canonical.read.transactions", () =>
           db
-            .select()
+            .select(transactionSyncColumns)
             .from(transactionsTable)
             .where(
               and(
