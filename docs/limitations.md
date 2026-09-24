@@ -31,7 +31,7 @@ The runtime client keeps one connection per isolate, disables prepared statement
 
 Push delivery uses a durable receipt keyed by `(user_id, mutation_id)`, written atomically with the mutation. New receipts bind the identity to a full-intent fingerprint and retain any immutable acceptance-time stale-base outcome, so a lost response can be replayed without repeating the write or changing its historical result. Pre-upgrade receipts remain acknowledgeable but have no reconstructable historical outcome. Receipts are retained indefinitely because the maximum offline/retry window has not been defined; their storage growth must be measured before adding any cleanup policy.
 
-Canonical rereads are scoped by user/profile, which prevents the previously identified cross-user disclosure. They still reread submitted IDs after mutation execution instead of collecting only affected rows with SQL `RETURNING`.
+Acceptance-time conflict outcomes reuse authorized, locked pre-write snapshots and complete mutation `RETURNING` rows. Receipt outcomes are persisted once per batch; the separate post-commit canonical read remains necessary to settle the local replica and recover after a lost response.
 
 ## Local replica recovery and browser storage
 
@@ -66,7 +66,7 @@ Canonical rereads are scoped by user/profile, which prevents the previously iden
 
 ## Sync query cost
 
-- Push batches can repeat authorization and conflict reads across mutation runs.
+- Push batches use one transaction-local authorization context and cache locked canonical snapshots across repeated runs. Distinct target rows first encountered in later ordered runs still require scoped snapshot reads.
 - Balance recomputation currently touches every live account in each affected profile rather than only accounts whose transactions changed.
 - Every foreground sync run first performs an identity-only authenticated preflight. It adds one request, but prevents a mismatched live session from receiving local mutation IDs, row IDs, payloads, or cursors before owner rejection.
 - A first pull page performs ownership, four table-page, palette, optional backlog-count, and optional currency-rate operations. With `max: 1`, SQL launched together is still serialized on one connection.
