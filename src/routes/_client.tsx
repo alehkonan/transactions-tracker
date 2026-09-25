@@ -2,12 +2,19 @@ import { Toast } from "@base-ui/react/toast";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { Outlet, createFileRoute, useRouterState } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { lazy, Suspense } from "react";
 import { twJoin } from "tailwind-merge";
-import { Navbar } from "~/components/Navbar";
+import { Loader } from "~/components/Loader";
 import { ServiceWorkerRegistration } from "~/components/ServiceWorkerRegistration";
 import { Toaster } from "~/components/Toaster";
-import { SyncGate } from "~/modules/sync/SyncGate";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
+
+const Navbar = lazy(() =>
+  import("~/components/Navbar").then((module) => ({ default: module.Navbar })),
+);
+const SyncGate = lazy(() =>
+  import("~/modules/sync/SyncGate").then((module) => ({ default: module.SyncGate })),
+);
 
 export const Route = createFileRoute("/_client")({
   ssr: false,
@@ -34,7 +41,9 @@ function ClientLayout() {
             "md:sticky md:top-0 md:bottom-auto md:p-3",
           )}
         >
-          <Navbar />
+          <Suspense fallback={null}>
+            <Navbar />
+          </Suspense>
         </header>
       )}
       <div
@@ -47,9 +56,11 @@ function ClientLayout() {
         {isLogin ? (
           <Outlet />
         ) : (
-          <SyncGate>
-            <Outlet />
-          </SyncGate>
+          <Suspense fallback={<Loader />}>
+            <SyncGate>
+              <Outlet />
+            </SyncGate>
+          </Suspense>
         )}
       </div>
       <Toaster />

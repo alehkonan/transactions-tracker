@@ -8,7 +8,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { getSignInOptions, getSignUpOptions, signIn, signUp } from "~/api/auth.functions";
-import { completeSignIn, getSignInReturnPath } from "~/modules/auth/complete-sign-in";
+import { getSignInReturnPath } from "~/modules/auth/sign-in-return-path";
 
 /**
  * A cancelled ceremony is the user closing the OS passkey sheet — expected, not an error worth
@@ -64,6 +64,7 @@ export function usePasskeyAuth(enabled = true) {
           await getSignUpOptions({ data: { username } }),
         );
         const response = await startRegistration({ optionsJSON });
+        const { completeSignIn } = await import("~/modules/auth/complete-sign-in");
         await completeSignIn("sign-up", () => signUp({ data: response }));
         await onSignedIn();
       } catch (caught) {
@@ -83,6 +84,7 @@ export function usePasskeyAuth(enabled = true) {
       WebAuthnAbortService.cancelCeremony();
       const optionsJSON = await unwrapServerResponse(await getSignInOptions());
       const response = await startAuthentication({ optionsJSON });
+      const { completeSignIn } = await import("~/modules/auth/complete-sign-in");
       await completeSignIn("sign-in", (expectedUserId) =>
         signIn({ data: expectedUserId == null ? response : { ...response, expectedUserId } }),
       );
@@ -110,6 +112,8 @@ export function usePasskeyAuth(enabled = true) {
         if (cancelled) return;
 
         const response = await startAuthentication({ optionsJSON, useBrowserAutofill: true });
+        const { completeSignIn } = await import("~/modules/auth/complete-sign-in");
+        if (cancelled) return;
         await completeSignIn("sign-in", (expectedUserId) =>
           signIn({ data: expectedUserId == null ? response : { ...response, expectedUserId } }),
         );

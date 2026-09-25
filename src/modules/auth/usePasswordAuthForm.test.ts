@@ -31,10 +31,8 @@ vi.mock("~/api/auth.functions", () => ({
   passwordSignIn,
   passwordSignUp: vi.fn(),
 }));
-vi.mock("~/modules/auth/complete-sign-in", () => ({
-  completeSignIn,
-  getSignInReturnPath: () => "/",
-}));
+vi.mock("~/modules/auth/complete-sign-in", () => ({ completeSignIn }));
+vi.mock("~/modules/auth/sign-in-return-path", () => ({ getSignInReturnPath: () => "/" }));
 
 import { usePasswordAuthForm } from "./usePasswordAuthForm";
 
