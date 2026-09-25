@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { LOCAL_TRANSACTION_COMMENT, clearAuthCookies, test } from "../fixtures/local-replica";
-import type { Page } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 
 const PENDING_ACCOUNT_NAME = "E2E Account pending reauthentication";
 const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -201,6 +201,21 @@ function expectPreservedReplica(
   });
 }
 
+// Reauthentication schedules an immediate push; hold sync so the test checks the exact local
+// replica at the auth boundary rather than racing successful server reconciliation.
+async function holdSyncForReplicaCheck(route: Route): Promise<void> {
+  const body = route.request().postData() ?? "";
+  if (body.includes("protocolVersion") && body.includes("expectedOwnerUserId")) {
+    await route.fulfill({
+      status: 503,
+      contentType: "text/plain",
+      body: "Sync held for replica check",
+    });
+    return;
+  }
+  await route.continue();
+}
+
 test.describe("local-first startup and reauthentication", () => {
   test("an expired session keeps the existing local replica and exact outbox open", async ({
     authCredentials,
@@ -261,6 +276,8 @@ test.describe("local-first startup and reauthentication", () => {
       .toBe("installed");
     expectPreservedReplica(before, await readRawReplicaState(page), "login-required");
 
+    await context.route("**/_serverFn/**", holdSyncForReplicaCheck);
+
     await page.getByTestId("password-auth-username").fill(authCredentials.username);
     await page.getByTestId("password-auth-password").fill(authCredentials.password);
     await page.getByTestId("password-auth-submit").click();
@@ -280,5 +297,6 @@ test.describe("local-first startup and reauthentication", () => {
       .poll(async () => (await readRawReplicaState(reopenedPage)).descriptor.syncAuth)
       .toBe("authenticated");
     expectPreservedReplica(before, await readRawReplicaState(reopenedPage), "authenticated");
+    await context.unroute("**/_serverFn/**", holdSyncForReplicaCheck);
   });
 });
