@@ -39,9 +39,9 @@ vi.mock("~/utils/uuid-v7", () => ({ uuidV7: () => "transition-a" }));
 import {
   completeSignIn,
   completeSignOut,
-  getSignInReturnPath,
   SignOutObligationsChangedError,
 } from "./complete-sign-in";
+import { getSignInReturnPath } from "./sign-in-return-path";
 
 function location(search: string): Location {
   return { origin: "https://tracker.example", search } as Location;

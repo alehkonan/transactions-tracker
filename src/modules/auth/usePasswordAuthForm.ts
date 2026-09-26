@@ -2,8 +2,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { passwordSignIn, passwordSignUp } from "~/api/auth.functions";
-import { completeSignIn, getSignInReturnPath } from "~/modules/auth/complete-sign-in";
 import { getPasswordAuthErrorMessage } from "~/modules/auth/password-auth-errors";
+import { getSignInReturnPath } from "~/modules/auth/sign-in-return-path";
 
 export type PasswordAuthMode = "sign-in" | "sign-up";
 
@@ -33,6 +33,7 @@ export function usePasswordAuthForm(mode: PasswordAuthMode) {
   const onSubmit = handleSubmit(async ({ username, password }) => {
     try {
       const data = { username: username.trim(), password };
+      const { completeSignIn } = await import("~/modules/auth/complete-sign-in");
       await completeSignIn(mode, (expectedUserId) =>
         mode === "sign-up"
           ? passwordSignUp({ data })

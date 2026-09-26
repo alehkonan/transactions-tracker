@@ -156,8 +156,15 @@ async function createOnboardedUser(
 
 function observeSyncRequest(request: Request, requests: ObservedSyncRequest[]): void {
   if (request.method() !== "POST") return;
-  if (!request.url().includes("/_serverFn/") && !request.url().endsWith("/api/push")) return;
-  requests.push({ url: request.url(), postData: request.postData() ?? "" });
+  const postData = request.postData() ?? "";
+  if (
+    !request.url().endsWith("/api/push") &&
+    (!request.url().includes("/_serverFn/") ||
+      !postData.includes("protocolVersion") ||
+      !postData.includes("expectedOwnerUserId"))
+  )
+    return;
+  requests.push({ url: request.url(), postData });
 }
 
 async function installDroppedSyncBroadcasts(page: Page): Promise<void> {

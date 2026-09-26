@@ -1,16 +1,22 @@
 import { KeyRoundIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "~/components/Button";
 import { Card } from "~/components/Card";
 import { InputControl } from "~/components/InputControl";
 import { Title } from "~/components/Title";
 import { PasswordAuthForm } from "~/modules/auth/PasswordAuthForm";
-import { SignOutButton } from "~/modules/auth/SignOutButton";
 import { usePasskeyAuth } from "~/modules/auth/usePasskeyAuth";
 import { type PasswordAuthMode, usePasswordAuthForm } from "~/modules/auth/usePasswordAuthForm";
-import { readReplicaDescriptor } from "~/modules/sync/idb";
-import { LocalRecoveryPanel } from "~/modules/sync/LocalRecoveryPanel";
+
+const LocalRecoveryPanel = lazy(() =>
+  import("~/modules/sync/LocalRecoveryPanel").then((module) => ({
+    default: module.LocalRecoveryPanel,
+  })),
+);
+const SignOutButton = lazy(() =>
+  import("~/modules/auth/SignOutButton").then((module) => ({ default: module.SignOutButton })),
+);
 
 type PasskeySignUpFormValues = {
   username: string;
@@ -31,7 +37,8 @@ export function LoginCard() {
   const onPasskeySignUp = handleSubmit(({ username }) => passkey.handleSignUp(username));
 
   useEffect(() => {
-    void readReplicaDescriptor()
+    void import("~/modules/sync/idb")
+      .then(({ readReplicaDescriptor }) => readReplicaDescriptor())
       .then((descriptor) => {
         if (descriptor.legacyOwnership.kind === "recovery-required") {
           setLocalReplicaState("recovery-required");
@@ -48,7 +55,9 @@ export function LoginCard() {
   if (localReplicaState === "recovery-required") {
     return (
       <Card>
-        <LocalRecoveryPanel />
+        <Suspense fallback={<p className="p-4">Opening local recovery…</p>}>
+          <LocalRecoveryPanel />
+        </Suspense>
       </Card>
     );
   }
@@ -72,7 +81,9 @@ export function LoginCard() {
               explicitly discard it before using a different account.
             </p>
             <div className="self-start">
-              <SignOutButton />
+              <Suspense fallback={null}>
+                <SignOutButton />
+              </Suspense>
             </div>
           </div>
         )}

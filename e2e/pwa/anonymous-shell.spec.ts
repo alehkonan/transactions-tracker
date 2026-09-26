@@ -75,6 +75,42 @@ async function requestAnonymousShell(
   }
 }
 
+test("anonymous GET / serves the document without a redirect before client navigation", async ({
+  browser,
+  baseURL,
+}) => {
+  if (!baseURL) throw new Error("The shared Playwright config must provide a production baseURL.");
+
+  const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    const response = await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    expect(response, "root must return the anonymous document").not.toBeNull();
+    if (!response) throw new Error("Root returned no document response.");
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("text/html");
+    expect(response.request().redirectedFrom()).toBeNull();
+    expect(page.url()).toBe(new URL("/", baseURL).href);
+
+    const anonymousShell = await context.request.get("/transactions");
+    expect(anonymousShell.status()).toBe(200);
+    expect(await response.body()).toEqual(await anonymousShell.body());
+  } finally {
+    await context.close();
+  }
+});
+
+test("an unbound replica navigates from the root shell to login on the client", async ({
+  page,
+}) => {
+  const response = await page.goto("/");
+  expect(response?.status()).toBe(200);
+  expect(response?.request().redirectedFrom()).toBeNull();
+  await expect(page).toHaveURL(/\/login\?returnTo=%2Ftransactions$/);
+});
+
 test("P21: anonymous production HTML is byte-identical across forged identities", async ({
   baseURL,
   browser,
