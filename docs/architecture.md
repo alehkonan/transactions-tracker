@@ -234,6 +234,25 @@ every user. So a category created by an import carries `colorHex` in its payload
 on one palette entry) and the refreshed palette rides back in the response. Until that push lands, an
 imported category draws untinted.
 
+### Fixed-currency accounts and legacy compatibility
+
+Accounts are storage locations with a currency chosen at creation. Local commits reject a changed
+currency, and the server's guarded account upsert checks it against the locked canonical row.
+An incompatible queued edit settles with an immutable `canonical-diverged` conflict outcome, even
+when its base timestamp matches, preserving the original holdings and making the rejected intent
+visible without trapping the outbox in a retry loop. Identical receipt replays retain that outcome.
+
+The flat account list filters active, archived, or all accounts. Archiving only changes visibility:
+profile totals and the runway numerator continue to include the account's money and history.
+CSV currency mismatches fail the entire source row, including both sides of a transfer; they never
+rewrite an existing account's currency. Blank CSV currency cells make no claim. The existing explicit
+warning/fallback for a new account in an unsupported currency remains available.
+
+The database and protocol-v2 `accounts.type` field is retained as inert compatibility metadata.
+New accounts use its legacy default and edits preserve the stored value; no UI, balance calculation,
+or report classifies money by it. Keeping the field, storage version, and payload shape intact avoids
+rewriting pending intents, changing receipt fingerprints, or requiring a destructive replica upgrade.
+
 ---
 
 ## The sync engine

@@ -228,7 +228,16 @@ async function findStaleBases(
 
   return run.mutations.flatMap((mutation) => {
     const canonicalRow = snapshots.rows[run.table].get(mutation.rowId);
-    if (!canonicalRow || canonicalRow.updatedAt.getTime() === mutation.baseUpdatedAt) return [];
+    if (!canonicalRow) return [];
+    // Legacy queued edits can try changing currency even with a current base. Settle the rejected
+    // intent with a durable canonical outcome instead of blocking or silently draining the outbox.
+    const changesAccountCurrency =
+      mutation.table === "accounts" &&
+      mutation.op === "upsert" &&
+      "currencyCode" in canonicalRow &&
+      canonicalRow.currencyCode !== mutation.payload.currencyCode;
+    if (canonicalRow.updatedAt.getTime() === mutation.baseUpdatedAt && !changesAccountCurrency)
+      return [];
 
     return [
       {
@@ -757,7 +766,6 @@ async function executeApplyMutations(
                 set: {
                   name: excluded(accountsTable.name),
                   initialBalance: excluded(accountsTable.initialBalance),
-                  currencyCode: excluded(accountsTable.currencyCode),
                   status: excluded(accountsTable.status),
                   type: excluded(accountsTable.type),
                   updatedAt: now(),
@@ -768,6 +776,7 @@ async function executeApplyMutations(
                 // wins over a concurrent edit, and the client hears about it in `conflicts`.
                 setWhere: and(
                   sql`${accountsTable.profileId} = excluded.profile_id`,
+                  sql`${accountsTable.currencyCode} = excluded.currency_code`,
                   isNull(accountsTable.deletedAt),
                 ),
               })

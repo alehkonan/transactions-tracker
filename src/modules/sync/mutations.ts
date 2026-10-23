@@ -97,6 +97,18 @@ export async function commit(
   if (changes.length === 0) return;
 
   const replicaContext = capturedContext ?? (await captureReplicaContext());
+  // Guard every local writer, including imports, against relabelling existing holdings.
+  const accountCurrencies = new Map(
+    useSyncStore.getState().accounts.map((account) => [account.id, account.currencyCode]),
+  );
+  for (const change of changes) {
+    if (change.table !== "accounts" || change.op !== "upsert") continue;
+    const currency = accountCurrencies.get(change.row.id) ?? change.row.currencyCode;
+    if (change.row.currencyCode !== currency || change.payload.currencyCode !== currency) {
+      throw new Error("An account's currency cannot change. Create another account instead.");
+    }
+    accountCurrencies.set(change.row.id, currency);
+  }
   const bases = readBaseUpdatedAt(changes);
   const rows = emptyRows();
   const mutations: Mutation[] = [];

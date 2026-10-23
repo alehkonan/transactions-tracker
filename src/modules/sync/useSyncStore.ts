@@ -85,8 +85,8 @@ type SyncState = {
   /** Whether the outbox is draining. */
   isPushing: boolean;
   /**
-   * Writes that landed on top of a row somebody else had changed since. Reported, never resolved —
-   * last-write-wins on the server clock is the whole conflict policy (see `SyncConflictToasts`).
+   * Acceptance outcomes that overwrote newer data or could not apply the submitted intent.
+   * Reported by `SyncConflictToasts`; guarded writes can preserve the server state instead.
    */
   conflicts: PushConflict[];
 

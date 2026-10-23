@@ -25,6 +25,8 @@ export type SyncedProfile = typeof profilesTable.$inferSelect;
  * over, so it never rides along in a pull. Clients derive it from `initialBalance` plus the
  * transactions they already hold (see `compute-balances.ts`).
  */
+// `type` is legacy wire/storage metadata only. Keep it intact so queued intents and their receipt
+// fingerprints survive this upgrade; account workflows no longer classify money by this field.
 export type SyncedAccount = Omit<typeof accountsTable.$inferSelect, "balance">;
 
 export type SyncedCategory = typeof categoriesTable.$inferSelect;

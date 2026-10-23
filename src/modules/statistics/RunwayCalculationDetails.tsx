@@ -24,9 +24,9 @@ export function RunwayCalculationDetails({ averages }: Props) {
             dates and denominator. Today counts as a full day; days without records count as zero.
           </p>
           <p>
-            Runway divides your combined active current and savings balances by average daily
-            spending, assuming no future income. Archived balances are excluded; recorded income and
-            expenses from archived accounts still count in the daily averages. Transfers do not.
+            Runway divides your combined account balances by average daily spending, assuming no
+            future income. Archived balances are included; recorded income and expenses from
+            archived accounts also count in the daily averages. Transfers do not.
           </p>
           <p>
             All amounts are converted to USD using the latest exchange rates available on this

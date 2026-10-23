@@ -123,7 +123,7 @@ describe("buildImportPlan", () => {
     });
   });
 
-  it("reuses an existing account and corrects its currency from the file", () => {
+  it("rejects a mismatching row without changing the account's currency or holdings", () => {
     const plan = buildImportPlan(
       [
         row({
@@ -135,9 +135,16 @@ describe("buildImportPlan", () => {
       context({ accounts: [account()] }),
     );
 
-    const [corrected] = upserts(plan.changes, "accounts");
-    expect(corrected.row.id).toBe(account().id);
-    expect(corrected.payload).toMatchObject({ currencyCode: "EUR", name: "Wallet" });
+    expect(upserts(plan.changes, "accounts")).toEqual([]);
+    expect(upserts(plan.changes, "transactions")).toEqual([]);
+    expect(plan.createdTransactionIds).toEqual([]);
+    expect(plan.failures).toEqual([
+      {
+        row: 1,
+        reason:
+          'Currency mismatch for account "Wallet": the file uses EUR, but the account uses USD. Choose a matching account or correct the file.',
+      },
+    ]);
   });
 
   it("warns about a currency it has no code for, rather than quietly using dollars", () => {
@@ -149,20 +156,114 @@ describe("buildImportPlan", () => {
       context({ accounts: [account()] }),
     );
 
-    // The rows still import — the money moved either way.
-    expect(plan.createdTransactionIds).toHaveLength(2);
-    expect(plan.failures).toEqual([]);
+    // Only a new account can use the explicitly warned unsupported-currency fallback.
+    expect(plan.createdTransactionIds).toHaveLength(1);
+    expect(plan.failures).toEqual([
+      {
+        row: 2,
+        reason:
+          'Currency mismatch for account "Wallet": the file uses PLN, but the account uses USD. Choose a matching account or correct the file.',
+      },
+    ]);
     expect(plan.warnings).toEqual([
       {
         currency: "PLN",
         accounts: [
           // Created in dollars, since the file names a currency this app cannot store...
           { name: "Millennium", currencyCode: "USD" },
-          // ...and this one already existed, so it is simply left as it is.
-          { name: "Wallet", currencyCode: "USD" },
         ],
       },
     ]);
+  });
+
+  it("checks both transfer currencies before importing either leg", () => {
+    const plan = buildImportPlan(
+      [
+        row({
+          outcomeAccountName: "Wallet",
+          outcome: "10",
+          outcomeCurrencyShortTitle: "USD",
+          incomeAccountName: "Euro card",
+          income: "10",
+          incomeCurrencyShortTitle: "USD",
+        }),
+      ],
+      context({
+        accounts: [account(), account({ id: "euro", name: "Euro card", currencyCode: "EUR" })],
+      }),
+    );
+
+    expect(upserts(plan.changes, "transactions")).toEqual([]);
+    expect(upserts(plan.changes, "accounts")).toEqual([]);
+    expect(plan.failures).toEqual([
+      {
+        row: 1,
+        reason:
+          'Currency mismatch for account "Euro card": the file uses USD, but the account uses EUR. Choose a matching account or correct the file.',
+      },
+    ]);
+  });
+
+  it.each(["EUR", "PLN"])(
+    "rejects a later %s claim for an account created in USD in the same file",
+    (currency) => {
+      const plan = buildImportPlan(
+        [
+          row({ outcomeAccountName: "Card", outcome: "10", outcomeCurrencyShortTitle: "USD" }),
+          row({ outcomeAccountName: "Card", outcome: "20", outcomeCurrencyShortTitle: currency }),
+        ],
+        context(),
+      );
+
+      expect(
+        upserts(plan.changes, "accounts").map((change) => change.payload.currencyCode),
+      ).toEqual(["USD"]);
+      expect(upserts(plan.changes, "transactions").map((change) => change.payload.amount)).toEqual([
+        "-10.00",
+      ]);
+      expect(plan.failures).toMatchObject([
+        { row: 2, reason: expect.stringContaining("Currency mismatch") },
+      ]);
+      expect(plan.warnings).toEqual([]);
+    },
+  );
+
+  it("allows a supported currency named after a blank currency cell without guessing a conversion", () => {
+    const plan = buildImportPlan(
+      [
+        row({ outcomeAccountName: "Card", outcome: "10" }),
+        row({ outcomeAccountName: "Card", outcome: "20", outcomeCurrencyShortTitle: "eur" }),
+      ],
+      context(),
+    );
+
+    expect(upserts(plan.changes, "accounts").map((change) => change.payload.currencyCode)).toEqual([
+      "EUR",
+    ]);
+    expect(upserts(plan.changes, "transactions").map((change) => change.payload.amount)).toEqual([
+      "-10.00",
+      "-20.00",
+    ]);
+    expect(plan.failures).toEqual([]);
+  });
+
+  it("reuses matching currencies without changing archived accounts or opening balances", () => {
+    const existing = account({ currencyCode: "EUR", initialBalance: "125.50", status: "ARCHIVED" });
+    const plan = buildImportPlan(
+      [row({ incomeAccountName: "Wallet", income: "5", incomeCurrencyShortTitle: " eur " })],
+      context({ accounts: [existing] }),
+    );
+
+    expect(upserts(plan.changes, "accounts")).toEqual([]);
+    expect(upserts(plan.changes, "transactions").map((change) => change.payload.amount)).toEqual([
+      "5.00",
+    ]);
+    expect(plan.failures).toEqual([]);
+    expect(existing).toMatchObject({
+      currencyCode: "EUR",
+      initialBalance: "125.50",
+      status: "ARCHIVED",
+    });
   });
 
   it("says nothing about a blank currency column, which claims nothing", () => {

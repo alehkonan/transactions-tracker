@@ -32,35 +32,24 @@ export function toAccountsWithBalance(
   }));
 }
 
-export type BalanceTotals = {
-  currentBalanceUsd: string;
-  savingsBalanceUsd: string;
-  archivedBalanceUsd: string;
+type BalanceTotals = {
+  balanceUsd: string;
 };
 
-/**
- * Totals by group (active current, active savings, archived), converted to USD since accounts can
- * each be in a different currency.
- */
+/** All account money, including archived accounts, expressed in a shared currency. */
 export function computeBalanceTotals(
   accounts: AccountWithBalance[],
   usdRates: Record<string, number>,
 ): BalanceTotals {
-  let currentBalanceUsd = 0;
-  let savingsBalanceUsd = 0;
-  let archivedBalanceUsd = 0;
+  let balanceUsd = 0;
 
   for (const account of accounts) {
     const usdAmount = toUsd(account.balance, account.currencyCode, usdRates);
-    if (account.status === "ARCHIVED") archivedBalanceUsd += usdAmount;
-    else if (account.type === "SAVING") savingsBalanceUsd += usdAmount;
-    else currentBalanceUsd += usdAmount;
+    balanceUsd += usdAmount;
   }
 
   return {
-    currentBalanceUsd: currentBalanceUsd.toFixed(2),
-    savingsBalanceUsd: savingsBalanceUsd.toFixed(2),
-    archivedBalanceUsd: archivedBalanceUsd.toFixed(2),
+    balanceUsd: balanceUsd.toFixed(2),
   };
 }
 
@@ -69,13 +58,11 @@ export type ProfileSummary = {
   name: string;
   accountCount: number;
   transactionCount: number;
-  currentBalanceUsd: string;
-  savingsBalanceUsd: string;
+  balanceUsd: string;
 };
 
 /**
- * The profile picker's tiles: how much each profile holds and how much is in it. Only ACTIVE
- * accounts count towards the balances — an archived one is not money to spend.
+ * The profile picker's tiles: how much each profile holds, regardless of account visibility.
  */
 export function computeProfileSummaries(
   profiles: SyncedProfile[],
@@ -87,10 +74,7 @@ export function computeProfileSummaries(
 
   return profiles.map((profile) => {
     const ownAccounts = withBalance.filter((account) => account.profileId === profile.id);
-    const totals = computeBalanceTotals(
-      ownAccounts.filter((account) => account.status === "ACTIVE"),
-      usdRates,
-    );
+    const totals = computeBalanceTotals(ownAccounts, usdRates);
 
     return {
       id: profile.id,
@@ -98,8 +82,7 @@ export function computeProfileSummaries(
       accountCount: ownAccounts.length,
       transactionCount: transactions.filter((transaction) => transaction.profileId === profile.id)
         .length,
-      currentBalanceUsd: totals.currentBalanceUsd,
-      savingsBalanceUsd: totals.savingsBalanceUsd,
+      balanceUsd: totals.balanceUsd,
     };
   });
 }

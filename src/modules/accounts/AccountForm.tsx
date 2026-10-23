@@ -7,7 +7,7 @@ import { InputControl } from "~/components/InputControl";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { SelectControl } from "~/components/SelectControl";
-import { accountStatusEnum, accountTypeEnum, currencyCodeEnum } from "~/database/enums";
+import { accountStatusEnum, currencyCodeEnum } from "~/database/enums";
 import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
@@ -18,7 +18,6 @@ import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 type AccountFormValues = {
   name: string;
   currencyCode: string;
-  type: string;
   status: string;
   initialBalance: string;
 };
@@ -30,11 +29,6 @@ type Props = {
 
 const currencyOptions = currencyCodeEnum.enumValues.map((value) => ({ value, label: value }));
 
-const typeOptions = accountTypeEnum.enumValues.map((value) => ({
-  value,
-  label: value.charAt(0) + value.slice(1).toLowerCase(),
-}));
-
 const statusOptions = accountStatusEnum.enumValues.map((value) => ({
   value,
   label: value.charAt(0) + value.slice(1).toLowerCase(),
@@ -44,7 +38,6 @@ function getDefaultValues(account?: AccountWithBalance): AccountFormValues {
   return {
     name: account?.name ?? "",
     currencyCode: account?.currencyCode ?? "USD",
-    type: account?.type ?? "CURRENT",
     status: account?.status ?? "ACTIVE",
     initialBalance: account?.initialBalance ?? "0",
   };
@@ -88,7 +81,6 @@ export function AccountForm({ account }: Props) {
     const input = {
       name: values.name,
       currencyCode: values.currencyCode as (typeof currencyCodeEnum.enumValues)[number],
-      type: values.type as (typeof accountTypeEnum.enumValues)[number],
       status: values.status as (typeof accountStatusEnum.enumValues)[number],
       initialBalance: values.initialBalance,
     };
@@ -106,44 +98,40 @@ export function AccountForm({ account }: Props) {
   });
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-3">
+    <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-3" data-testid="account-form">
       <div className="flex flex-col gap-3">
         <InputControl
           control={control}
           name="name"
+          data-testid="account-name"
           label="Name"
           rules={{ required: "Account name is required." }}
           autoCapitalize="words"
           enterKeyHint="next"
           className="w-full"
         />
-        <div className="grid grid-cols-2 gap-3">
-          <SelectControl
-            control={control}
-            name="type"
-            label="Type"
-            options={typeOptions}
-            className="w-full"
-          />
-          <SelectControl
-            control={control}
-            name="status"
-            label="Status"
-            options={statusOptions}
-            className="w-full"
-          />
-        </div>
+        <SelectControl
+          control={control}
+          name="status"
+          data-testid="account-status"
+          label="Status"
+          options={statusOptions}
+          className="w-full"
+        />
         <div className="grid grid-cols-2 gap-3">
           <SelectControl
             control={control}
             name="currencyCode"
+            data-testid="account-currency"
             label="Currency"
             options={currencyOptions}
+            disabled={isEditing}
             className="w-full"
           />
           <InputControl
             control={control}
             name="initialBalance"
+            data-testid="account-initial-balance"
             label="Initial balance"
             type="text"
             inputMode="decimal"
@@ -157,6 +145,11 @@ export function AccountForm({ account }: Props) {
             className="w-full"
           />
         </div>
+        {account && (
+          <p className="text-text-muted text-sm">
+            Currency is fixed. Create another account to use a different currency.
+          </p>
+        )}
         {account && (
           <div className="flex flex-col gap-1">
             <label htmlFor="account-balance" className="text-text text-sm font-bold">
@@ -206,7 +199,12 @@ export function AccountForm({ account }: Props) {
           <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit" disabled={formState.isSubmitting}>
+          <Button
+            variant="primary"
+            type="submit"
+            disabled={formState.isSubmitting}
+            data-testid="account-submit"
+          >
             {isEditing ? "Save" : "Create"}
           </Button>
         </div>

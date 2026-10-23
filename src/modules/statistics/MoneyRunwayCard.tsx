@@ -15,7 +15,7 @@ export function MoneyRunwayCard({ runway, perDayUsd }: Props) {
       <p className="text-text-muted text-sm">If income stopped and spending stayed at this rate.</p>
       <p className="mt-2 text-2xl font-semibold sm:text-3xl">{runway.label ?? "No estimate"}</p>
       <p className="text-text-muted mt-1 text-sm">
-        Active current + savings:{" "}
+        Total account balance (including archived):{" "}
         <span className="text-text font-mono font-medium tabular-nums">
           {formatMoney(String(runway.balanceUsd), "USD")}
         </span>

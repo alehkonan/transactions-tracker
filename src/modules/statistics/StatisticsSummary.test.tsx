@@ -83,7 +83,7 @@ describe("statistics summary", () => {
     expect(text(container)).toMatch(/if income stopped/i);
     expect(text(container)).toMatch(/spending stayed at this rate/i);
     expect(text(container)).toContain("10 days");
-    expect(text(container)).toMatch(/active current \+ savings/i);
+    expect(text(container)).toMatch(/total account balance \(including archived\)/i);
     expect(text(container)).toContain(usd(100));
     expect(text(container)).toContain(usd(10));
     expect(text(container)).toContain("could last until Sep 20, 2026");
@@ -162,10 +162,10 @@ describe("statistics summary", () => {
     expect(explanation).toMatch(/income uses the same dates and denominator/i);
     expect(explanation).toMatch(/today counts as a full day/i);
     expect(explanation).toMatch(/days without records count as zero/i);
-    expect(explanation).toMatch(/active current and savings balances.*average daily spending/i);
+    expect(explanation).toMatch(/combined account balances.*average daily spending/i);
     expect(explanation).toMatch(/no future income/i);
-    expect(explanation).toMatch(/archived balances are excluded/i);
-    expect(explanation).toMatch(/income and expenses from archived accounts still count/i);
+    expect(explanation).toMatch(/archived balances are included/i);
+    expect(explanation).toMatch(/income and expenses from archived accounts also count/i);
     expect(explanation).toMatch(/transfers do not/i);
     expect(explanation).toMatch(/converted to USD.*latest exchange rates.*device/i);
     expect(explanation).toMatch(/not the rates on each transaction date/i);

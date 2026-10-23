@@ -72,7 +72,7 @@ export type DailyAverages = {
 
 type Options = {
   transactions: SyncedTransaction[];
-  /** Every account of the profile; only the ACTIVE ones count as money to spend. */
+  /** Every account of the profile; archive status changes visibility, not holdings. */
   accounts: AccountWithBalance[];
   usdRates: Record<string, number>;
   period: AveragePeriod;
@@ -110,9 +110,10 @@ export function computeDailyAverages({
     totals[transaction.type] += Math.abs(toUsd(transaction.amount, currencyCode, usdRates));
   }
 
-  const balanceUsd = accounts
-    .filter((account) => account.status === "ACTIVE")
-    .reduce((sum, account) => sum + toUsd(account.balance, account.currencyCode, usdRates), 0);
+  const balanceUsd = accounts.reduce(
+    (sum, account) => sum + toUsd(account.balance, account.currencyCode, usdRates),
+    0,
+  );
 
   // The year is only spelled out when the window straddles one, otherwise a 12-month range reads as
   // "Aug 11 – Aug 11".

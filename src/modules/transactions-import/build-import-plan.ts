@@ -90,10 +90,10 @@ function collectNames(rows: ImportRow[]): {
 
   for (const row of rows) {
     for (const name of splitCategoryNames(row.categoryName)) categoryNames.add(name);
-    if (row.outcomeAccountName && !accountCurrencies.has(row.outcomeAccountName)) {
+    if (row.outcomeAccountName && !accountCurrencies.get(row.outcomeAccountName)?.trim()) {
       accountCurrencies.set(row.outcomeAccountName, row.outcomeCurrencyShortTitle);
     }
-    if (row.incomeAccountName && !accountCurrencies.has(row.incomeAccountName)) {
+    if (row.incomeAccountName && !accountCurrencies.get(row.incomeAccountName)?.trim()) {
       accountCurrencies.set(row.incomeAccountName, row.incomeCurrencyShortTitle);
     }
   }
@@ -102,10 +102,10 @@ function collectNames(rows: ImportRow[]): {
 }
 
 /**
- * Plans an import: the categories and accounts it has to create, the accounts whose currency it
- * corrects, and one transaction per side of each CSV row — both sides of a row that has an income
- * *and* an outcome are tagged TRANSFER, since they move money between the user's own accounts
- * rather than in or out of them.
+ * Plans an import: the categories and accounts it has to create and one transaction per side of
+ * each CSV row. Existing account currencies are fixed; mismatching rows are reported. Both sides of
+ * a row with income *and* an outcome are tagged TRANSFER, since they move money between the user's
+ * own accounts rather than in or out of them.
  *
  * Nothing is applied here. The caller commits the changes, which is what puts them in the store, on
  * disk and in the outbox in one go.
@@ -137,6 +137,7 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
   });
 
   const accountsByName = new Map(context.accounts.map((account) => [account.name, account]));
+  const existingAccountIds = new Set(context.accounts.map((account) => account.id));
   const accountIdByName = new Map<string, string>();
   const unsupportedCurrencies = new Map<string, ImportWarning["accounts"]>();
 
@@ -155,25 +156,6 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
 
     if (existing) {
       accountIdByName.set(name, existing.id);
-      if (isUnsupported) noteUnsupportedCurrency(rawCurrency, existing.name, existing.currencyCode);
-      // An account whose currency has drifted from what the file says is corrected, as the server
-      // import did. Everything else about it is left exactly as it is.
-      if (currencyCode && currencyCode !== existing.currencyCode && existing.profileId != null) {
-        const payload: AccountPayload = {
-          name: existing.name,
-          initialBalance: existing.initialBalance,
-          currencyCode,
-          status: existing.status,
-          type: existing.type,
-          profileId: existing.profileId,
-        };
-        changes.push({
-          op: "upsert",
-          table: "accounts",
-          row: { ...existing, currencyCode },
-          payload,
-        });
-      }
       continue;
     }
 
@@ -182,11 +164,12 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
       initialBalance: "0",
       currencyCode: currencyCode ?? "USD",
       status: "ACTIVE",
-      type: "CURRENT",
+      type: "CURRENT", // Legacy protocol metadata, not a financial classification.
       profileId,
     };
     if (isUnsupported) noteUnsupportedCurrency(rawCurrency, name, payload.currencyCode);
     const row = newRow(payload);
+    accountsByName.set(name, row);
     accountIdByName.set(name, row.id);
     changes.push({ op: "upsert", table: "accounts", row, payload });
   }
@@ -221,6 +204,40 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
     }
     if (!(outcomeAmount > 0) && !(incomeAmount > 0)) {
       failures.push({ row: rowNumber, reason: "Both income and outcome are empty or zero" });
+      return;
+    }
+
+    // Validate every used side of every row, including later claims about a newly created account.
+    // Check both before writing either transfer leg, so a mismatch cannot import half a transfer.
+    const sides = [
+      {
+        amount: outcomeAmount,
+        name: row.outcomeAccountName,
+        rawCurrency: row.outcomeCurrencyShortTitle,
+      },
+      {
+        amount: incomeAmount,
+        name: row.incomeAccountName,
+        rawCurrency: row.incomeCurrencyShortTitle,
+      },
+    ];
+    for (const side of sides) {
+      if (!(side.amount > 0) || !side.rawCurrency.trim()) continue;
+      const account = accountsByName.get(side.name);
+      if (!account) continue; // The existing unknown-account feedback below names the missing side.
+      const currency = normalizeCurrencyCode(side.rawCurrency);
+      // Keep the explicit fallback warning for brand-new unsupported currencies. An existing
+      // account never accepts money labelled with another (including unsupported) currency.
+      const newUnsupportedAccount =
+        !existingAccountIds.has(account.id) &&
+        !currency &&
+        side.rawCurrency.trim().toUpperCase() ===
+          accountCurrencies.get(side.name)?.trim().toUpperCase();
+      if (newUnsupportedAccount || currency === account.currencyCode) continue;
+      failures.push({
+        row: rowNumber,
+        reason: `Currency mismatch for account "${account.name}": the file uses ${side.rawCurrency.trim().toUpperCase()}, but the account uses ${account.currencyCode}. Choose a matching account or correct the file.`,
+      });
       return;
     }
 

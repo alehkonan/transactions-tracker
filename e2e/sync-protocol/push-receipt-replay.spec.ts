@@ -2,15 +2,22 @@ import { randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/auth";
 import { readReplicaOwnerUserId } from "../fixtures/indexed-db";
+import type { AccountPayload, MutationFor, SyncedAccount } from "../../src/modules/sync/sync-types";
 import type { Page } from "@playwright/test";
 
-type Mutation = {
+type ProfileMutation = {
   mutationId: string;
   rowId: string;
   baseUpdatedAt: number | null;
   table: "profiles";
   op: "upsert" | "delete";
   payload?: { name: string };
+};
+
+type Mutation = ProfileMutation | MutationFor<"accounts">;
+type AccountRow = Omit<SyncedAccount, "updatedAt" | "deletedAt"> & {
+  updatedAt: string;
+  deletedAt: string | null;
 };
 
 type ProfileRow = {
@@ -22,20 +29,20 @@ type ProfileRow = {
 
 type PushConflict = {
   mutationId: string;
-  table: "profiles";
+  table: "profiles" | "accounts";
   rowId: string;
   classification: "intent-applied" | "canonical-deleted" | "canonical-diverged";
   baseUpdatedAt: number | null;
   conflictingServerUpdatedAt: number;
   acceptedAt: string;
-  canonicalRow: ProfileRow | null;
+  canonicalRow: ProfileRow | AccountRow | null;
 };
 
 type PushResult = {
   protocolVersion: number;
   ownerUserId: number;
   applied: string[];
-  canonicalRows: { profiles: ProfileRow[] };
+  canonicalRows: { profiles: ProfileRow[]; accounts: AccountRow[] };
   conflicts: PushConflict[];
 };
 
@@ -63,7 +70,11 @@ async function push<Body = PushResult>(
   );
 }
 
-function profileMutation(profileId: string, name: string, baseUpdatedAt: number | null): Mutation {
+function profileMutation(
+  profileId: string,
+  name: string,
+  baseUpdatedAt: number | null,
+): ProfileMutation {
   return {
     mutationId: randomUUID(),
     rowId: profileId,
@@ -79,6 +90,111 @@ function canonicalProfile(result: PushResult, profileId: string): ProfileRow {
   if (!profile) throw new Error(`Push response omitted canonical profile ${profileId}.`);
   return profile;
 }
+
+test("HTTP push preserves account currency and replays a rejected legacy edit without losing later changes", async ({
+  authenticatedPage: page,
+}) => {
+  const ownerUserId = await readReplicaOwnerUserId(page);
+  const profileId = randomUUID();
+  const accountId = randomUUID();
+  const payload: AccountPayload = {
+    name: "Wallet",
+    profileId,
+    initialBalance: "100.00",
+    currencyCode: "USD",
+    status: "ACTIVE",
+    type: "SAVING",
+  };
+  const created = await push(page, ownerUserId, [
+    profileMutation(profileId, "Account currency profile", null),
+    {
+      mutationId: randomUUID(),
+      rowId: accountId,
+      baseUpdatedAt: null,
+      table: "accounts",
+      op: "upsert",
+      payload,
+    },
+  ]);
+  expect(created.status).toBe(200);
+  const initial = created.body.canonicalRows.accounts[0];
+  expect(initial).toMatchObject({ id: accountId, currencyCode: "USD", initialBalance: "100.00" });
+
+  const editedPayload: AccountPayload = {
+    ...payload,
+    name: "Archived wallet",
+    initialBalance: "125.00",
+    status: "ARCHIVED",
+  };
+  const edited = await push(page, ownerUserId, [
+    {
+      mutationId: randomUUID(),
+      rowId: accountId,
+      baseUpdatedAt: Date.parse(initial.updatedAt),
+      table: "accounts",
+      op: "upsert",
+      payload: editedPayload,
+    },
+  ]);
+  expect(edited.status).toBe(200);
+  expect(edited.body.conflicts).toEqual([]);
+  const beforeRejection = edited.body.canonicalRows.accounts[0];
+  expect(beforeRejection).toMatchObject({
+    name: "Archived wallet",
+    initialBalance: "125.00",
+    status: "ARCHIVED",
+    currencyCode: "USD",
+  });
+
+  const legacyCurrencyEdit: MutationFor<"accounts"> = {
+    mutationId: randomUUID(),
+    rowId: accountId,
+    baseUpdatedAt: Date.parse(beforeRejection.updatedAt),
+    table: "accounts",
+    op: "upsert",
+    payload: { ...editedPayload, currencyCode: "EUR" },
+  };
+  const rejected = await push(page, ownerUserId, [legacyCurrencyEdit]);
+  expect(rejected.status).toBe(200);
+  expect(rejected.body.applied).toEqual([legacyCurrencyEdit.mutationId]);
+  expect(rejected.body.canonicalRows.accounts).toEqual([beforeRejection]);
+  expect(rejected.body.conflicts).toMatchObject([
+    {
+      mutationId: legacyCurrencyEdit.mutationId,
+      classification: "canonical-diverged",
+      canonicalRow: {
+        id: accountId,
+        currencyCode: "USD",
+        initialBalance: "125.00",
+        status: "ARCHIVED",
+      },
+    },
+  ]);
+
+  const later = await push(page, ownerUserId, [
+    {
+      mutationId: randomUUID(),
+      rowId: accountId,
+      baseUpdatedAt: Date.parse(beforeRejection.updatedAt),
+      table: "accounts",
+      op: "upsert",
+      payload: { ...editedPayload, name: "Later wallet", initialBalance: "150.00" },
+    },
+  ]);
+  expect(later.status).toBe(200);
+  const replay = await push(page, ownerUserId, [legacyCurrencyEdit]);
+  expect(replay.status).toBe(200);
+  expect(replay.body.conflicts).toEqual(rejected.body.conflicts);
+  expect(replay.body.canonicalRows.accounts).toMatchObject([
+    {
+      id: accountId,
+      name: "Later wallet",
+      currencyCode: "USD",
+      initialBalance: "150.00",
+      status: "ARCHIVED",
+    },
+  ]);
+});
 
 test("an identical stale-base retry replays its immutable acceptance outcome", async ({
   authenticatedPage: page,

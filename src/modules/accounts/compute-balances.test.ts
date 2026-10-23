@@ -86,7 +86,7 @@ describe("toAccountsWithBalance", () => {
 });
 
 describe("computeBalanceTotals", () => {
-  it("groups by status and type, converting to USD", () => {
+  it("combines all account money regardless of legacy type or archive status, converting to USD", () => {
     const accounts = toAccountsWithBalance(
       [
         account({ id: "a", initialBalance: "100.00" }),
@@ -97,17 +97,15 @@ describe("computeBalanceTotals", () => {
     );
 
     expect(computeBalanceTotals(accounts, usdRates)).toEqual({
-      currentBalanceUsd: "100.00",
-      // 50 GEL at 2.5 per USD.
-      savingsBalanceUsd: "20.00",
-      archivedBalanceUsd: "7.00",
+      // 100 USD + 50 GEL at 2.5 per USD + 7 archived USD.
+      balanceUsd: "127.00",
     });
   });
 
   it("treats an unknown currency as 1:1 rather than dropping the amount", () => {
     const accounts = toAccountsWithBalance([account({ id: "a", initialBalance: "5.00" })], []);
 
-    expect(computeBalanceTotals(accounts, {}).currentBalanceUsd).toBe("5.00");
+    expect(computeBalanceTotals(accounts, {}).balanceUsd).toBe("5.00");
   });
 });
 
@@ -153,13 +151,12 @@ describe("computeProfileSummaries", () => {
       name: "Mine",
       accountCount: 1,
       transactionCount: 1,
-      currentBalanceUsd: "75.00",
-      savingsBalanceUsd: "0.00",
+      balanceUsd: "75.00",
     });
-    expect(summaries[1].currentBalanceUsd).toBe("200.00");
+    expect(summaries[1].balanceUsd).toBe("200.00");
   });
 
-  it("leaves archived accounts out of the totals but still counts them", () => {
+  it("retains archived money in profile totals", () => {
     const summaries = computeProfileSummaries(
       [profiles[0]],
       [
@@ -171,6 +168,6 @@ describe("computeProfileSummaries", () => {
     );
 
     expect(summaries[0].accountCount).toBe(2);
-    expect(summaries[0].currentBalanceUsd).toBe("100.00");
+    expect(summaries[0].balanceUsd).toBe("1000.00");
   });
 });

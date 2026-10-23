@@ -1,97 +1,82 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { twJoin } from "tailwind-merge";
+import { useMemo, useState } from "react";
 import { PageContainer } from "~/components/PageContainer";
-import { accountTypeStyles } from "~/modules/accounts/account-type-tag";
-import { AccountGroupSection } from "~/modules/accounts/AccountGroupSection";
-import { accountStatusStyles } from "~/modules/accounts/AccountStatusChip";
+import { Select } from "~/components/Select";
+import { AccountCard } from "~/modules/accounts/AccountCard";
 import { computeAccountActivity } from "~/modules/accounts/compute-account-activity";
 import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
-import type { AccountWithBalance, BalanceTotals } from "~/modules/accounts/compute-balances";
-
-function getAccountGroups(accounts: AccountWithBalance[], totals: BalanceTotals) {
-  return [
-    {
-      id: "current",
-      title: "Current",
-      accounts: accounts.filter(
-        (account) => account.status === "ACTIVE" && account.type === "CURRENT",
-      ),
-      totalUsd: totals.currentBalanceUsd,
-      totalChipClassName: accountTypeStyles.CURRENT,
-      defaultCollapsed: false,
-    },
-    {
-      id: "savings",
-      title: "Savings",
-      accounts: accounts.filter(
-        (account) => account.status === "ACTIVE" && account.type === "SAVING",
-      ),
-      totalUsd: totals.savingsBalanceUsd,
-      totalChipClassName: accountTypeStyles.SAVING,
-      defaultCollapsed: false,
-    },
-    {
-      id: "archived",
-      title: "Archive",
-      accounts: accounts.filter((account) => account.status === "ARCHIVED"),
-      totalUsd: totals.archivedBalanceUsd,
-      totalChipClassName: accountStatusStyles.ARCHIVED,
-      defaultCollapsed: true,
-    },
-  ];
-}
+import { formatMoney } from "~/utils/format-money";
 
 export const Route = createFileRoute("/_client/accounts")({
   component: () => {
     const accounts = useAccounts();
     const usdRates = useSyncStore((state) => state.usdRates);
     const transactions = useSyncStore((state) => state.transactions);
-    const groups = useMemo(
-      () => getAccountGroups(accounts, computeBalanceTotals(accounts, usdRates)),
-      [accounts, usdRates],
+    const [status, setStatus] = useState("ACTIVE");
+    const total = useMemo(() => computeBalanceTotals(accounts, usdRates), [accounts, usdRates]);
+    const visibleAccounts = accounts.filter(
+      (account) => status === "ALL" || account.status === status,
     );
     // Keyed by account id, so the rows of other profiles in the store simply never get looked up.
     const activityByAccount = useMemo(() => computeAccountActivity(transactions), [transactions]);
-    const activeGroups = groups.filter(
-      (group) => group.id !== "archived" && group.accounts.length > 0,
-    );
-    const archivedGroup = groups.find(
-      (group) => group.id === "archived" && group.accounts.length > 0,
-    );
 
     return (
       <PageContainer>
         <main aria-labelledby="accounts-heading" className="py-2 md:py-6">
-          <div className="flex flex-col gap-8">
-            <h1 id="accounts-heading" className="sr-only">
-              Accounts
-            </h1>
-
-            {activeGroups.length > 0 && (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h1 id="accounts-heading" className="text-text text-xl font-semibold">
+                  Accounts
+                </h1>
+                <p className="text-text-muted text-sm" data-testid="accounts-total">
+                  Approx. total balance:{" "}
+                  <span className="font-mono">≈ {formatMoney(total.balanceUsd, "USD")}</span>
+                </p>
+                <p className="text-text-muted text-xs">Includes archived accounts</p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="accounts-status" className="text-text text-sm font-bold">
+                  Show
+                </label>
+                <Select
+                  id="accounts-status"
+                  data-testid="accounts-status"
+                  value={status}
+                  onValueChange={(value) => setStatus(value ?? "ACTIVE")}
+                  options={[
+                    { value: "ACTIVE", label: "Active accounts" },
+                    { value: "ARCHIVED", label: "Archived accounts" },
+                    { value: "ALL", label: "All accounts" },
+                  ]}
+                />
+              </div>
+            </div>
+            {visibleAccounts.length > 0 ? (
               <div
-                className={twJoin(
-                  "grid items-start gap-8",
-                  activeGroups.length > 1 && "lg:grid-cols-2",
-                )}
+                className="grid grid-cols-[repeat(auto-fill,minmax(min(18rem,100%),1fr))] gap-2"
+                data-testid="accounts-list"
               >
-                {activeGroups.map((group) => (
-                  <AccountGroupSection
-                    key={group.id}
-                    {...group}
-                    activityByAccount={activityByAccount}
+                {visibleAccounts.map((account) => (
+                  <AccountCard
+                    key={account.id}
+                    account={account}
+                    activity={activityByAccount.get(account.id)}
                   />
                 ))}
               </div>
+            ) : (
+              <p className="text-text-muted py-4" data-testid="accounts-empty">
+                {accounts.length === 0
+                  ? "Create an account to start tracking your money."
+                  : status === "ARCHIVED"
+                    ? "No archived accounts."
+                    : "No active accounts."}
+              </p>
             )}
-
-            {archivedGroup && (
-              <AccountGroupSection {...archivedGroup} activityByAccount={activityByAccount} />
-            )}
-
             <div className="w-full sm:max-w-sm">
               <CreateAccountButton />
             </div>
