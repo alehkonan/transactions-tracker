@@ -165,6 +165,15 @@ pushChanges({ mutations }) → { applied, canonicalRows, conflicts, colors }
 - **A batch is atomic** — 500 mutations, applied in outbox order in one DB transaction, so "create
   account, then create a transaction referencing it" works and a rejected parent rejects its
   dependents.
+- **A financial operation has immutable membership.** New linked account transfers carry a nullable
+  `transferId` on both transactions and an ordered mutation-id list on each queued member. `commit`
+  persists both legs and their intents together; batching stops before an operation would cross the
+  500-mutation limit. The server requires the complete pair, validates accounts, signs, profile and
+  same-currency amounts, and accepts both inside the existing receipt transaction. Settlement rejects
+  partial operation receipts and retains all pending members until their canonical rows can be
+  committed locally. Other multi-row operations can use `LocalChange.operationId` at the same seam.
+  Unlinked historical transfers and their queued receipt fingerprints are preserved without matching
+  them. Fees remain separate Expense transactions. Account cascades tombstone both linked legs.
 - **An optimistic write leaves `updatedAt` alone.** Only the server advances it. It is the client's
   record of what it last saw; a client clock stamped over it makes the _second_ edit of a row report
   a base the server has never heard of, and every edit after the first looks like a clobber.
@@ -187,6 +196,9 @@ same generic 403):
 
 - owned profiles and names are loaded once for newly claimed mutations, then successful profile writes
   returned by PostgreSQL evolve that ownership in batch order;
+- owned profiles and referenced accounts are locked in id order with `FOR NO KEY UPDATE` through
+  acceptance, serializing child writes against soft-delete cascades and avoiding later lock upgrades
+  during balance recomputation;
 - only account/category ids referenced by transaction upserts are preloaded, at most once per kind and
   scoped through proven-owned profiles; later successful writes install or invalidate those mappings;
 - the account and category a transaction is filed against must be live and mapped to that exact profile;

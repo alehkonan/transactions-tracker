@@ -1,7 +1,9 @@
+import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { assertCurrentReplicaContext, captureReplicaContext, writeLocalMutations } from "./idb";
+import { assertCompleteOperations } from "./outbox-acceptance";
 import { announceLocalWrite, schedulePush } from "./sync-engine";
-import { SYNCED_TABLES } from "./sync-types";
+import { PUSH_BATCH_LIMIT, SYNCED_TABLES } from "./sync-types";
 import { applyLocalRows, refreshOutboxState, useSyncStore } from "./useSyncStore";
 import type { ReplicaContext } from "./replica-identity";
 import type { Mutation, MutationPayloads, SyncedRows, SyncedTable } from "./sync-types";
@@ -43,7 +45,10 @@ type CascadeChange = {
   [Table in SyncedTable]: { op: "cascade"; table: Table; rows: RowFor<Table>[] };
 }[SyncedTable];
 
-export type LocalChange = UpsertChange | DeleteChange | CascadeChange;
+export type LocalChange = (UpsertChange | DeleteChange | CascadeChange) & {
+  /** Optional explicit grouping for financial operations spanning several replicated rows. */
+  operationId?: string;
+};
 
 type RowsByTable = { [Table in SyncedTable]: RowFor<Table>[] };
 
@@ -112,6 +117,8 @@ export async function commit(
   const bases = readBaseUpdatedAt(changes);
   const rows = emptyRows();
   const mutations: Mutation[] = [];
+  const operations = new Map<string, Mutation[]>();
+  const sharedOperationMembers = new Map<string, Mutation[]>();
   const deletedAt = new Date();
 
   for (const change of changes) {
@@ -132,6 +139,18 @@ export async function commit(
       baseUpdatedAt,
     };
 
+    const operationKey =
+      change.operationId ??
+      (change.table === "transactions" && change.row.transferId
+        ? `transfer:${change.row.transferId}`
+        : undefined);
+    if (operationKey) {
+      const members = operations.get(operationKey) ?? [];
+      operations.set(operationKey, members);
+      // Filled after every member has its final immutable mutation id.
+      sharedOperationMembers.set(shared.mutationId, members);
+    }
+
     if (change.op === "delete") {
       bucket.push({ ...change.row, deletedAt, updatedAt: deletedAt });
       mutations.push({ ...shared, op: "delete" });
@@ -143,6 +162,30 @@ export async function commit(
     bucket.push({ ...change.row, updatedAt: change.row.updatedAt });
     mutations.push({ ...shared, op: "upsert", payload: change.payload } as Mutation);
   }
+
+  for (const mutation of mutations) sharedOperationMembers.get(mutation.mutationId)?.push(mutation);
+  for (const members of operations.values()) {
+    const operation = { id: uuidV7(), mutationIds: members.map((mutation) => mutation.mutationId) };
+    members.forEach((mutation) => {
+      mutation.operation = operation;
+    });
+  }
+  // Never move a member ahead of an intervening parent write. Callers supply contiguous units.
+  assertCompleteOperations(mutations, PUSH_BATCH_LIMIT);
+  const state = useSyncStore.getState();
+  const accounts = new Map(state.accounts.map((account) => [account.id, account]));
+  for (const row of rows.accounts) accounts.set(row.id, row);
+  const transactionMutations = mutations.filter((mutation) => mutation.table === "transactions");
+  for (const mutation of transactionMutations) {
+    if (mutation.op !== "upsert" || !mutation.payload.transferId) continue;
+    const profile = [...state.profiles, ...rows.profiles].find(
+      (row) => row.id === mutation.payload.profileId && row.deletedAt == null,
+    );
+    if (!profile || (profile.userId != null && profile.userId !== replicaContext.ownerUserId)) {
+      throw new Error("The transfer profile does not belong to this local replica.");
+    }
+  }
+  validateTransferMutations(transactionMutations, state.transactions, [...accounts.values()]);
 
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.

@@ -31,7 +31,10 @@ export type SyncedAccount = Omit<typeof accountsTable.$inferSelect, "balance">;
 
 export type SyncedCategory = typeof categoriesTable.$inferSelect;
 
-export type SyncedTransaction = typeof transactionsTable.$inferSelect;
+// Older replicas and queued intents have no transfer link. Absence remains meaningful on replay.
+export type SyncedTransaction = Omit<typeof transactionsTable.$inferSelect, "transferId"> & {
+  transferId?: string | null;
+};
 
 /** The fixed palette a category can be tinted with — global, tiny, and pulled in full. */
 export type Color = typeof colorsTable.$inferSelect;
@@ -187,6 +190,8 @@ export type MutationPayloads = {
 };
 
 type MutationBase = {
+  /** Immutable membership of one financial operation; legacy single-row intents omit it. */
+  operation?: { id: string; mutationIds: string[] };
   /** Identifies the entry across a retry, and correlates it with its slot in the response. */
   mutationId: string;
   rowId: string;

@@ -1,4 +1,5 @@
 import { dropOutboxEntries, OUTBOX_STORE, openDatabase, settleAcceptedPush } from "./idb";
+import { takeOperationBatch } from "./outbox-acceptance";
 import {
   replicaContextFromDescriptor,
   type ReplicaContext,
@@ -37,7 +38,7 @@ async function readOutboxBatch(expected: ReplicaContext, limit: number): Promise
     promisify(transaction.objectStore("meta").get("replicaDescriptor")),
   ]);
   assertContext(descriptor as ReplicaDescriptor, expected);
-  return entries as OutboxEntry[];
+  return takeOperationBatch(entries as OutboxEntry[], limit);
 }
 
 /** Identifies a row across tables, since ids are only unique within one. */

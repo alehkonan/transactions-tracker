@@ -1,5 +1,6 @@
 import { uuidV7 } from "~/utils/uuid-v7";
 import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
+import { assertCompleteAcceptance, assertCompleteOperations } from "./outbox-acceptance";
 import {
   classifyLegacyOwnership,
   replicaContextFromDescriptor,
@@ -711,6 +712,42 @@ export function settleAcceptedPush(
   return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
     const accepted = new Set(acceptedMutationIds);
     const outbox = transaction.objectStore(OUTBOX_STORE);
+    const membersRequest = outbox.getAll();
+    membersRequest.addEventListener("success", () => {
+      try {
+        const selected = (membersRequest.result as SequencedMutation[]).filter((entry) =>
+          seqs.includes(entry.seq),
+        );
+        if (selected.length !== seqs.length)
+          throw new Error("The accepted outbox entries changed.");
+        assertCompleteOperations(selected);
+        assertCompleteAcceptance(selected, accepted);
+        const canonicalKeys = new Set(
+          Object.entries(rows).flatMap(([table, canonical]) =>
+            canonical.map((row) => `${table}:${row.id}`),
+          ),
+        );
+        const checked = new Set<string>();
+        for (const entry of selected) {
+          if (!entry.operation || checked.has(entry.operation.id)) continue;
+          checked.add(entry.operation.id);
+          const members = selected.filter((member) => member.operation?.id === entry.operation?.id);
+          const canonicalCount = members.filter((member) =>
+            canonicalKeys.has(`${member.table}:${member.rowId}`),
+          ).length;
+          // An aged-out delete may have no remaining tombstones. An upsert or a partial pair
+          // must keep its complete pending intent until all canonical members can settle.
+          if (
+            canonicalCount !== members.length &&
+            (canonicalCount > 0 || members.some((member) => member.op === "upsert"))
+          )
+            throw new Error("The canonical financial operation is incomplete.");
+        }
+      } catch {
+        transaction.abort();
+      }
+    });
+    membersRequest.addEventListener("error", () => transaction.abort());
     for (const seq of seqs) {
       const request = outbox.get(seq);
       request.addEventListener("success", () => {

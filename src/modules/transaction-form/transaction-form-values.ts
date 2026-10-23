@@ -20,14 +20,15 @@ export type TransactionFormValues = {
 
 export function getDefaultFormValues(
   transaction: TransactionRow | undefined,
+  incoming?: Pick<TransactionRow, "accountId" | "amount">,
 ): TransactionFormValues {
   return {
     type: transaction?.type ?? "EXPENSE",
     createdAt: transaction?.createdAt ?? new Date(),
     accountId: transaction?.accountId ?? "",
-    toAccountId: "",
+    toAccountId: incoming?.accountId ?? "",
     amount: transaction?.amount.replace(/^-/, "") ?? "",
-    toAmount: "",
+    toAmount: incoming?.amount ?? "",
     categoryId: transaction?.categoryId ?? "",
     necessityLevel: transaction?.type === "EXPENSE" ? transaction.necessityLevel : "MEDIUM",
     comment: transaction?.comment ?? "",

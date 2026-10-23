@@ -1,7 +1,9 @@
+import { sql } from "drizzle-orm";
 import {
   bigserial,
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -11,6 +13,7 @@ import {
   text,
   timestamp,
   uuid,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 import { money } from "./custom-types";
@@ -269,6 +272,8 @@ export const transactionsTable = pgTable(
   {
     id: syncedId(),
     type: transactionTypeEnum("type").notNull(),
+    /** Only newly linked transfers carry this id; historical legs are never matched. */
+    transferId: uuid("transfer_id"),
     necessityLevel: necessityLevelEnum("necessity_level").notNull().default("MEDIUM"),
     amount: money("amount").notNull(),
     comment: text("comment"),
@@ -298,6 +303,15 @@ export const transactionsTable = pgTable(
     // Composite rather than two indexes: the join to `accounts` and the date-range filter always
     // arrive together (see `getTransactions`), and this ordering also serves the `desc` sort.
     index("transactions_account_id_created_at_idx").on(table.accountId, table.createdAt),
+    index("transactions_transfer_id_idx").on(table.transferId),
+    uniqueIndex("transactions_transfer_direction_idx").on(
+      table.transferId,
+      sql`(${table.amount} > 0)`,
+    ),
+    check(
+      "transactions_linked_transfer_check",
+      sql`${table.transferId} is null or (${table.type} = 'TRANSFER' and ${table.amount} <> 0 and ${table.accountId} is not null)`,
+    ),
     index("transactions_profile_id_updated_at_id_idx").on(
       table.profileId,
       table.updatedAt,

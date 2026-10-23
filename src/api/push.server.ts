@@ -64,6 +64,7 @@ export const categorySyncColumns = {
 export const transactionSyncColumns = {
   id: transactionsTable.id,
   type: transactionsTable.type,
+  transferId: transactionsTable.transferId,
   necessityLevel: transactionsTable.necessityLevel,
   amount: transactionsTable.amount,
   comment: transactionsTable.comment,

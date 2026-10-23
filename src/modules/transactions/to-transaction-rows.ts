@@ -8,6 +8,7 @@ import type { SyncedAccount, SyncedTransaction } from "~/modules/sync/sync-types
  */
 export type TransactionRow = {
   id: string;
+  transferId?: string | null;
   createdAt: Date;
   categoryId: string | null;
   category: string | null;
@@ -54,6 +55,7 @@ export function toTransactionRows({
 
       return {
         id: transaction.id,
+        transferId: transaction.transferId,
         createdAt: transaction.createdAt,
         categoryId: transaction.categoryId,
         category: category?.name ?? null,

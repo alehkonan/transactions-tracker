@@ -1,6 +1,8 @@
 import { currencyCodeEnum } from "~/database/enums";
 import { newRow } from "~/modules/sync/mutations";
-import { negateMoney } from "~/utils/money";
+import { assertTransferPair } from "~/modules/transactions/linked-transfer";
+import { isMoneyInput, negateMoney } from "~/utils/money";
+import { uuidV7 } from "~/utils/uuid-v7";
 import { generateUniqueHexColors } from "./generate-hex-colors";
 import { parseImportDate } from "./parse-import-date";
 import type { ImportRow } from "./utils";
@@ -76,7 +78,9 @@ function normalizeCurrencyCode(raw: string): CurrencyCode | undefined {
 /** Parses a CSV money cell; empty is a valid zero, anything non-numeric is `undefined`. */
 function parseAmount(raw: string): number | undefined {
   if (!raw.trim()) return 0;
-  const value = Number(raw.trim().replace(",", "."));
+  const normalized = raw.trim().replace(",", ".");
+  if (!isMoneyInput(normalized, { allowNegative: true })) return undefined;
+  const value = Number(normalized);
   return Number.isFinite(value) ? value : undefined;
 }
 
@@ -258,18 +262,31 @@ export function buildImportPlan(rows: ImportRow[], context: ImportContext): Impo
         failures.push({ row: rowNumber, reason: `Unknown account: "${unknownName}"` });
         return;
       }
-      addTransaction({
+      const transferId = uuidV7();
+      const outgoing: TransactionPayload = {
         ...shared,
         type: "TRANSFER",
+        transferId,
+        categoryId: null,
         accountId: outcomeAccountId,
         amount: negateMoney(outcomeAmount.toFixed(2)),
-      });
-      addTransaction({
+      };
+      const incoming: TransactionPayload = {
         ...shared,
         type: "TRANSFER",
+        transferId,
+        categoryId: null,
         accountId: incomeAccountId,
         amount: incomeAmount.toFixed(2),
-      });
+      };
+      try {
+        assertTransferPair([outgoing, incoming], [...accountsByName.values()]);
+      } catch (error) {
+        failures.push({ row: rowNumber, reason: (error as Error).message });
+        return;
+      }
+      addTransaction(outgoing);
+      addTransaction(incoming);
       return;
     }
 

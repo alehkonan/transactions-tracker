@@ -6,6 +6,7 @@ import {
   necessityLevelEnum,
   transactionTypeEnum,
 } from "~/database/enums";
+import { assertCompleteOperations } from "~/modules/sync/outbox-acceptance";
 import { PUSH_BATCH_LIMIT, SYNCED_TABLES, SYNC_PROTOCOL_VERSION } from "~/modules/sync/sync-types";
 import type {
   AccountPayload,
@@ -19,6 +20,9 @@ const rowIdSchema = z.uuid();
 
 const mutationBaseSchema = {
   mutationId: z.uuid(),
+  operation: z
+    .object({ id: z.uuid(), mutationIds: z.array(z.uuid()).min(1).max(PUSH_BATCH_LIMIT) })
+    .optional(),
   rowId: rowIdSchema,
   /** Epoch milliseconds, compared for equality against the stored row's — see `Mutation`. */
   baseUpdatedAt: z.number().int().nullable(),
@@ -48,6 +52,7 @@ const categoryPayloadSchema = z.object({
 }) satisfies z.ZodType<CategoryPayload>;
 
 const transactionPayloadSchema = z.object({
+  transferId: rowIdSchema.nullable().optional(),
   type: z.enum(transactionTypeEnum.enumValues),
   necessityLevel: z.enum(necessityLevelEnum.enumValues),
   amount: z.string(),
@@ -130,5 +135,16 @@ export const pushChangesSchema = replicaSyncContextSchema.extend({
       (mutations) =>
         new Set(mutations.map((mutation) => mutation.mutationId)).size === mutations.length,
       { message: "Mutation ids must be unique within a push batch." },
+    )
+    .refine(
+      (mutations) => {
+        try {
+          assertCompleteOperations(mutations);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { message: "Financial operations must be complete and ordered." },
     ),
 });

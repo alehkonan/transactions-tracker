@@ -76,6 +76,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
     form,
     type,
     showTransferSplit,
+    isLinkedTransfer,
     selectedAccount,
     selectedToAccount,
     projectedBalance,
@@ -90,7 +91,13 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
   const { control } = form;
 
   const activeAccountOptions = accounts
-    .filter((account) => account.status === "ACTIVE")
+    .filter(
+      (account) =>
+        account.status === "ACTIVE" ||
+        (isEditing &&
+          (account.id === form.getValues("accountId") ||
+            account.id === form.getValues("toAccountId"))),
+    )
     .map((account) => ({
       value: account.id,
       label: `${account.name} (${account.currencyCode})`,
@@ -102,25 +109,31 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
   }));
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-2">
+    <form onSubmit={onSubmit} data-testid="transaction-form" className="flex flex-col gap-3 pt-2">
       <RadioGroupControl
         control={control}
         name="type"
         label="Type"
         hideLabel
-        options={typeOptions.map((option) => {
-          const Icon = transactionTypeIcons[option.value];
-          return {
-            value: option.value,
-            label: option.label,
-            content: (
-              <>
-                <Icon className="size-4" />
-                {option.label}
-              </>
-            ),
-          };
-        })}
+        options={typeOptions
+          .filter((option) =>
+            isLinkedTransfer
+              ? option.value === "TRANSFER"
+              : !isEditing || transaction?.type === "TRANSFER" || option.value !== "TRANSFER",
+          )
+          .map((option) => {
+            const Icon = transactionTypeIcons[option.value];
+            return {
+              value: option.value,
+              label: option.label,
+              content: (
+                <>
+                  <Icon className="size-4" />
+                  {option.label}
+                </>
+              ),
+            };
+          })}
         className="border-border bg-surface flex gap-1 rounded-lg border p-1"
         optionClassName={(option, checked) =>
           twMerge(
@@ -187,6 +200,10 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
       {showTransferSplit ? (
         <div className="flex flex-col gap-1">
+          <p className="text-text-muted text-sm">
+            Both sides are saved and deleted together. Same-currency amounts must match; enter fees
+            as separate Expense transactions.
+          </p>
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
@@ -224,7 +241,12 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                   control={control}
                   name="toAccountId"
                   label="To account"
-                  rules={{ required: "Account is required." }}
+                  rules={{
+                    required: "Account is required.",
+                    validate: (value) =>
+                      value !== form.getValues("accountId") ||
+                      "Choose a different destination account.",
+                  }}
                   options={activeAccountOptions}
                   placeholder="Select account"
                   className="w-full"
@@ -235,7 +257,18 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 control={control}
                 name="toAmount"
                 label="Amount"
-                rules={{ validate: validatePositiveAmount }}
+                rules={{
+                  validate: (value) => {
+                    const positive = validatePositiveAmount(value);
+                    if (positive !== true) return positive;
+                    return (
+                      !selectedAccount ||
+                      selectedAccount.currencyCode !== selectedToAccount?.currencyCode ||
+                      Number(value) === Number(form.getValues("amount")) ||
+                      "Amounts must match. Enter fees as a separate Expense."
+                    );
+                  },
+                }}
                 type="text"
                 inputMode="decimal"
                 enterKeyHint="next"

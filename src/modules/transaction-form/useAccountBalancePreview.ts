@@ -3,7 +3,7 @@ import {
   calculateAccountBalancePreview,
   type TransactionFormValues,
 } from "~/modules/transaction-form/transaction-form-values";
-import { sumMoney } from "~/utils/money";
+import { negateMoney, sumMoney } from "~/utils/money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
 
@@ -12,6 +12,7 @@ type Options = {
   control: Control<TransactionFormValues>;
   /** When set, the row being edited — its existing sign is kept regardless of the selected type. */
   transaction?: TransactionRow;
+  incoming?: Pick<TransactionRow, "accountId" | "amount">;
 };
 
 function projectIncomingBalance(
@@ -24,7 +25,7 @@ function projectIncomingBalance(
 }
 
 /** Resolves the selected account(s) and what their balance will become once the typed amount is applied. */
-export function useAccountBalancePreview({ accounts, control, transaction }: Options) {
+export function useAccountBalancePreview({ accounts, control, transaction, incoming }: Options) {
   const type = useWatch({ control, name: "type" });
   const accountId = useWatch({ control, name: "accountId" });
   const toAccountId = useWatch({ control, name: "toAccountId" });
@@ -39,13 +40,28 @@ export function useAccountBalancePreview({ accounts, control, transaction }: Opt
     selectedToAccount,
     projectedBalance: selectedAccount
       ? calculateAccountBalancePreview({
-          balance: selectedAccount.balance,
+          balance:
+            incoming?.accountId === selectedAccount.id
+              ? sumMoney([selectedAccount.balance, negateMoney(incoming.amount)])
+              : selectedAccount.balance,
           selectedAccountId: selectedAccount.id,
           amount,
           type,
           transaction,
         })
       : undefined,
-    projectedToBalance: projectIncomingBalance(selectedToAccount, toAmount),
+    projectedToBalance:
+      selectedToAccount && incoming
+        ? calculateAccountBalancePreview({
+            balance:
+              transaction?.accountId === selectedToAccount.id
+                ? sumMoney([selectedToAccount.balance, negateMoney(transaction.amount)])
+                : selectedToAccount.balance,
+            selectedAccountId: selectedToAccount.id,
+            amount: toAmount,
+            type: "TRANSFER",
+            transaction: incoming,
+          })
+        : projectIncomingBalance(selectedToAccount, toAmount),
   };
 }

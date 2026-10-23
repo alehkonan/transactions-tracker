@@ -1,5 +1,6 @@
 import { commit, newRow } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
+import { expandTransferSelection } from "~/modules/transactions/linked-transfer";
 import type { LocalChange } from "~/modules/sync/mutations";
 import type { ReplicaContext } from "~/modules/sync/replica-identity";
 import type { AccountPayload, SyncedAccount } from "~/modules/sync/sync-types";
@@ -64,9 +65,11 @@ export function deleteAccount(
   account: SyncedAccount,
   replicaContext?: ReplicaContext,
 ): Promise<void> {
-  const transactions = useSyncStore
-    .getState()
-    .transactions.filter((transaction) => transaction.accountId === account.id);
+  const allTransactions = useSyncStore.getState().transactions;
+  const transactions = expandTransferSelection(
+    allTransactions,
+    new Set(allTransactions.filter((row) => row.accountId === account.id).map((row) => row.id)),
+  );
 
   const changes: LocalChange[] = [{ op: "delete", table: "accounts", row: account }];
   if (transactions.length > 0) {

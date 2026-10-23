@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   accountsTable,
   categoriesTable,
@@ -7,6 +7,8 @@ import {
   profilesTable,
   transactionsTable,
 } from "~/database/tables";
+import { assertCompleteOperations } from "~/modules/sync/outbox-acceptance";
+import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import {
   createBatchAuthorization,
   type BatchAuthorizationOperation,
@@ -29,6 +31,7 @@ import type {
   PushConflict,
   SyncedRows,
   SyncedTable,
+  SyncedTransaction,
 } from "~/modules/sync/sync-types";
 
 export type ApplyMutationOperation =
@@ -41,6 +44,7 @@ export type ApplyMutationOperation =
   | "color.insert"
   | "color.read"
   | "receipt.persist-outcomes"
+  | "transfer.read"
   | "balance.recompute";
 
 export type ApplyMutationOperationRunner = <Result>(
@@ -434,6 +438,7 @@ async function executeApplyMutations(
   mutations: Mutation[],
   runOperation: ApplyMutationOperationRunner,
 ): Promise<AppliedBatch> {
+  assertCompleteOperations(mutations);
   const touched: TouchedIds = {
     profiles: new Set(),
     accounts: new Set(),
@@ -514,6 +519,14 @@ async function executeApplyMutations(
     }
   }
 
+  for (const mutation of mutations) {
+    if (!mutation.operation) continue;
+    const claims = mutation.operation.mutationIds.filter((id) => claimedMutationIds.has(id));
+    if (claims.length > 0 && claims.length !== mutation.operation.mutationIds.length) {
+      throw new Error("A financial operation has incomplete acceptance receipts.");
+    }
+  }
+
   const unreceiptedMutations = mutations.filter((mutation) =>
     claimedMutationIds.has(mutation.mutationId),
   );
@@ -559,6 +572,7 @@ async function executeApplyMutations(
 
   const rememberReturnedRows = (table: SyncedTable, rows: CanonicalRow[]): void => {
     for (const row of rows) {
+      touched[table].add(row.id);
       snapshots.loadedIds[table].add(row.id);
       snapshots.rows[table].set(row.id, row);
     }
@@ -607,7 +621,9 @@ async function executeApplyMutations(
   for (const run of toRuns(unreceiptedMutations)) {
     if (!authorization) throw new Error("Batch authorization was not initialized.");
     const ids = run.mutations.map((mutation) => mutation.rowId);
-    const authorized = authorization.authorize(run.mutations);
+    // A stale edit of an already deleted pair settles from its canonical tombstones even when
+    // the account/profile cascade also removed the references in its pending intent.
+    const authorized = authorization.authorize(run.table === "transactions" ? [] : run.mutations);
 
     if (run.table === "profiles") {
       // A profile's own scope is its owner. Nothing is asserted up front: an insert stamps `userId`
@@ -704,6 +720,82 @@ async function executeApplyMutations(
     const scope = inArray(table.profileId, owned);
 
     const runStaleBases = await findStaleBases(db, run, scope, snapshots, runOperation);
+    const blockedTransfers = new Set<string>();
+    if (run.table === "transactions") {
+      const targetRows = run.mutations.flatMap((mutation) => {
+        const row = snapshots.rows.transactions.get(mutation.rowId);
+        return row ? [row as SyncedTransaction] : [];
+      });
+      const transferIds = [
+        ...new Set([
+          ...targetRows.flatMap((row) => row.transferId ?? []),
+          ...run.mutations.flatMap((mutation) =>
+            mutation.op === "upsert" ? (mutation.payload.transferId ?? []) : [],
+          ),
+        ]),
+      ];
+      let pairedRows: SyncedTransaction[] = [];
+      if (transferIds.length > 0) {
+        pairedRows = await runOperation("transfer.read", () =>
+          db
+            .select(transactionSyncColumns)
+            .from(transactionsTable)
+            .where(and(inArray(transactionsTable.transferId, transferIds), scope))
+            .for("update"),
+        );
+        // Reuse rows already written earlier in this batch as well as the locked partner snapshots.
+        for (const row of pairedRows) snapshots.rows.transactions.set(row.id, row);
+      }
+      const current = [...snapshots.rows.transactions.values()] as SyncedTransaction[];
+      const deletedTransferIds = new Set(
+        current
+          .filter((row) => row.deletedAt != null && row.transferId)
+          .map((row) => row.transferId),
+      );
+      authorization.authorize(
+        run.mutations.filter((mutation) => {
+          const canonical = snapshots.rows.transactions.get(mutation.rowId) as
+            | SyncedTransaction
+            | undefined;
+          return !(
+            mutation.op === "upsert" &&
+            canonical?.transferId &&
+            mutation.payload.transferId === canonical.transferId &&
+            mutation.payload.profileId === canonical.profileId &&
+            deletedTransferIds.has(canonical.transferId)
+          );
+        }),
+      );
+      try {
+        for (const id of validateTransferMutations(
+          run.mutations,
+          current,
+          authorization.transferAccounts(),
+        ))
+          blockedTransfers.add(id);
+      } catch (error) {
+        throw new Response(error instanceof Error ? error.message : "Invalid linked transfer.", {
+          status: 400,
+        });
+      }
+      for (const mutation of run.mutations) {
+        if (
+          !blockedTransfers.has(mutation.mutationId) ||
+          runStaleBases.some((base) => base.mutationId === mutation.mutationId)
+        )
+          continue;
+        const row = snapshots.rows.transactions.get(mutation.rowId);
+        if (row)
+          runStaleBases.push({
+            mutationId: mutation.mutationId,
+            table: "transactions",
+            rowId: mutation.rowId,
+            baseUpdatedAt: mutation.baseUpdatedAt,
+            conflictingServerUpdatedAt: row.updatedAt.getTime(),
+            preWriteCanonicalRow: row,
+          });
+      }
+    }
 
     if (run.op === "delete") {
       const affectedRowIds = await withSyncPhase(
@@ -725,7 +817,13 @@ async function executeApplyMutations(
               db,
               "transactions",
               and(
-                inArray(transactionsTable.accountId, ids),
+                or(
+                  inArray(transactionsTable.accountId, ids),
+                  inArray(
+                    transactionsTable.transferId,
+                    sql`select ${transactionsTable.transferId} from ${transactionsTable} where ${inArray(transactionsTable.accountId, ids)} and ${inArray(transactionsTable.profileId, owned)}`,
+                  ),
+                ),
                 inArray(transactionsTable.profileId, owned),
               ),
               runOperation,
@@ -852,50 +950,67 @@ async function executeApplyMutations(
       continue;
     }
 
-    const affectedRowIds = await runOperation("mutation.upsert.transactions", () =>
-      withSyncPhase(
-        "push.mutation_application",
-        () =>
-          db
-            .insert(transactionsTable)
-            .values(
-              // Spelled out rather than spread, mirroring the `set` below: these are the columns a push
-              // writes, and the two lists have to agree or an insert and an update of the same row would
-              // not produce the same row.
-              run.mutations.map(({ rowId, payload }) => ({
-                id: rowId,
-                type: payload.type,
-                necessityLevel: payload.necessityLevel,
-                amount: payload.amount,
-                comment: payload.comment,
-                createdAt: payload.createdAt,
-                accountId: payload.accountId,
-                categoryId: payload.categoryId,
-                profileId: payload.profileId,
-                updatedAt: now(),
-              })),
-            )
-            .onConflictDoUpdate({
-              target: transactionsTable.id,
-              set: {
-                type: excluded(transactionsTable.type),
-                necessityLevel: excluded(transactionsTable.necessityLevel),
-                amount: excluded(transactionsTable.amount),
-                comment: excluded(transactionsTable.comment),
-                createdAt: excluded(transactionsTable.createdAt),
-                accountId: excluded(transactionsTable.accountId),
-                categoryId: excluded(transactionsTable.categoryId),
-                updatedAt: now(),
-              },
-              setWhere: and(
-                sql`${transactionsTable.profileId} = excluded.profile_id`,
-                isNull(transactionsTable.deletedAt),
-              ),
-            })
-            .returning(transactionSyncColumns),
-        { table: run.table, operation: run.op, mutationCount: run.mutations.length },
-      ),
+    const writableMutations = run.mutations.filter(
+      (mutation) => !blockedTransfers.has(mutation.mutationId),
     );
+    const affectedRowIds =
+      writableMutations.length === 0
+        ? []
+        : await runOperation("mutation.upsert.transactions", () =>
+            withSyncPhase(
+              "push.mutation_application",
+              () =>
+                db
+                  .insert(transactionsTable)
+                  .values(
+                    // Spelled out rather than spread, mirroring the `set` below: these are the columns a push
+                    // writes, and the two lists have to agree or an insert and an update of the same row would
+                    // not produce the same row.
+                    writableMutations.map(({ rowId, payload }) => ({
+                      id: rowId,
+                      type: payload.type,
+                      transferId: payload.transferId ?? null,
+                      necessityLevel: payload.necessityLevel,
+                      amount: payload.amount,
+                      comment: payload.comment,
+                      createdAt: payload.createdAt,
+                      accountId: payload.accountId,
+                      categoryId: payload.categoryId,
+                      profileId: payload.profileId,
+                      updatedAt: now(),
+                    })),
+                  )
+                  .onConflictDoUpdate({
+                    target: transactionsTable.id,
+                    set: {
+                      type: excluded(transactionsTable.type),
+                      transferId: excluded(transactionsTable.transferId),
+                      necessityLevel: excluded(transactionsTable.necessityLevel),
+                      amount: excluded(transactionsTable.amount),
+                      comment: excluded(transactionsTable.comment),
+                      createdAt: excluded(transactionsTable.createdAt),
+                      accountId: excluded(transactionsTable.accountId),
+                      categoryId: excluded(transactionsTable.categoryId),
+                      updatedAt: now(),
+                    },
+                    setWhere: and(
+                      sql`${transactionsTable.profileId} = excluded.profile_id`,
+                      sql`${transactionsTable.transferId} is not distinct from excluded.transfer_id`,
+                      isNull(transactionsTable.deletedAt),
+                    ),
+                  })
+                  .returning(transactionSyncColumns),
+              { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+            ),
+          );
+    const returnedIds = new Set(affectedRowIds.map((row) => row.id));
+    if (
+      writableMutations.some(
+        (mutation) => mutation.payload.transferId && !returnedIds.has(mutation.rowId),
+      )
+    ) {
+      throw new Response("That record does not belong to the selected profile.", { status: 403 });
+    }
     recordAppliedMutations(run, affectedRowIds, appliedMutationIds);
     captureAcceptanceOutcomes(runStaleBases, affectedRowIds);
     rememberReturnedRows(run.table, affectedRowIds);
