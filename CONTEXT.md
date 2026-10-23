@@ -4,6 +4,62 @@ A personal finance tracker whose working data remains available and mutable with
 
 ## Language
 
+### Personal finance
+
+**Account**:
+A place where money or a financial asset is held, denominated in one fixed currency.
+_Avoid_: Sphere, purpose
+
+**Sphere**:
+A profile-owned named financial purpose with an Operating, Funds, or Capital type, independent of the accounts holding the money. Each sphere has its own balances per currency; multiple Funds or Capital spheres may share a type, such as Funds / Thailand and Funds / Emergency reserve.
+_Avoid_: Account, account group
+
+**Sphere type**:
+One of the three financial classifications Operating, Funds, and Capital, shared by spheres serving the corresponding purpose.
+_Avoid_: Transaction category, account type
+
+**Operating**:
+The sphere type for everyday income and spending, including salary, groceries, transport, regular subscriptions, and utilities. Each profile has one system Operating sphere, assigned to transaction money by default.
+_Avoid_: Operational
+
+**Funds**:
+The sphere type for money earmarked for specific goals or reserves, such as travel, expensive purchases, or an emergency fund.
+_Avoid_: Account group
+
+**Capital**:
+The sphere type for savings and investments intended to preserve or grow wealth, tracked as monetary amounts. Asset income is recorded as separate income transactions.
+_Avoid_: Account type
+
+**Transaction**:
+An event recording an actual movement of money or a change in a tracked financial asset.
+_Avoid_: Allocation
+
+**Allocation**:
+A change in the amount assigned to a sphere, independent of the account holding the money. An allocation accompanying a transaction carries the same amount and currency; allocations may also occur without transactions.
+_Avoid_: Account transfer
+
+**Reallocation**:
+A single operation moving an amount between spheres in the same currency without changing account balances. Its source decrease and destination increase are equal.
+_Avoid_: Currency exchange, account transfer
+
+**Transfer**:
+A movement between a person's accounts, represented by linked outgoing and incoming transactions with their accompanying allocations. Both sides form one operation for editing and deletion; their currencies and amounts may differ when exchanging currencies.
+_Avoid_: Reallocation
+
+**Transaction category**:
+A classification of a transaction's income or expense, separate from its sphere. Allocations have no transaction category.
+_Avoid_: Sphere, allocation category
+
+**Operating Spending**:
+Actual everyday expenses attributed to Operating, excluding reservations and expenses from Funds or Capital. Refunds recorded as income do not reduce this measure; correcting the original expense changes its historical amount instead.
+_Avoid_: Allocation turnover, total spending
+
+**Runway**:
+The length of time all remaining money in accounts can cover average Operating Spending, assuming no future income. Funds and Capital money remains part of the available account balance even though their expenses are excluded from the spending average.
+_Avoid_: Operating-only runway
+
+### Identity and synchronization
+
 **User**:
 A person’s authentication identity, which may be proven by one or more credentials and may own multiple financial profiles.
 _Avoid_: Account, profile
