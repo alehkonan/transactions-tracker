@@ -238,7 +238,9 @@ async function submitStaleForms(options: {
   await expect(accountDialog.getByRole("button", { name: "Create", exact: true })).toBeEnabled();
 
   await transactionDialog.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(transactionDialog).toContainText("Failed to save transaction. Please try again.");
+  await expect(transactionDialog.getByTestId("transaction-error")).toHaveText(
+    "The local replica changed while the operation was in progress.",
+  );
 
   await importPage.getByRole("button", { name: "Next", exact: true }).click();
   await expect(
