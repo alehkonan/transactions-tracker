@@ -43,7 +43,7 @@ export type Color = typeof colorsTable.$inferSelect;
 
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 export type WritableTable = keyof MutationPayloads;
-export type SyncedSphere = typeof spheresTable.$inferSelect;
+type SyncedSphere = typeof spheresTable.$inferSelect;
 export type SyncedAllocation = typeof allocationsTable.$inferSelect;
 
 export type SyncedRows = {

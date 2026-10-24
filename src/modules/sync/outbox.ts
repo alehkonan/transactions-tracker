@@ -43,7 +43,7 @@ async function readOutboxBatch(expected: ReplicaContext, limit: number): Promise
 }
 
 /** Identifies a row across tables, since ids are only unique within one. */
-export function rowKey(table: SyncedTable, rowId: string): string {
+function rowKey(table: SyncedTable, rowId: string): string {
   return `${table}:${rowId}`;
 }
 
