@@ -102,7 +102,7 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await expect(cards).toContainText("Archived wallet");
   await expect(page.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
   await expect(page.getByTestId("operating-reconciliation")).toContainText(
-    "Matches account balances",
+    "All sphere balances match account balances",
   );
   expectOperatingReconciled(await readFinancialReplica(page));
 
@@ -172,6 +172,6 @@ test("an interrupted allocation pull remains incomplete after an offline reload"
   await page.getByTestId("sync-status").click();
   await waitForSynced(page);
   await expect(page.getByTestId("operating-reconciliation")).toContainText(
-    "Matches account balances",
+    "All sphere balances match account balances",
   );
 });
