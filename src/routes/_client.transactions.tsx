@@ -205,6 +205,7 @@ export const Route = createFileRoute("/_client/transactions")({
               <Button
                 variant="primary"
                 aria-label="Add transaction"
+                data-testid="transaction-create"
                 className="size-11 p-0 md:h-9 md:w-auto md:px-3"
                 onClick={() => setAddDialogOpen(true)}
                 disabled={activeAccounts.length === 0}

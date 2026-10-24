@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { drainOutbox } from "./outbox-acceptance";
+import { drainOutbox, takeOperationBatch } from "./outbox-acceptance";
+import type { OperationMember } from "./outbox-acceptance";
 
-type Entry = {
+type Entry = OperationMember & {
   seq: number;
   mutationId: string;
   value: string;
@@ -39,6 +40,127 @@ const entries: Entry[] = [
 ];
 
 describe("drainOutbox", () => {
+  it("keeps a transfer together at the 500-row boundary and replays a lost response without duplicating either leg", async () => {
+    const operation = { id: "transfer", mutationIds: ["outgoing", "incoming"] };
+    const before = Array.from({ length: 499 }, (_, index) => ({
+      seq: index + 1,
+      mutationId: `expense-${index}`,
+      value: "-1.00",
+    }));
+    const pair = [
+      { seq: 500, mutationId: "outgoing", value: "-10.00", operation },
+      { seq: 501, mutationId: "incoming", value: "10.00", operation },
+    ];
+    const testStorage = createStorage([...before, ...pair]);
+    const batches: string[][] = [];
+    const serverReceipts = new Map<string, string>();
+    let loseResponse = true;
+    const options = {
+      storage: {
+        ...testStorage.storage,
+        readBatch: async (limit: number) =>
+          takeOperationBatch(testStorage.entries.slice(0, limit), limit),
+      },
+      batchLimit: 500,
+      toPayload: (entry: Entry) => entry,
+      send: async (batch: readonly Entry[]) => {
+        batches.push(batch.map((entry) => entry.mutationId));
+        for (const entry of batch)
+          if (!serverReceipts.has(entry.mutationId))
+            serverReceipts.set(entry.mutationId, entry.value);
+        if (batch.some((entry) => entry.operation) && loseResponse) {
+          loseResponse = false;
+          return {
+            kind: "retryable" as const,
+            error: new Error("Response lost after server commit"),
+          };
+        }
+        return {
+          kind: "accepted" as const,
+          result: { applied: batch.map((entry) => entry.mutationId) },
+        };
+      },
+    };
+    expect(await drainOutbox(options)).toMatchObject({ kind: "retryable", accepted: 499 });
+    expect(testStorage.entries).toEqual(pair);
+    expect(await drainOutbox(options)).toEqual({ kind: "drained", accepted: 2 });
+    expect(batches.map((batch) => batch.length)).toEqual([499, 2, 2]);
+    expect(batches[1]).toEqual(["outgoing", "incoming"]);
+    expect(batches[2]).toEqual(batches[1]);
+    expect(serverReceipts.size).toBe(501);
+    expect(testStorage.entries).toEqual([]);
+  });
+
+  it("retains both legs when only one is confirmed", async () => {
+    const operation = { id: "transfer", mutationIds: ["outgoing", "incoming"] };
+    const pair = [
+      { seq: 1, mutationId: "outgoing", value: "-10.00", operation },
+      { seq: 2, mutationId: "incoming", value: "10.00", operation },
+    ];
+    const testStorage = createStorage(pair);
+    const outcome = await drainOutbox({
+      storage: testStorage.storage,
+      batchLimit: 500,
+      toPayload: (entry) => entry,
+      send: async () => ({ kind: "accepted", result: { applied: ["outgoing"] } }),
+    });
+    expect(outcome).toMatchObject({ kind: "retryable", accepted: 0 });
+    expect(testStorage.entries).toEqual(pair);
+    expect(testStorage.dropped).toEqual([]);
+  });
+
+  it("retains accepted intents when durable settlement fails and settles them on retry", async () => {
+    const operation = { id: "transfer", mutationIds: ["outgoing", "incoming"] };
+    const pair = [
+      { seq: 1, mutationId: "outgoing", value: "-10.00", operation },
+      { seq: 2, mutationId: "incoming", value: "10.00", operation },
+    ];
+    const testStorage = createStorage(pair);
+    const failure = new Error("Storage transaction aborted");
+    let failSettlement = true;
+    const options = {
+      storage: {
+        ...testStorage.storage,
+        settleEntries: async (seqs: readonly number[]) => {
+          if (failSettlement) {
+            failSettlement = false;
+            throw failure;
+          }
+          await testStorage.storage.dropEntries(seqs);
+        },
+      },
+      batchLimit: 500,
+      toPayload: (entry: Entry) => entry,
+      send: async () => ({
+        kind: "accepted" as const,
+        result: { applied: ["outgoing", "incoming"] },
+      }),
+    };
+    await expect(drainOutbox(options)).rejects.toBe(failure);
+    expect(testStorage.entries).toEqual(pair);
+    expect(await drainOutbox(options)).toEqual({ kind: "drained", accepted: 2 });
+    expect(testStorage.entries).toEqual([]);
+  });
+
+  it("retains an incomplete financial operation without sending a leg", async () => {
+    const operation = { id: "transfer-create", mutationIds: ["outgoing", "incoming"] };
+    const queued = [{ seq: 1, mutationId: "outgoing", value: "-10.00", operation }];
+    const testStorage = createStorage(queued);
+    let sent = false;
+    const outcome = await drainOutbox({
+      storage: testStorage.storage,
+      batchLimit: 500,
+      toPayload: (entry) => entry,
+      send: async () => {
+        sent = true;
+        return { kind: "accepted", result: { applied: ["outgoing"] } };
+      },
+    });
+    expect(outcome).toMatchObject({ kind: "retryable", accepted: 0 });
+    expect(sent).toBe(false);
+    expect(testStorage.entries).toEqual(queued);
+  });
+
   it("drains full batches in sequence and runs under the coordination adapter", async () => {
     const testStorage = createStorage(entries);
     const payloads: string[][] = [];

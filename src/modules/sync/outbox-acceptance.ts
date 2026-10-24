@@ -141,6 +141,11 @@ export async function drainOutbox<
           error: new Error("The outbox returned an invalid batch order."),
         };
       }
+      try {
+        assertCompleteOperations(batch, options.batchLimit);
+      } catch (error) {
+        return { kind: "retryable", accepted: acceptedCount, error };
+      }
 
       const delivery = await options.send(batch.map(options.toPayload));
       if (delivery.kind === "unauthorized") {

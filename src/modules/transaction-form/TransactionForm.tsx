@@ -125,6 +125,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             const Icon = transactionTypeIcons[option.value];
             return {
               value: option.value,
+              testId: `transaction-type-${option.value}`,
               label: option.label,
               content: (
                 <>
@@ -210,6 +211,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 <SelectControl
                   control={control}
                   name="accountId"
+                  data-testid="transaction-account"
                   label="From account"
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
@@ -221,6 +223,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               <InputControl
                 control={control}
                 name="amount"
+                data-testid="transaction-amount"
                 label="Amount"
                 rules={{ validate: validatePositiveAmount }}
                 type="text"
@@ -240,6 +243,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 <SelectControl
                   control={control}
                   name="toAccountId"
+                  data-testid="transaction-to-account"
                   label="To account"
                   rules={{
                     required: "Account is required.",
@@ -256,6 +260,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               <InputControl
                 control={control}
                 name="toAmount"
+                data-testid="transaction-to-amount"
                 label="Amount"
                 rules={{
                   validate: (value) => {
@@ -285,6 +290,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             <SelectControl
               control={control}
               name="accountId"
+              data-testid="transaction-account"
               label="Account"
               rules={{ required: "Account is required." }}
               options={activeAccountOptions}
@@ -296,6 +302,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
           <InputControl
             control={control}
             name="amount"
+            data-testid="transaction-amount"
             label="Amount"
             rules={{ validate: validatePositiveAmount }}
             type="text"
@@ -310,23 +317,40 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
       <TextareaControl
         control={control}
         name="comment"
+        data-testid="transaction-comment"
         label="Comment"
         rows={2}
         enterKeyHint="done"
         className="w-full"
       />
 
-      {rootError && <p className="text-danger text-sm">{rootError}</p>}
+      {rootError && (
+        <p data-testid="transaction-error" className="text-danger text-sm">
+          {rootError}
+        </p>
+      )}
 
       <footer
         className={twJoin("mt-2 flex gap-2", isEditing ? "justify-between" : "justify-center")}
       >
         {isEditing && transaction && <DeleteTransactionButton id={transaction.id} />}
         <div className="flex gap-2">
-          <Button className="min-w-20" variant="secondary" type="button" onClick={onClose}>
+          <Button
+            data-testid="transaction-cancel"
+            className="min-w-20"
+            variant="secondary"
+            type="button"
+            onClick={onClose}
+          >
             Cancel
           </Button>
-          <Button className="min-w-20" type="submit" variant="primary" disabled={isPending}>
+          <Button
+            data-testid="transaction-submit"
+            className="min-w-20"
+            type="submit"
+            variant="primary"
+            disabled={isPending}
+          >
             {isEditing ? (isPending ? "Updating…" : "Update") : isPending ? "Saving…" : "Save"}
           </Button>
         </div>

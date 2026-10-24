@@ -97,7 +97,94 @@ describe("buildImportPlan", () => {
       { type: "TRANSFER", amount: "-40.00" },
       { type: "TRANSFER", amount: "40.00" },
     ]);
+    expect(legs[0].row.transferId).toEqual(expect.any(String));
+    expect(legs[1].row.transferId).toBe(legs[0].row.transferId);
   });
+
+  it("reports a same-currency mismatch without importing a leg or inventing a fee", () => {
+    const plan = buildImportPlan(
+      [
+        row({
+          outcomeAccountName: "Wallet",
+          outcome: "40",
+          incomeAccountName: "Savings",
+          income: "39",
+          categoryName: "Fees",
+        }),
+      ],
+      context({ accounts: [account(), account({ id: "savings", name: "Savings" })] }),
+    );
+    expect(plan.createdTransactionIds).toEqual([]);
+    expect(upserts(plan.changes, "transactions")).toEqual([]);
+    expect(plan.failures).toEqual([
+      {
+        row: 1,
+        reason:
+          "Same-currency transfer amounts must match. Record fees as separate Expense transactions.",
+      },
+    ]);
+  });
+
+  it("links independently entered exchange amounts and keeps a categorized fee as a separate expense", () => {
+    const plan = buildImportPlan(
+      [
+        row({
+          outcomeAccountName: "Wallet",
+          outcome: "40",
+          incomeAccountName: "Euro card",
+          income: "36.50",
+        }),
+        row({ outcomeAccountName: "Wallet", outcome: "1.50", categoryName: "Fees" }),
+      ],
+      context({
+        accounts: [account(), account({ id: "euro", name: "Euro card", currencyCode: "EUR" })],
+      }),
+    );
+    const transactions = upserts(plan.changes, "transactions");
+    expect(plan.failures).toEqual([]);
+    expect(
+      transactions.map((change) => ({ type: change.payload.type, amount: change.payload.amount })),
+    ).toEqual([
+      { type: "TRANSFER", amount: "-40.00" },
+      { type: "TRANSFER", amount: "36.50" },
+      { type: "EXPENSE", amount: "-1.50" },
+    ]);
+    expect(transactions[0].payload.transferId).toBe(transactions[1].payload.transferId);
+    expect(transactions[2].payload.transferId).toBeUndefined();
+    expect(transactions[2].payload.categoryId).toBe(upserts(plan.changes, "categories")[0].row.id);
+  });
+
+  it.each([
+    { destination: account(), amount: "40", reason: "two different accounts" },
+    {
+      destination: account({ id: "other", name: "Other", profileId: "another-profile" }),
+      amount: "40",
+      reason: "same financial profile",
+    },
+    {
+      destination: account({ id: "savings", name: "Savings" }),
+      amount: "39.999",
+      reason: "Invalid income amount",
+    },
+  ])(
+    "rejects an invalid transfer before importing either side: $reason",
+    ({ destination, amount, reason }) => {
+      const plan = buildImportPlan(
+        [
+          row({
+            outcomeAccountName: "Wallet",
+            outcome: "40",
+            incomeAccountName: destination.name,
+            income: amount,
+          }),
+        ],
+        context({ accounts: [account(), destination] }),
+      );
+      expect(plan.createdTransactionIds).toEqual([]);
+      expect(upserts(plan.changes, "transactions")).toEqual([]);
+      expect(plan.failures).toMatchObject([{ row: 1, reason: expect.stringContaining(reason) }]);
+    },
+  );
 
   it("creates the categories and accounts the file mentions, before the rows using them", () => {
     const plan = buildImportPlan(

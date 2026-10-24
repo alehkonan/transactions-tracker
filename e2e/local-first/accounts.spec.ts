@@ -1,10 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
-import { E2E_ACCOUNT_NAME, test, waitForSynced } from "../fixtures/auth";
+import { E2E_ACCOUNT_NAME, openSecondDevice, test, waitForSynced } from "../fixtures/auth";
+import { pushMutations, readFinancialReplica } from "../fixtures/transfers";
 
 test("fixed-currency accounts retain money through offline edits, archive filtering, reload, and another device", async ({
   onboardedPage: page,
   context,
-  browser,
+  authCredentials,
 }) => {
   await page.goto("/accounts");
   await waitForSynced(page);
@@ -18,6 +20,41 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await expect
     .poll(() => page.evaluate(() => navigator.serviceWorker.controller != null))
     .toBe(true);
+  const source = (await readFinancialReplica(page)).accounts[0];
+  const categoryId = randomUUID();
+  const seeded = await pushMutations(page, [
+    {
+      mutationId: randomUUID(),
+      rowId: categoryId,
+      table: "categories",
+      op: "upsert",
+      baseUpdatedAt: null,
+      payload: { name: "Preserved history", colorId: null, profileId: source.profileId },
+    },
+    ...["-12.34", "15.00"].map((amount) => ({
+      mutationId: randomUUID(),
+      rowId: randomUUID(),
+      table: "transactions" as const,
+      op: "upsert" as const,
+      baseUpdatedAt: null,
+      payload: {
+        type: Number(amount) < 0 ? ("EXPENSE" as const) : ("INCOME" as const),
+        amount,
+        comment: "Existing account history",
+        accountId: source.id,
+        categoryId,
+        profileId: source.profileId,
+        createdAt: new Date("2026-01-01T12:00:00Z"),
+        necessityLevel: "MEDIUM" as const,
+      },
+    })),
+  ]);
+  expect(seeded.status).toBe(200);
+  await page.getByTestId("sync-status").click();
+  await expect.poll(async () => (await readFinancialReplica(page)).transactions.length).toBe(2);
+  await waitForSynced(page);
+  const history = (await readFinancialReplica(page)).transactions;
+  expect(history).toHaveLength(2);
   await context.setOffline(true);
 
   const cards = page.getByTestId("accounts-list").getByTestId(/^account-/);
@@ -31,7 +68,7 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await form.getByTestId("account-submit").click();
 
   await expect(page.getByTestId("accounts-empty")).toHaveText("No active accounts.");
-  await expect(page.getByTestId("accounts-total")).toContainText(/100[.,]00/);
+  await expect(page.getByTestId("accounts-total")).toContainText(/102[.,]66/);
   const totalWithArchivedMoney = await page.getByTestId("accounts-total").textContent();
 
   await page.getByTestId("account-create").click();
@@ -48,6 +85,7 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await page.getByTestId("accounts-status").selectOption("ALL");
   await expect(cards).toHaveCount(2);
   await expect(page.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
+  expect((await readFinancialReplica(page)).transactions).toEqual(history);
 
   await page.reload();
   await expect(cards).toHaveCount(1);
@@ -58,17 +96,15 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await expect(page.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
 
   await context.setOffline(false);
+  // Chromium's offline emulation loses its online event after a cached navigation. Exercise the
+  // supported explicit sync action after restoring the actual network connection.
+  await page.getByTestId("sync-status").click();
   await waitForSynced(page);
-  // Cookies identify the same user; a fresh browser context has no IndexedDB replica.
-  const secondContext = await browser.newContext({
-    baseURL: new URL(page.url()).origin,
-    storageState: await context.storageState(),
-  });
+  const { context: secondContext, page: secondPage } = await openSecondDevice(
+    page,
+    authCredentials,
+  );
   try {
-    const secondPage = await secondContext.newPage();
-    await secondPage.goto("/profile");
-    await secondPage.getByTestId("profile-open").click();
-    await expect(secondPage).toHaveURL(/\/transactions$/);
     await secondPage.goto("/accounts");
     await waitForSynced(secondPage);
     await secondPage.getByTestId("accounts-status").selectOption("ARCHIVED");
@@ -80,6 +116,11 @@ test("fixed-currency accounts retain money through offline edits, archive filter
     await expect(secondPage.getByTestId("account-initial-balance")).toHaveValue("100.00");
     await expect(secondPage.getByTestId("account-currency")).toHaveValue("USD");
     await expect(secondPage.getByTestId("account-currency")).toBeDisabled();
+    expect(
+      (await readFinancialReplica(secondPage)).transactions.toSorted((a, b) =>
+        a.id.localeCompare(b.id),
+      ),
+    ).toEqual(history.toSorted((a, b) => a.id.localeCompare(b.id)));
   } finally {
     await secondContext.close();
   }

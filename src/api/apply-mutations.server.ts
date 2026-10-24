@@ -821,7 +821,7 @@ async function executeApplyMutations(
                   inArray(transactionsTable.accountId, ids),
                   inArray(
                     transactionsTable.transferId,
-                    sql`select ${transactionsTable.transferId} from ${transactionsTable} where ${inArray(transactionsTable.accountId, ids)} and ${inArray(transactionsTable.profileId, owned)}`,
+                    sql`(select ${transactionsTable.transferId} from ${transactionsTable} where ${inArray(transactionsTable.accountId, ids)} and ${inArray(transactionsTable.profileId, owned)})`,
                   ),
                 ),
                 inArray(transactionsTable.profileId, owned),

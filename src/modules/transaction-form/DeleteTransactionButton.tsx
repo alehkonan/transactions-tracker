@@ -32,7 +32,13 @@ export function DeleteTransactionButton({ id }: Props) {
   return (
     <Popover
       renderTrigger={({ onOpen }) => (
-        <Button variant="danger" type="button" disabled={isDeleting} onClick={onOpen}>
+        <Button
+          data-testid="transaction-delete"
+          variant="danger"
+          type="button"
+          disabled={isDeleting}
+          onClick={onOpen}
+        >
           {isDeleting ? (
             <Loader2Icon className="size-4 animate-spin" />
           ) : (
@@ -45,6 +51,7 @@ export function DeleteTransactionButton({ id }: Props) {
       <PopoverConfirm
         message={isLinked ? "Delete both sides of this transfer?" : "Delete this transaction?"}
         confirmLabel="Delete"
+        confirmTestId="transaction-delete-confirm"
         confirmVariant="danger"
         onConfirm={handleConfirm}
       />

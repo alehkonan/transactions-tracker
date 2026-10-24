@@ -138,6 +138,7 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
           return (
             <button
               key={row.id}
+              data-testid={`transaction-${row.id}`}
               ref={virtualizer.measureElement}
               data-index={virtualItem.index}
               style={{ ...style, width: "100%" }}

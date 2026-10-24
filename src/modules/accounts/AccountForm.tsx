@@ -180,7 +180,13 @@ export function AccountForm({ account }: Props) {
           <Popover
             aria-label="Remove account"
             renderTrigger={({ onOpen }) => (
-              <Button variant="danger" type="button" disabled={isDeleting} onClick={onOpen}>
+              <Button
+                data-testid="account-delete"
+                variant="danger"
+                type="button"
+                disabled={isDeleting}
+                onClick={onOpen}
+              >
                 <TrashIcon className="size-4" />
                 Delete
               </Button>
@@ -188,8 +194,9 @@ export function AccountForm({ account }: Props) {
           >
             <PopoverConfirm
               title="Remove account"
-              message={`Delete account "${account.name}"? This also deletes all of its transactions.`}
+              message={`Delete account "${account.name}"? This also deletes all of its transactions. Linked transfers are deleted from both accounts.`}
               confirmLabel="Delete"
+              confirmTestId="account-delete-confirm"
               confirmVariant="danger"
               onConfirm={handleDelete}
             />

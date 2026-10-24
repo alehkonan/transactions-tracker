@@ -85,6 +85,29 @@ export async function waitForSynced(page: Page): Promise<void> {
   await expect(page.getByRole("button", { name: SYNCED_TITLE })).toBeVisible({ timeout: 30_000 });
 }
 
+/** A second device proves identity through login and bootstraps its own empty IndexedDB replica. */
+export async function openSecondDevice(page: Page, credentials: AuthCredentials) {
+  const context = await page
+    .context()
+    .browser()!
+    .newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    const second = await context.newPage();
+    await second.goto("/login");
+    await second.getByTestId("password-auth-username").fill(credentials.username);
+    await second.getByTestId("password-auth-password").fill(credentials.password);
+    await second.getByTestId("password-auth-submit").click();
+    await expect(second).toHaveURL(/\/profile$/);
+    await second.getByTestId("profile-open").click();
+    await expect(second).toHaveURL(/\/transactions$/);
+    await waitForSynced(second);
+    return { context, page: second };
+  } catch (error) {
+    await context.close();
+    throw error;
+  }
+}
+
 /** Creates one transaction through the real form and returns its unique comment. */
 export async function createTransaction(page: Page, comment: string): Promise<void> {
   await page.getByRole("button", { name: "Add transaction", exact: true }).first().click();

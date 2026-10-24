@@ -22,7 +22,7 @@ export function ProcessingStep() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div data-testid="import-report" className="flex flex-col gap-4">
       <Title variant="section">Import report</Title>
       <dl className="border-border bg-surface-muted grid grid-cols-3 gap-4 rounded-xl border p-4">
         <div>
@@ -57,7 +57,10 @@ export function ProcessingStep() {
         </div>
       )}
       {report.failures.length > 0 && (
-        <ul className="border-border flex max-h-48 flex-col gap-1 overflow-auto rounded-xl border p-3 text-sm">
+        <ul
+          data-testid="import-failures"
+          className="border-border flex max-h-48 flex-col gap-1 overflow-auto rounded-xl border p-3 text-sm"
+        >
           {report.failures.map((failure) => (
             <li key={failure.row} className="text-danger">
               Row {failure.row}: {failure.reason}
@@ -67,6 +70,7 @@ export function ProcessingStep() {
       )}
       <footer className="flex justify-center gap-2">
         <Button
+          data-testid="import-discard"
           variant="danger"
           disabled={isCancelling}
           onClick={actions.discardImportedTransactions}
@@ -74,6 +78,7 @@ export function ProcessingStep() {
           {isCancelling ? "Removing…" : "Cancel"}
         </Button>
         <Button
+          data-testid="import-proceed"
           variant="primary"
           disabled={isCancelling}
           onClick={() => {

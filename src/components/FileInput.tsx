@@ -6,6 +6,7 @@ type Props = {
   file?: File | null;
   onFileChange: (file: File | null) => void;
   accept?: string;
+  inputTestId?: string;
 };
 
 /**
@@ -22,7 +23,12 @@ function isAccepted(file: File, accept: string) {
   });
 }
 
-export function FileInput({ file = null, onFileChange, accept = ".csv,text/csv" }: Props) {
+export function FileInput({
+  file = null,
+  onFileChange,
+  accept = ".csv,text/csv",
+  inputTestId,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
@@ -89,6 +95,7 @@ export function FileInput({ file = null, onFileChange, accept = ".csv,text/csv" 
           id={inputId}
           ref={inputRef}
           type="file"
+          data-testid={inputTestId}
           accept={accept}
           className="sr-only"
           onChange={(e) => selectFile(e.target.files)}
