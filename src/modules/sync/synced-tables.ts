@@ -5,8 +5,14 @@
  * later mutations. This module intentionally has no imports: the standalone tombstone GC imports it
  * without pulling in the application's database or bundler graph.
  */
-export const WRITABLE_TABLES = ["profiles", "accounts", "categories", "transactions"] as const;
-export const SYNCED_TABLES = [...WRITABLE_TABLES, "spheres", "allocations"] as const;
+export const WRITABLE_TABLES = [
+  "profiles",
+  "accounts",
+  "categories",
+  "transactions",
+  "spheres",
+] as const;
+export const SYNCED_TABLES = [...WRITABLE_TABLES, "allocations"] as const;
 
 /**
  * The same tables in child-first order for tombstone collection.

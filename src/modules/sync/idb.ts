@@ -5,6 +5,7 @@ import {
   operatingRows,
   pendingParentDeletes,
 } from "~/modules/spheres/operating";
+import { validateSphereMutations } from "~/modules/spheres/sphere-lifecycle";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
 import { assertCompleteAcceptance, assertCompleteOperations } from "./outbox-acceptance";
@@ -314,7 +315,11 @@ function assertExpectedContext(
 function guardedTransaction(
   stores: readonly string[],
   expected: ReplicaContext,
-  mutate: (transaction: IDBTransaction, descriptor: ReplicaDescriptor) => void,
+  mutate: (
+    transaction: IDBTransaction,
+    descriptor: ReplicaDescriptor,
+    fail: (error: unknown) => void,
+  ) => void,
   options: { allowRecovery?: boolean } = {},
 ): Promise<void> {
   return openDatabase().then(
@@ -331,7 +336,10 @@ function guardedTransaction(
           try {
             const descriptor = descriptorRequest.result as ReplicaDescriptor | undefined;
             assertExpectedContext(descriptor, expected, options.allowRecovery);
-            mutate(transaction, descriptor);
+            mutate(transaction, descriptor, (error) => {
+              failure = error;
+              transaction.abort();
+            });
           } catch (error) {
             failure = error;
             transaction.abort();
@@ -768,18 +776,152 @@ export function writeLocalMutations(
   rows: Partial<SyncedRows>,
   mutations: Mutation[],
 ): Promise<void> {
-  return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
-    putRows(transaction, rows);
-    const outbox = transaction.objectStore(OUTBOX_STORE);
-    for (const mutation of mutations) outbox.add(mutation);
-
-    const meta = transaction.objectStore(META_STORE);
-    const revisionRequest = meta.get(LOCAL_REVISION_KEY);
-    revisionRequest.addEventListener("success", () => {
-      meta.put(((revisionRequest.result as number | undefined) ?? 0) + 1, LOCAL_REVISION_KEY);
-    });
-    revisionRequest.addEventListener("error", () => transaction.abort());
-  });
+  return guardedTransaction(
+    [...SYNCED_TABLES, OUTBOX_STORE],
+    expected,
+    (transaction, _descriptor, fail) => {
+      // Read and validate inside the same read/write transaction so another tab cannot use or
+      // archive a sphere between its lifecycle check and persistence.
+      const profiles = transaction.objectStore("profiles").getAll();
+      const spheres = transaction.objectStore("spheres").getAll();
+      const allocations = transaction.objectStore("allocations").getAll();
+      const meta = transaction.objectStore(META_STORE);
+      const complete = meta.get(COMPLETE_TABLES_KEY);
+      const revision = meta.get(LOCAL_REVISION_KEY);
+      const requests = [profiles, spheres, allocations, complete, revision];
+      let remaining = requests.length;
+      for (const request of requests) {
+        request.addEventListener("error", () => fail(request.error));
+        request.addEventListener("success", () => {
+          if (--remaining !== 0) return;
+          try {
+            validateSphereMutations(
+              mutations,
+              {
+                profiles: [...(rows.profiles ?? []), ...profiles.result],
+                spheres: spheres.result,
+                allocations: allocations.result,
+              },
+              expected.ownerUserId,
+              ["spheres", "allocations"].every((table) => complete.result?.includes(table)),
+            );
+            const currentSpheres = new Map<string, SyncedRows["spheres"][number]>(
+              spheres.result.map((row) => [row.id, row]),
+            );
+            const previousAllocations = new Map<string, SyncedRows["allocations"][number]>(
+              allocations.result.map((row) => [row.id, row]),
+            );
+            const sourceRowKeys = new Set([
+              ...(rows.accounts ?? []).map((row) => `accounts:${row.id}`),
+              ...(rows.transactions ?? []).map((row) => `transactions:${row.id}`),
+            ]);
+            const changedSphereIds = new Set(rows.spheres?.map((row) => row.id));
+            const sphereMutations = new Map(
+              mutations
+                .filter((mutation) => mutation.table === "spheres")
+                .map((mutation) => [mutation.rowId, mutation]),
+            );
+            for (const row of rows.spheres ?? []) {
+              const mutation = sphereMutations.get(row.id);
+              if (mutation?.op === "upsert") {
+                if (
+                  row.name !== mutation.payload.name ||
+                  row.type !== mutation.payload.type ||
+                  row.profileId !== mutation.payload.profileId ||
+                  row.archived !== mutation.payload.archived ||
+                  row.deletedAt != null
+                )
+                  throw new Error("The local sphere must match its queued intent.");
+              } else if (mutation?.op === "delete") {
+                if (row.deletedAt == null) throw new Error("A deleted sphere must be tombstoned.");
+              } else {
+                const profile = rows.profiles?.find((profile) => profile.id === row.profileId);
+                const current = currentSpheres.get(row.id);
+                const isOperating =
+                  row.id === row.profileId &&
+                  row.type === "OPERATING" &&
+                  row.name === "Operating" &&
+                  !row.archived;
+                const isCascade =
+                  current &&
+                  profile?.deletedAt != null &&
+                  row.deletedAt != null &&
+                  current.profileId === row.profileId &&
+                  current.type === row.type &&
+                  current.name === row.name &&
+                  current.archived === row.archived;
+                if (!profile || (!isOperating && !isCascade))
+                  throw new Error(
+                    "Sphere changes require a sphere mutation or their profile companion.",
+                  );
+              }
+            }
+            for (const row of rows.spheres ?? [])
+              currentSpheres.set(row.id, {
+                ...row,
+                hasHistory: currentSpheres.get(row.id)?.hasHistory || row.hasHistory,
+              });
+            for (const row of rows.allocations ?? []) {
+              const previous = previousAllocations.get(row.id);
+              // Editing a transaction/opening amount changes its companion's money, not its purpose.
+              // A different tab may have newer attribution than this tab's in-memory source snapshot.
+              if (
+                previous &&
+                sourceRowKeys.has(
+                  row.transactionId != null
+                    ? `transactions:${row.transactionId}`
+                    : `accounts:${row.openingAccountId}`,
+                )
+              ) {
+                row.sphereId = previous.sphereId;
+              }
+              const sphere = currentSpheres.get(row.sphereId);
+              if (!sphere || sphere.profileId !== row.profileId)
+                throw new Error("An allocation requires a sphere in its profile.");
+              const parentDeleted = rows.profiles?.some(
+                (profile) => profile.id === row.profileId && profile.deletedAt != null,
+              );
+              if (parentDeleted && row.deletedAt == null)
+                throw new Error("A deleted profile cannot receive allocations.");
+              const sourceSphere = previous ? currentSpheres.get(previous.sphereId) : undefined;
+              if (
+                !parentDeleted &&
+                previous?.deletedAt == null &&
+                previous?.sphereId !== row.sphereId &&
+                sourceSphere?.archived
+              )
+                throw new Error("Archived sphere history cannot change.");
+              if (
+                !parentDeleted &&
+                (sphere.deletedAt != null || sphere.archived) &&
+                (!previous ||
+                  previous.amount !== row.amount ||
+                  previous.currencyCode !== row.currencyCode ||
+                  previous.sphereId !== row.sphereId ||
+                  previous.deletedAt?.getTime() !== row.deletedAt?.getTime())
+              )
+                throw new Error("An archived sphere cannot receive allocations.");
+              // Operating's history is implicit in its permanent system identity.
+              if (sphere.type !== "OPERATING" && !sphere.hasHistory) {
+                sphere.hasHistory = true;
+                currentSpheres.set(sphere.id, sphere);
+                changedSphereIds.add(sphere.id);
+              }
+            }
+            rows.spheres = [...currentSpheres.values()].filter((sphere) =>
+              changedSphereIds.has(sphere.id),
+            );
+            putRows(transaction, rows);
+            const outbox = transaction.objectStore(OUTBOX_STORE);
+            for (const mutation of mutations) outbox.add(mutation);
+            meta.put(((revision.result as number | undefined) ?? 0) + 1, LOCAL_REVISION_KEY);
+          } catch (error) {
+            fail(error);
+          }
+        });
+      }
+    },
+  );
 }
 
 export function dropOutboxEntries(

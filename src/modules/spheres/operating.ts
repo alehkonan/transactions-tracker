@@ -26,8 +26,10 @@ export async function allocationId(
 export async function operatingRows(
   sources: Partial<SyncedRows>,
   accounts: SyncedRows["accounts"],
+  existing: Partial<Pick<SyncedRows, "spheres" | "allocations">> = {},
 ): Promise<Pick<SyncedRows, "spheres" | "allocations">> {
   const byId = new Map(accounts.map((account) => [account.id, account]));
+  const existingAllocations = new Map((existing.allocations ?? []).map((row) => [row.id, row]));
   for (const account of sources.accounts ?? []) byId.set(account.id, account);
   const allocations = await Promise.all([
     ...(sources.accounts ?? [])
@@ -68,16 +70,31 @@ export async function operatingRows(
       };
     }),
   ]);
-  return {
-    spheres: (sources.profiles ?? []).map((profile) => ({
+  const spheres: SyncedRows["spheres"] = [...(sources.spheres ?? [])];
+  for (const profile of sources.profiles ?? []) {
+    spheres.push({
       id: profile.id,
       profileId: profile.id,
       name: "Operating",
-      type: "OPERATING",
+      type: "OPERATING" as const,
+      archived: false,
+      hasHistory: existing.spheres?.find((row) => row.id === profile.id)?.hasHistory ?? false,
       updatedAt: profile.updatedAt,
       deletedAt: profile.deletedAt,
+    });
+    if (profile.deletedAt != null) {
+      for (const sphere of existing.spheres ?? []) {
+        if (sphere.profileId === profile.id && sphere.id !== profile.id)
+          spheres.push({ ...sphere, deletedAt: profile.deletedAt, updatedAt: profile.updatedAt });
+      }
+    }
+  }
+  return {
+    spheres,
+    allocations: allocations.map((row) => ({
+      ...row,
+      sphereId: existingAllocations.get(row.id)?.sphereId ?? row.sphereId,
     })),
-    allocations,
   };
 }
 
@@ -168,6 +185,7 @@ export function operatingBalances(
   const byAccount = new Map(ownedAccounts.map((row) => [row.id, row]));
   const actual = new Map<string, string[]>();
   const allocated = new Map<string, string[]>();
+  const allSpheres = new Map<string, string[]>();
   for (const account of ownedAccounts)
     addAmount(actual, account.currencyCode, account.initialBalance);
   for (const transaction of rows.transactions) {
@@ -177,6 +195,8 @@ export function operatingBalances(
       addAmount(actual, account.currencyCode, transaction.amount);
   }
   for (const allocation of rows.allocations) {
+    if (allocation.profileId === profileId && allocation.deletedAt == null)
+      addAmount(allSpheres, allocation.currencyCode, allocation.amount);
     if (
       allocation.profileId === profileId &&
       allocation.sphereId === profileId &&
@@ -184,7 +204,7 @@ export function operatingBalances(
     )
       addAmount(allocated, allocation.currencyCode, allocation.amount);
   }
-  return [...new Set([...actual.keys(), ...allocated.keys()])].toSorted().map((currencyCode) => {
+  return [...new Set([...actual.keys(), ...allSpheres.keys()])].toSorted().map((currencyCode) => {
     const accountBalance = sumMoney(actual.get(currencyCode) ?? []);
     const sphereBalance = sumMoney(allocated.get(currencyCode) ?? []);
     return {
@@ -193,7 +213,7 @@ export function operatingBalances(
       sphereBalance,
       status: !complete
         ? ("incomplete" as const)
-        : accountBalance === sphereBalance
+        : accountBalance === sumMoney(allSpheres.get(currencyCode) ?? [])
           ? ("reconciled" as const)
           : ("diverged" as const),
     };

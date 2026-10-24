@@ -78,6 +78,17 @@ export const transactionSyncColumns = {
   deletedAt: transactionsTable.deletedAt,
 } satisfies Record<keyof SyncedTransaction, AnyPgColumn>;
 
+export const sphereSyncColumns = {
+  id: spheresTable.id,
+  profileId: spheresTable.profileId,
+  name: spheresTable.name,
+  type: spheresTable.type,
+  archived: spheresTable.archived,
+  hasHistory: spheresTable.hasHistory,
+  updatedAt: spheresTable.updatedAt,
+  deletedAt: spheresTable.deletedAt,
+};
+
 /** Reads exactly the rows touched by a push, in the shape shared with the local stores. */
 export async function readCanonicalRows(
   db: Executor,
@@ -91,6 +102,7 @@ export async function readCanonicalRows(
     accounts: [...touched.accounts],
     categories: [...touched.categories],
     transactions: [...touched.transactions],
+    spheres: [...(touched.spheres ?? [])],
   };
 
   const profileIds =
@@ -155,7 +167,7 @@ export async function readCanonicalRows(
   ]);
 
   const spheres =
-    ids.profiles.length === 0
+    ids.profiles.length + ids.spheres.length === 0
       ? []
       : await runOperation("canonical.read.spheres", () =>
           db
@@ -164,7 +176,10 @@ export async function readCanonicalRows(
             .where(
               and(
                 inArray(spheresTable.profileId, profileIds),
-                inArray(spheresTable.id, ids.profiles),
+                or(
+                  inArray(spheresTable.profileId, ids.profiles),
+                  inArray(spheresTable.id, ids.spheres),
+                ),
               ),
             ),
         );

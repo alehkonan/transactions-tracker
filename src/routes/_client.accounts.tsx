@@ -7,6 +7,7 @@ import { computeAccountActivity } from "~/modules/accounts/compute-account-activ
 import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
 import { useAccounts } from "~/modules/accounts/useAccounts";
+import { NamedSpheres } from "~/modules/spheres/NamedSpheres";
 import { operatingBalances } from "~/modules/spheres/operating";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
@@ -113,7 +114,7 @@ export const Route = createFileRoute("/_client/accounts")({
                     ? "Balances differ — check synchronization in Settings."
                     : sphereBalances.length === 0
                       ? "Create an account to start allocating money."
-                      : "Matches account balances in every currency."}
+                      : "All sphere balances match account balances in every currency."}
               </output>
               {sphereBalances.some((balance) => Number(balance.sphereBalance) < 0) && (
                 <p className="text-warning mt-2 text-xs">Operating has a negative balance.</p>
@@ -144,6 +145,7 @@ export const Route = createFileRoute("/_client/accounts")({
             <div className="w-full sm:max-w-sm">
               <CreateAccountButton />
             </div>
+            <NamedSpheres key={selectedProfileId} complete={complete} />
           </div>
         </main>
       </PageContainer>

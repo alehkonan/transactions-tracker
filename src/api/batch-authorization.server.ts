@@ -194,6 +194,14 @@ export async function createBatchAuthorization(
           ),
           profiles,
         );
+        if (
+          first.table === "spheres" &&
+          upserts.some(
+            (mutation) =>
+              mutation.table === "spheres" && !profiles.get(mutation.payload.profileId)?.live,
+          )
+        )
+          throw forbidden();
 
         if (first.table === "transactions") {
           for (const mutation of upserts) {

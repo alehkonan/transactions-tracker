@@ -43,7 +43,7 @@ export type Color = typeof colorsTable.$inferSelect;
 
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 export type WritableTable = keyof MutationPayloads;
-type SyncedSphere = typeof spheresTable.$inferSelect;
+export type SyncedSphere = typeof spheresTable.$inferSelect;
 export type SyncedAllocation = typeof allocationsTable.$inferSelect;
 
 export type SyncedRows = {
@@ -188,12 +188,14 @@ export type CategoryPayload = Owned<ClientColumns<SyncedCategory>> & {
 };
 
 export type TransactionPayload = ClientColumns<SyncedTransaction>;
+export type SpherePayload = Omit<ClientColumns<SyncedSphere>, "hasHistory">;
 
 export type MutationPayloads = {
   profiles: ProfilePayload;
   accounts: AccountPayload;
   categories: CategoryPayload;
   transactions: TransactionPayload;
+  spheres: SpherePayload;
 };
 
 type MutationBase = {

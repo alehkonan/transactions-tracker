@@ -1,4 +1,5 @@
 import { operatingRows } from "~/modules/spheres/operating";
+import { validateSphereMutations } from "~/modules/spheres/sphere-lifecycle";
 import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { assertCurrentReplicaContext, captureReplicaContext, writeLocalMutations } from "./idb";
@@ -49,8 +50,12 @@ type DeleteChange = {
  * deleting a well-used account a minutes-long push.
  */
 type CascadeChange = {
-  [Table in WritableTable]: { op: "cascade"; table: Table; rows: RowFor<Table>[] };
-}[WritableTable];
+  [Table in Exclude<WritableTable, "spheres">]: {
+    op: "cascade";
+    table: Table;
+    rows: RowFor<Table>[];
+  };
+}[Exclude<WritableTable, "spheres">];
 
 export type LocalChange = (UpsertChange | DeleteChange | CascadeChange) & {
   /** Optional explicit grouping for financial operations spanning several replicated rows. */
@@ -173,7 +178,11 @@ export async function commit(
 
     // `updatedAt` is left where the server put it. It is the client's record of what it last saw,
     // and the next push compares against it; the canonical row that comes back is what moves it on.
-    bucket.push({ ...change.row, updatedAt: change.row.updatedAt });
+    if (change.table === "spheres") {
+      bucket.push({ ...change.row, ...change.payload, deletedAt: null });
+    } else {
+      bucket.push({ ...change.row, updatedAt: change.row.updatedAt });
+    }
     mutations.push({ ...shared, op: "upsert", payload: change.payload } as Mutation);
   }
 
@@ -187,6 +196,19 @@ export async function commit(
   // Never move a member ahead of an intervening parent write. Callers supply contiguous units.
   assertCompleteOperations(mutations, PUSH_BATCH_LIMIT);
   const state = useSyncStore.getState();
+  if (mutations.some((mutation) => mutation.table === "spheres")) {
+    validateSphereMutations(
+      mutations,
+      {
+        profiles: [...rows.profiles, ...state.profiles],
+        spheres: state.spheres,
+        allocations: state.allocations,
+      },
+      replicaContext.ownerUserId,
+      state.isHydrated &&
+        !state.pending.some((table) => ["spheres", "allocations"].includes(table)),
+    );
+  }
   const accounts = new Map(state.accounts.map((account) => [account.id, account]));
   for (const row of rows.accounts) accounts.set(row.id, row);
   const transactionMutations = mutations.filter((mutation) => mutation.table === "transactions");
@@ -203,7 +225,7 @@ export async function commit(
 
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.
-  Object.assign(rows, await operatingRows(rows, state.accounts));
+  Object.assign(rows, await operatingRows(rows, state.accounts, state));
   await writeLocalMutations(replicaContext, rows, mutations);
   await assertCurrentReplicaContext(replicaContext);
   await refreshOutboxState(replicaContext);

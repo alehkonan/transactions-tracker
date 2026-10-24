@@ -320,27 +320,30 @@ export const transactionsTable = pgTable(
   ],
 );
 
-/** System-owned purpose. Its id is the profile id, so bootstrap retries cannot duplicate it. */
+/** Financial purpose; the system Operating sphere uses its profile's id. */
 export const spheresTable = pgTable(
   "spheres",
   {
     id: uuid("id").primaryKey(),
     profileId: uuid("profile_id")
       .notNull()
-      .unique()
       .references(() => profilesTable.id, {
         onUpdate: "cascade",
         onDelete: "cascade",
       }),
     name: text("name").notNull().default("Operating"),
-    type: text("type").$type<"OPERATING">().notNull().default("OPERATING"),
+    type: text("type").$type<"OPERATING" | "FUNDS" | "CAPITAL">().notNull().default("OPERATING"),
+    archived: boolean("archived").notNull().default(false),
+    /** Monotonic evidence of use, retained after allocation tombstones are collected. */
+    hasHistory: boolean("has_history").notNull().default(false),
     ...syncColumns,
   },
   (table) => [
     check(
       "spheres_system_check",
-      sql`${table.id} = ${table.profileId} and ${table.name} = 'Operating' and ${table.type} = 'OPERATING'`,
+      sql`(${table.type} = 'OPERATING' and ${table.id} = ${table.profileId} and ${table.name} = 'Operating' and not ${table.archived}) or (${table.type} in ('FUNDS', 'CAPITAL') and ${table.id} <> ${table.profileId})`,
     ),
+    check("spheres_name_check", sql`length(trim(${table.name})) > 0`),
     index("spheres_profile_id_updated_at_id_idx").on(table.profileId, table.updatedAt, table.id),
   ],
 );
@@ -372,7 +375,6 @@ export const allocationsTable = pgTable(
       "allocations_source_check",
       sql`(${table.transactionId} is null) <> (${table.openingAccountId} is null)`,
     ),
-    check("allocations_operating_check", sql`${table.sphereId} = ${table.profileId}`),
     index("allocations_profile_id_updated_at_id_idx").on(
       table.profileId,
       table.updatedAt,

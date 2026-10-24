@@ -30,20 +30,17 @@ describe("sync request schemas", () => {
     expect(pushChangesSchema.safeParse({ ...unsupported, mutations: [] }).success).toBe(false);
   });
 
-  it.each(["spheres", "allocations"])(
-    "rejects independent writes and deletes of system %s",
-    (table) => {
-      expect(
-        pushChangesSchema.safeParse({ ...context, mutations: [{ ...mutation, table }] }).success,
-      ).toBe(false);
-      expect(
-        pushChangesSchema.safeParse({
-          ...context,
-          mutations: [{ ...mutation, table, op: "upsert", payload: { name: "Archived" } }],
-        }).success,
-      ).toBe(false);
-    },
-  );
+  it.each(["allocations"])("rejects independent writes and deletes of system %s", (table) => {
+    expect(
+      pushChangesSchema.safeParse({ ...context, mutations: [{ ...mutation, table }] }).success,
+    ).toBe(false);
+    expect(
+      pushChangesSchema.safeParse({
+        ...context,
+        mutations: [{ ...mutation, table, op: "upsert", payload: { name: "Archived" } }],
+      }).success,
+    ).toBe(false);
+  });
 
   it("rejects duplicate mutation ids within one batch", () => {
     const result = pushChangesSchema.safeParse({ ...context, mutations: [mutation, mutation] });

@@ -6,6 +6,8 @@ import {
   mutationReceiptsTable,
   profilesTable,
   transactionsTable,
+  spheresTable,
+  allocationsTable,
 } from "~/database/tables";
 import { assertCompleteOperations } from "~/modules/sync/outbox-acceptance";
 import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
@@ -19,6 +21,7 @@ import {
   categorySyncColumns,
   profileSyncColumns,
   transactionSyncColumns,
+  sphereSyncColumns,
 } from "./push.server";
 import { withSyncPhase } from "./sync-observability.server";
 import type { SQL } from "drizzle-orm";
@@ -33,6 +36,7 @@ import type {
   SyncedTable,
   WritableTable,
   SyncedTransaction,
+  SyncedSphere,
 } from "~/modules/sync/sync-types";
 
 export type ApplyMutationOperation =
@@ -46,6 +50,7 @@ export type ApplyMutationOperation =
   | "color.read"
   | "receipt.persist-outcomes"
   | "transfer.read"
+  | "sphere.balances"
   | "balance.recompute";
 
 export type ApplyMutationOperationRunner = <Result>(
@@ -126,6 +131,7 @@ const syncedTables = {
   accounts: accountsTable,
   categories: categoriesTable,
   transactions: transactionsTable,
+  spheres: spheresTable,
 };
 
 /** The ids this batch touched, per table — what the caller reads canonical rows back for. */
@@ -161,12 +167,14 @@ function createSnapshotState(): SnapshotState {
       accounts: new Map(),
       categories: new Map(),
       transactions: new Map(),
+      spheres: new Map(),
     },
     loadedIds: {
       profiles: new Set(),
       accounts: new Set(),
       categories: new Set(),
       transactions: new Set(),
+      spheres: new Set(),
     },
   };
 }
@@ -207,6 +215,12 @@ async function readCanonicalSnapshots(
               .from(transactionsTable)
               .where(and(inArray(transactionsTable.id, ids), scope))
               .for("update");
+          case "spheres":
+            return db
+              .select(sphereSyncColumns)
+              .from(spheresTable)
+              .where(and(inArray(spheresTable.id, ids), scope))
+              .for("update");
         }
       },
       { table: run.table, operation: run.op, mutationCount: run.mutations.length },
@@ -241,7 +255,17 @@ async function findStaleBases(
       mutation.op === "upsert" &&
       "currencyCode" in canonicalRow &&
       canonicalRow.currencyCode !== mutation.payload.currencyCode;
-    if (canonicalRow.updatedAt.getTime() === mutation.baseUpdatedAt && !changesAccountCurrency)
+    const changesSphereIdentity =
+      mutation.table === "spheres" &&
+      mutation.op === "upsert" &&
+      "archived" in canonicalRow &&
+      (canonicalRow.type !== mutation.payload.type ||
+        canonicalRow.profileId !== mutation.payload.profileId);
+    if (
+      canonicalRow.updatedAt.getTime() === mutation.baseUpdatedAt &&
+      !changesAccountCurrency &&
+      !changesSphereIdentity
+    )
       return [];
 
     return [
@@ -297,6 +321,12 @@ async function tombstone(
           .set({ deletedAt: now(), updatedAt: now() })
           .where(and(where, isNull(transactionsTable.deletedAt)))
           .returning(transactionSyncColumns);
+      case "spheres":
+        return db
+          .update(spheresTable)
+          .set({ deletedAt: now(), updatedAt: now() })
+          .where(and(where, isNull(spheresTable.deletedAt)))
+          .returning(sphereSyncColumns);
     }
   });
 }
@@ -445,6 +475,7 @@ async function executeApplyMutations(
     accounts: new Set(),
     categories: new Set(),
     transactions: new Set(),
+    spheres: new Set(),
   };
   const profileIds = new Set<string>();
   const appliedMutationIds = new Set<string>();
@@ -643,6 +674,14 @@ async function executeApplyMutations(
         const affectedRowIds = await withSyncPhase(
           "push.mutation_application",
           async () => {
+            // Mark the parent first so allocation guards can distinguish this intentional
+            // profile cascade from edits to archived sphere history in a live profile.
+            const profiles = await tombstone(
+              db,
+              "profiles",
+              and(inArray(profilesTable.id, ids), scope),
+              runOperation,
+            );
             if (ownedLiveProfileIds.length > 0) {
               const accounts = await tombstone(
                 db,
@@ -667,12 +706,7 @@ async function executeApplyMutations(
               rememberReturnedRows("transactions", transactions);
             }
 
-            return tombstone(
-              db,
-              "profiles",
-              and(inArray(profilesTable.id, ids), scope),
-              runOperation,
-            );
+            return profiles;
           },
           { table: run.table, operation: run.op, mutationCount: run.mutations.length },
         );
@@ -721,6 +755,106 @@ async function executeApplyMutations(
     const scope = inArray(table.profileId, owned);
 
     const runStaleBases = await findStaleBases(db, run, scope, snapshots, runOperation);
+    if (run.table === "spheres") {
+      const archiveIds =
+        run.op === "upsert"
+          ? run.mutations
+              .filter((mutation) => mutation.payload.archived)
+              .map((mutation) => mutation.rowId)
+          : [];
+      const nonzero =
+        archiveIds.length === 0
+          ? []
+          : await runOperation("sphere.balances", () =>
+              db
+                .select({
+                  sphereId: allocationsTable.sphereId,
+                  balance: sql<string>`sum(${allocationsTable.amount})`,
+                })
+                .from(allocationsTable)
+                .where(
+                  and(
+                    inArray(allocationsTable.sphereId, archiveIds),
+                    inArray(allocationsTable.profileId, owned),
+                    isNull(allocationsTable.deletedAt),
+                  ),
+                )
+                .groupBy(allocationsTable.sphereId, allocationsTable.currencyCode)
+                .having(sql`sum(${allocationsTable.amount}) <> 0`),
+            );
+      const funded = new Set(nonzero.map((row) => row.sphereId));
+      const allowed = run.mutations.filter((mutation) => {
+        const current = snapshots.rows.spheres.get(mutation.rowId) as SyncedSphere | undefined;
+        const blocked =
+          current?.type === "OPERATING" ||
+          current?.deletedAt != null ||
+          (mutation.op === "delete"
+            ? current?.hasHistory
+            : (current &&
+                (current.type !== mutation.payload.type ||
+                  current.profileId !== mutation.payload.profileId)) ||
+              (mutation.payload.archived && funded.has(mutation.rowId)));
+        if (
+          blocked &&
+          current &&
+          !runStaleBases.some((base) => base.mutationId === mutation.mutationId)
+        )
+          runStaleBases.push({
+            mutationId: mutation.mutationId,
+            table: "spheres",
+            rowId: mutation.rowId,
+            baseUpdatedAt: mutation.baseUpdatedAt,
+            conflictingServerUpdatedAt: current.updatedAt.getTime(),
+            preWriteCanonicalRow: current,
+          });
+        return !blocked;
+      });
+      const affectedRows =
+        allowed.length === 0
+          ? []
+          : run.op === "delete"
+            ? await tombstone(
+                db,
+                "spheres",
+                and(
+                  inArray(
+                    spheresTable.id,
+                    allowed.map((mutation) => mutation.rowId),
+                  ),
+                  scope,
+                ),
+                runOperation,
+              )
+            : await runOperation("mutation.upsert.spheres", () =>
+                db
+                  .insert(spheresTable)
+                  .values(
+                    allowed.map((mutation) => {
+                      if (mutation.op !== "upsert") throw new Error("Invalid sphere operation.");
+                      return { id: mutation.rowId, ...mutation.payload, updatedAt: now() };
+                    }),
+                  )
+                  .onConflictDoUpdate({
+                    target: spheresTable.id,
+                    set: {
+                      name: excluded(spheresTable.name),
+                      archived: excluded(spheresTable.archived),
+                      updatedAt: now(),
+                    },
+                    setWhere: and(
+                      scope,
+                      isNull(spheresTable.deletedAt),
+                      eq(spheresTable.profileId, excluded(spheresTable.profileId)),
+                      eq(spheresTable.type, excluded(spheresTable.type)),
+                    ),
+                  })
+                  .returning(sphereSyncColumns),
+              );
+      recordAppliedMutations(run, affectedRows, appliedMutationIds);
+      captureAcceptanceOutcomes(runStaleBases, affectedRows);
+      rememberReturnedRows(run.table, affectedRows);
+      continue;
+    }
     const blockedTransfers = new Set<string>();
     if (run.table === "transactions") {
       const targetRows = run.mutations.flatMap((mutation) => {

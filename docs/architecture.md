@@ -274,7 +274,7 @@ are deterministically derived from SHA-256 of `transaction:<uuid>` or `opening:<
 version/variant bits, so a server backfill and a queued legacy edit address the same record.
 Account types do not participate, and unlinked transfers remain independent transactions.
 
-These two tables replicate normally but have no independent client mutation API. `commit` persists
+These two tables replicate normally. Allocations have no independent client mutation API. `commit` persists
 companions with their source rows in the same IndexedDB transaction; PostgreSQL triggers maintain
 them inside the existing receipt transaction. Thus imports still batch source mutations without
 alternating transaction/allocation runs or changing immutable legacy receipts. An opening allocation
@@ -294,7 +294,17 @@ Settlement suppresses those descendants, including both linked transfer legs and
 on disk and in memory while releasing the earlier accepted intents. A pull racing a parent deletion
 aborts its whole page transaction instead, retaining its cursors until the deletion can be pushed.
 
-The Accounts page shows Operating balances per currency, including archived accounts. It compares
+Named Funds and Capital spheres use the same local commit/outbox path as accounts and categories.
+Their type and profile are fixed, and Operating remains a permanent system record. Local commits
+validate ownership and lifecycle against the serialized IndexedDB snapshot as well as the store.
+PostgreSQL guards apply the same rules to every sphere and allocation writer: only unused spheres
+may be deleted, and archiving requires a zero balance in every currency. Named spheres retain a
+monotonic history marker after allocation tombstones are collected. Rejected stale lifecycle intents
+settle with immutable canonical conflict outcomes instead of blocking the outbox. Profile deletion
+cascades to every sphere while preserving the ordinary tombstone lifecycle.
+
+The Accounts page shows all three sphere types and their per-currency balances, including archived
+spheres and accounts. It compares
 exact decimal totals against actual holdings and reports incomplete hydration until accounts,
 transactions, spheres and allocations are all complete. Completeness metadata survives reloads, so
 an interrupted first pull cannot become a claim of reconciliation on an offline boot.

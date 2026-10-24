@@ -39,6 +39,7 @@ function createTestExecution(options?: {
       accounts: new Set<string>(),
       categories: new Set<string>(),
       transactions: new Set<string>(),
+      spheres: new Set<string>(),
     },
     profileIds: new Set<string>(),
   };
@@ -132,6 +133,7 @@ describe("createPushExecution", () => {
           accounts: new Set<string>(),
           categories: new Set<string>(),
           transactions: new Set<string>(),
+          spheres: new Set<string>(),
         },
         profileIds: new Set<string>(),
       },
@@ -153,6 +155,7 @@ describe("createPushExecution", () => {
           accounts: new Set<string>(),
           categories: new Set<string>(),
           transactions: new Set<string>(),
+          spheres: new Set<string>(),
         },
         profileIds: new Set<string>(),
       },

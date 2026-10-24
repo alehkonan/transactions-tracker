@@ -14,6 +14,7 @@ import type {
   CategoryPayload,
   ProfilePayload,
   TransactionPayload,
+  SpherePayload,
 } from "~/modules/sync/sync-types";
 
 /** A client-minted id used by both the RPC and the plain HTTP push route. */
@@ -65,6 +66,13 @@ const transactionPayloadSchema = z.object({
   profileId: rowIdSchema,
 }) satisfies z.ZodType<TransactionPayload>;
 
+const spherePayloadSchema = z.object({
+  profileId: rowIdSchema,
+  name: z.string().trim().min(1),
+  type: z.enum(["FUNDS", "CAPITAL"]),
+  archived: z.boolean(),
+}) satisfies z.ZodType<SpherePayload>;
+
 /**
  * A whole-row mutation. Keeping this in one module prevents the page RPC and the service-worker
  * endpoint from accepting different write protocols.
@@ -95,6 +103,12 @@ const mutationSchema = z.union([
       op: z.literal("upsert"),
       table: z.literal("transactions"),
       payload: transactionPayloadSchema,
+    }),
+    z.object({
+      ...mutationBaseSchema,
+      op: z.literal("upsert"),
+      table: z.literal("spheres"),
+      payload: spherePayloadSchema,
     }),
   ]),
 ]);
