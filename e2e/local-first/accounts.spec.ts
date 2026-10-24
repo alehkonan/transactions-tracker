@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
 import { E2E_ACCOUNT_NAME, openSecondDevice, test, waitForSynced } from "../fixtures/auth";
-import { pushMutations, readFinancialReplica } from "../fixtures/transfers";
+import {
+  expectOperatingReconciled,
+  pushMutations,
+  readFinancialReplica,
+} from "../fixtures/transfers";
 
 test("fixed-currency accounts retain money through offline edits, archive filtering, reload, and another device", async ({
   onboardedPage: page,
@@ -69,6 +73,8 @@ test("fixed-currency accounts retain money through offline edits, archive filter
 
   await expect(page.getByTestId("accounts-empty")).toHaveText("No active accounts.");
   await expect(page.getByTestId("accounts-total")).toContainText(/102[.,]66/);
+  await expect(page.getByTestId("operating-balances")).toContainText(/102[.,]66/);
+  expectOperatingReconciled(await readFinancialReplica(page));
   const totalWithArchivedMoney = await page.getByTestId("accounts-total").textContent();
 
   await page.getByTestId("account-create").click();
@@ -86,6 +92,7 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await expect(cards).toHaveCount(2);
   await expect(page.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
   expect((await readFinancialReplica(page)).transactions).toEqual(history);
+  expectOperatingReconciled(await readFinancialReplica(page));
 
   await page.reload();
   await expect(cards).toHaveCount(1);
@@ -94,6 +101,10 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await expect(cards).toHaveCount(1);
   await expect(cards).toContainText("Archived wallet");
   await expect(page.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
+  await expect(page.getByTestId("operating-reconciliation")).toContainText(
+    "Matches account balances",
+  );
+  expectOperatingReconciled(await readFinancialReplica(page));
 
   await context.setOffline(false);
   // Chromium's offline emulation loses its online event after a cached navigation. Exercise the
@@ -112,6 +123,8 @@ test("fixed-currency accounts retain money through offline edits, archive filter
     await expect(archivedCard).toHaveCount(1);
     await expect(archivedCard).toContainText("Archived wallet");
     await expect(secondPage.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
+    await expect(secondPage.getByTestId("operating-balances")).toContainText(/102[.,]66/);
+    expectOperatingReconciled(await readFinancialReplica(secondPage));
     await archivedCard.click();
     await expect(secondPage.getByTestId("account-initial-balance")).toHaveValue("100.00");
     await expect(secondPage.getByTestId("account-currency")).toHaveValue("USD");
@@ -124,4 +137,41 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   } finally {
     await secondContext.close();
   }
+});
+
+test("an interrupted allocation pull remains incomplete after an offline reload", async ({
+  onboardedPage: page,
+  context,
+}) => {
+  await page.goto("/accounts");
+  await waitForSynced(page);
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  if (!(await page.evaluate(() => navigator.serviceWorker.controller != null))) await page.reload();
+  await context.setOffline(true);
+  await page.evaluate(async () => {
+    const request = indexedDB.open("transactions-tracker");
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction("meta", "readwrite");
+    transaction
+      .objectStore("meta")
+      .put(["profiles", "accounts", "categories", "transactions", "spheres"], "completeTables");
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+  });
+  await page.reload();
+  await expect(page.getByTestId("operating-reconciliation")).toContainText("Incomplete balances");
+  await context.setOffline(false);
+  await page.getByTestId("sync-status").click();
+  await waitForSynced(page);
+  await expect(page.getByTestId("operating-reconciliation")).toContainText(
+    "Matches account balances",
+  );
 });

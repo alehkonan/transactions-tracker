@@ -18,7 +18,14 @@ type PushExecutionDependencies<Database> = {
 };
 
 function emptyRows(): SyncedRows {
-  return { profiles: [], accounts: [], categories: [], transactions: [] };
+  return {
+    profiles: [],
+    accounts: [],
+    categories: [],
+    transactions: [],
+    spheres: [],
+    allocations: [],
+  };
 }
 
 /**

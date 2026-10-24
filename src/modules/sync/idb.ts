@@ -1,3 +1,10 @@
+import {
+  allocationId,
+  filterPendingCascades,
+  hasPendingSource,
+  operatingRows,
+  pendingParentDeletes,
+} from "~/modules/spheres/operating";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
 import { assertCompleteAcceptance, assertCompleteOperations } from "./outbox-acceptance";
@@ -37,6 +44,7 @@ type OutboxSnapshot = {
   count: number;
   rowKeys: Set<string>;
   entries: SequencedMutation[];
+  deletedParentKeys: Set<string>;
 };
 
 /** Everything needed to open one internally consistent local workspace. */
@@ -161,6 +169,71 @@ function initializeV3Metadata(transaction: IDBTransaction): void {
   descriptorRequest.addEventListener("error", () => transaction.abort());
 }
 
+/** Upgrade materialized records without changing a single queued intent or receipt fingerprint.
+ * Hashing runs outside IDB transactions. A revision fence retries if another tab writes meanwhile.
+ */
+/* oxlint-disable no-await-in-loop -- each retry must re-read after the previous revision fence. */
+async function initializeOperating(database: IDBDatabase): Promise<void> {
+  const initialized = await promisify(
+    database
+      .transaction(META_STORE, "readonly")
+      .objectStore(META_STORE)
+      .get("financialModelVersion"),
+  );
+  if (initialized === 1) return;
+  for (;;) {
+    const read = database.transaction([...SYNCED_TABLES, META_STORE], "readonly");
+    const meta = read.objectStore(META_STORE);
+    const [version, revision, profiles, accounts, transactions, descriptor] = await Promise.all([
+      promisify(meta.get("financialModelVersion")),
+      promisify(meta.get(LOCAL_REVISION_KEY)),
+      promisify(read.objectStore("profiles").getAll()),
+      promisify(read.objectStore("accounts").getAll()),
+      promisify(read.objectStore("transactions").getAll()),
+      promisify(meta.get(DESCRIPTOR_KEY)),
+    ]);
+    if (version === 1) return;
+    const accountsById = new Map((accounts as SyncedRows["accounts"]).map((row) => [row.id, row]));
+    const attributable = (transactions as SyncedRows["transactions"]).filter(
+      (row) =>
+        row.accountId != null && accountsById.get(row.accountId)?.profileId === row.profileId,
+    );
+    const inconsistent = attributable.length !== transactions.length;
+    const rows = await operatingRows({ profiles, accounts, transactions: attributable }, accounts);
+    const write = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
+    const writeMeta = write.objectStore(META_STORE);
+    let retry = false;
+    const currentRevision = writeMeta.get(LOCAL_REVISION_KEY);
+    const currentVersion = writeMeta.get("financialModelVersion");
+    let ready = 0;
+    const finish = () => {
+      if (++ready !== 2 || currentVersion.result === 1) return;
+      if (currentRevision.result !== revision) {
+        retry = true;
+        return;
+      }
+      for (const sphere of rows.spheres) write.objectStore("spheres").put(sphere);
+      for (const allocation of rows.allocations) write.objectStore("allocations").put(allocation);
+      writeMeta.put(1, "financialModelVersion");
+      if (inconsistent)
+        writeMeta.put(
+          {
+            ...descriptor,
+            legacyOwnership: { kind: "recovery-required", reasons: ["inconsistent-references"] },
+          } satisfies ReplicaDescriptor,
+          DESCRIPTOR_KEY,
+        );
+    };
+    currentRevision.addEventListener("success", finish);
+    currentVersion.addEventListener("success", finish);
+    currentRevision.addEventListener("error", () => write.abort());
+    currentVersion.addEventListener("error", () => write.abort());
+    await whenComplete(write);
+    if (!retry) return;
+  }
+}
+/* oxlint-enable no-await-in-loop */
+
 let databasePromise: Promise<IDBDatabase> | undefined;
 const invalidationListeners = new Set<() => void>();
 
@@ -195,7 +268,13 @@ export function openDatabase(): Promise<IDBDatabase> {
       }
       const database = request.result;
       database.addEventListener("versionchange", () => invalidateDatabase(database));
-      resolve(database);
+      void initializeOperating(database).then(
+        () => resolve(database),
+        (error) => {
+          database.close();
+          reject(error);
+        },
+      );
     });
     request.addEventListener("error", () => reject(request.error));
     request.addEventListener("blocked", () => {
@@ -519,6 +598,8 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
     accounts,
     categories,
     transactions,
+    spheres,
+    allocations,
     descriptor,
     cursors,
     colors,
@@ -533,6 +614,8 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
     promisify(transaction.objectStore("accounts").getAll()),
     promisify(transaction.objectStore("categories").getAll()),
     promisify(transaction.objectStore("transactions").getAll()),
+    promisify(transaction.objectStore("spheres").getAll()),
+    promisify(transaction.objectStore("allocations").getAll()),
     promisify(meta.get(DESCRIPTOR_KEY)),
     promisify(meta.get(CURSORS_KEY)),
     promisify(meta.get(COLORS_KEY)),
@@ -559,7 +642,7 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
 
   return {
     descriptor: descriptor as ReplicaDescriptor,
-    rows: { profiles, accounts, categories, transactions } as SyncedRows,
+    rows: { profiles, accounts, categories, transactions, spheres, allocations } as SyncedRows,
     cursors: cursors as SyncCursors | undefined,
     colors: (colors as Color[] | undefined) ?? [],
     usdRates: (usdRates as Record<string, number> | undefined) ?? {},
@@ -571,6 +654,7 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
       count: entries.length,
       rowKeys: new Set(entries.map((entry) => `${entry.table}:${entry.rowId}`)),
       entries,
+      deletedParentKeys: pendingParentDeletes(entries),
     },
   };
 }
@@ -599,7 +683,7 @@ export function filterQueuedServerRows(
     SYNCED_TABLES.map((table) => [
       table,
       ((rows[table] as SyncedRow[] | undefined) ?? []).filter(
-        (row) => !protectedRowKeys.has(`${table}:${row.id}`),
+        (row) => !hasPendingSource(table, row, protectedRowKeys),
       ),
     ]),
   ) as Partial<SyncedRows>;
@@ -626,15 +710,22 @@ function putServerRows(
   transaction: IDBTransaction,
   rows: Partial<SyncedRows>,
   settledSeqs = new Set<number>(),
+  pulling = false,
 ): void {
   const request = transaction.objectStore(OUTBOX_STORE).getAll();
   request.addEventListener("success", () => {
-    const protectedRowKeys = new Set(
-      (request.result as SequencedMutation[])
-        .filter((entry) => !settledSeqs.has(entry.seq))
-        .map((entry) => `${entry.table}:${entry.rowId}`),
+    const remaining = (request.result as SequencedMutation[]).filter(
+      (entry) => !settledSeqs.has(entry.seq),
     );
-    putRows(transaction, rows, protectedRowKeys);
+    const deletedParents = pendingParentDeletes(remaining);
+    // A local cascade may have removed children that this in-flight page still contains. Retry
+    // after pushing the parent deletion; aborting also preserves every cursor in this page.
+    if (pulling && deletedParents.size > 0) {
+      transaction.abort();
+      return;
+    }
+    const protectedRowKeys = new Set(remaining.map((entry) => `${entry.table}:${entry.rowId}`));
+    putRows(transaction, filterPendingCascades(rows, deletedParents), protectedRowKeys);
   });
   request.addEventListener("error", () => transaction.abort());
 }
@@ -658,7 +749,7 @@ export type FullReplicaSnapshot = {
 
 export function writeLocalPage(expected: ReplicaContext, page: PulledPage): Promise<void> {
   return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
-    putServerRows(transaction, page.rows);
+    putServerRows(transaction, page.rows, new Set(), true);
     const meta = transaction.objectStore(META_STORE);
     meta.put(page.cursors, CURSORS_KEY);
     meta.put(page.colors, COLORS_KEY);
@@ -702,13 +793,31 @@ export function dropOutboxEntries(
 }
 
 /** Settles only the original seq/mutation-id pairs under the context that sent them. */
-export function settleAcceptedPush(
+export async function settleAcceptedPush(
   expected: ReplicaContext,
   seqs: readonly number[],
   acceptedMutationIds: readonly string[],
   rows: Partial<SyncedRows>,
   colors: Color[],
 ): Promise<void> {
+  // A source may only leave the queue with its materialized canonical allocation. This covers
+  // legacy single-row intents as well as grouped transfers, including lost-response replays.
+  const required = await Promise.all([
+    ...(rows.transactions ?? []).map(async (row) => ({
+      row,
+      id: await allocationId("transaction", row.id),
+    })),
+    ...(rows.accounts ?? [])
+      .filter((row) => row.profileId != null)
+      .map(async (row) => ({ row, id: await allocationId("opening", row.id) })),
+  ]);
+  const canonicalAllocations = new Set(rows.allocations?.map((row) => row.id));
+  if (required.some(({ id }) => !canonicalAllocations.has(id))) {
+    throw new Error("The canonical allocation is missing. Pending work was retained.");
+  }
+  if ((rows.profiles ?? []).some((row) => !rows.spheres?.some((sphere) => sphere.id === row.id))) {
+    throw new Error("The canonical Operating sphere is missing. Pending work was retained.");
+  }
   return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
     const accepted = new Set(acceptedMutationIds);
     const outbox = transaction.objectStore(OUTBOX_STORE);

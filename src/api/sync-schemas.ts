@@ -7,7 +7,8 @@ import {
   transactionTypeEnum,
 } from "~/database/enums";
 import { assertCompleteOperations } from "~/modules/sync/outbox-acceptance";
-import { PUSH_BATCH_LIMIT, SYNCED_TABLES, SYNC_PROTOCOL_VERSION } from "~/modules/sync/sync-types";
+import { PUSH_BATCH_LIMIT, SYNC_PROTOCOL_VERSION } from "~/modules/sync/sync-types";
+import { WRITABLE_TABLES } from "~/modules/sync/synced-tables";
 import type {
   AccountPayload,
   CategoryPayload,
@@ -69,7 +70,7 @@ const transactionPayloadSchema = z.object({
  * endpoint from accepting different write protocols.
  */
 const mutationSchema = z.union([
-  z.object({ ...mutationBaseSchema, op: z.literal("delete"), table: z.enum(SYNCED_TABLES) }),
+  z.object({ ...mutationBaseSchema, op: z.literal("delete"), table: z.enum(WRITABLE_TABLES) }),
   z.discriminatedUnion("table", [
     z.object({
       ...mutationBaseSchema,
@@ -120,6 +121,8 @@ export const pullChangesSchema = replicaSyncContextSchema.extend({
       accounts: cursorSchema.optional(),
       categories: cursorSchema.optional(),
       transactions: cursorSchema.optional(),
+      spheres: cursorSchema.optional(),
+      allocations: cursorSchema.optional(),
     })
     .optional(),
   withCounts: z.boolean().optional(),

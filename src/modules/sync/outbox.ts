@@ -1,3 +1,4 @@
+import { pendingParentDeletes } from "~/modules/spheres/operating";
 import { dropOutboxEntries, OUTBOX_STORE, openDatabase, settleAcceptedPush } from "./idb";
 import { takeOperationBatch } from "./outbox-acceptance";
 import {
@@ -49,6 +50,7 @@ export function rowKey(table: SyncedTable, rowId: string): string {
 export type OutboxState = {
   count: number;
   rowKeys: Set<string>;
+  deletedParentKeys: Set<string>;
 };
 
 /** One drain keeps the same captured replica context through read, network wait, and settlement. */
@@ -76,5 +78,6 @@ export async function readOutboxState(expected?: ReplicaContext): Promise<Outbox
   return {
     count: outbox.length,
     rowKeys: new Set(outbox.map((entry) => rowKey(entry.table, entry.rowId))),
+    deletedParentKeys: pendingParentDeletes(outbox),
   };
 }

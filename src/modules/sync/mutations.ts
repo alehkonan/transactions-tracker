@@ -1,3 +1,4 @@
+import { operatingRows } from "~/modules/spheres/operating";
 import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { assertCurrentReplicaContext, captureReplicaContext, writeLocalMutations } from "./idb";
@@ -6,7 +7,13 @@ import { announceLocalWrite, schedulePush } from "./sync-engine";
 import { PUSH_BATCH_LIMIT, SYNCED_TABLES } from "./sync-types";
 import { applyLocalRows, refreshOutboxState, useSyncStore } from "./useSyncStore";
 import type { ReplicaContext } from "./replica-identity";
-import type { Mutation, MutationPayloads, SyncedRows, SyncedTable } from "./sync-types";
+import type {
+  Mutation,
+  MutationPayloads,
+  SyncedRows,
+  SyncedTable,
+  WritableTable,
+} from "./sync-types";
 
 /**
  * The write path: a change is applied to the store, persisted with its outbox entry, and pushed
@@ -22,18 +29,18 @@ type RowFor<Table extends SyncedTable> = SyncedRows[Table][number];
 
 /** A row created or edited here, along with the columns the server is being asked to store. */
 type UpsertChange = {
-  [Table in SyncedTable]: {
+  [Table in WritableTable]: {
     op: "upsert";
     table: Table;
     row: RowFor<Table>;
     payload: MutationPayloads[Table];
   };
-}[SyncedTable];
+}[WritableTable];
 
 /** A row deleted here. The local copy goes; the server gets a tombstone. */
 type DeleteChange = {
-  [Table in SyncedTable]: { op: "delete"; table: Table; row: RowFor<Table> };
-}[SyncedTable];
+  [Table in WritableTable]: { op: "delete"; table: Table; row: RowFor<Table> };
+}[WritableTable];
 
 /**
  * Rows the server will tombstone as a consequence of another entry in the same commit — an account's
@@ -42,18 +49,25 @@ type DeleteChange = {
  * deleting a well-used account a minutes-long push.
  */
 type CascadeChange = {
-  [Table in SyncedTable]: { op: "cascade"; table: Table; rows: RowFor<Table>[] };
-}[SyncedTable];
+  [Table in WritableTable]: { op: "cascade"; table: Table; rows: RowFor<Table>[] };
+}[WritableTable];
 
 export type LocalChange = (UpsertChange | DeleteChange | CascadeChange) & {
   /** Optional explicit grouping for financial operations spanning several replicated rows. */
   operationId?: string;
 };
 
-type RowsByTable = { [Table in SyncedTable]: RowFor<Table>[] };
+type RowsByTable = SyncedRows;
 
 function emptyRows(): RowsByTable {
-  return { profiles: [], accounts: [], categories: [], transactions: [] };
+  return {
+    profiles: [],
+    accounts: [],
+    categories: [],
+    transactions: [],
+    spheres: [],
+    allocations: [],
+  };
 }
 
 /**
@@ -189,6 +203,7 @@ export async function commit(
 
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.
+  Object.assign(rows, await operatingRows(rows, state.accounts));
   await writeLocalMutations(replicaContext, rows, mutations);
   await assertCurrentReplicaContext(replicaContext);
   await refreshOutboxState(replicaContext);

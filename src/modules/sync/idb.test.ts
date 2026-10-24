@@ -24,4 +24,30 @@ describe("filterQueuedServerRows", () => {
 
     expect(filtered.accounts).toEqual([]);
   });
+
+  it("protects allocations of queued legacy sources without hiding another device's money", () => {
+    const rows = {
+      accounts: [{ id: "remote-account", profileId: "profile-1" }],
+      transactions: [{ id: "remote-transaction", profileId: "profile-1" }],
+      spheres: [{ id: "profile-1", profileId: "profile-1" }],
+      allocations: [
+        { id: "opening", openingAccountId: "local-account", transactionId: null },
+        { id: "expense", transactionId: "local-transaction", openingAccountId: null },
+        {
+          id: "remote",
+          transactionId: "remote-transaction",
+          openingAccountId: null,
+          profileId: "profile-1",
+        },
+      ],
+    } as Partial<SyncedRows>;
+    const filtered = filterQueuedServerRows(
+      rows,
+      new Set(["profiles:profile-1", "accounts:local-account", "transactions:local-transaction"]),
+    );
+    expect(filtered.spheres).toEqual([]);
+    expect(filtered.allocations?.map((row) => row.id)).toEqual(["remote"]);
+    expect(filtered.accounts).toEqual(rows.accounts);
+    expect(filtered.transactions).toEqual(rows.transactions);
+  });
 });

@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, asc, count, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import {
   accountsTable,
+  spheresTable,
+  allocationsTable,
   categoriesTable,
   colorsTable,
   profilesTable,
@@ -267,6 +269,34 @@ export const pullChanges = createServerFn()
             {},
             (rows) => ({ rowCount: rows.length }),
           );
+          const spheres = await db
+            .select({
+              ...getTableColumns(spheresTable),
+              cursorAt: exactUpdatedAt(spheresTable.updatedAt),
+            })
+            .from(spheresTable)
+            .where(
+              and(
+                inOwnProfiles(spheresTable.profileId),
+                afterCursor(spheresTable, cursors.spheres),
+              ),
+            )
+            .orderBy(asc(spheresTable.updatedAt), asc(spheresTable.id))
+            .limit(PULL_PAGE_SIZE);
+          const allocations = await db
+            .select({
+              ...getTableColumns(allocationsTable),
+              cursorAt: exactUpdatedAt(allocationsTable.updatedAt),
+            })
+            .from(allocationsTable)
+            .where(
+              and(
+                inOwnProfiles(allocationsTable.profileId),
+                afterCursor(allocationsTable, cursors.allocations),
+              ),
+            )
+            .orderBy(asc(allocationsTable.updatedAt), asc(allocationsTable.id))
+            .limit(PULL_PAGE_SIZE);
           // Global, and re-read on every pull rather than once: the CSV import mints new colors for the
           // categories it creates, so a client holding a stale palette would draw them untinted.
           const colors = await withSyncPhase(
@@ -291,13 +321,24 @@ export const pullChanges = createServerFn()
               )
             : undefined;
 
-          return { profiles, accounts, categories, transactions, colors, backlog };
+          return {
+            profiles,
+            accounts,
+            categories,
+            transactions,
+            spheres,
+            allocations,
+            colors,
+            backlog,
+          };
         },
       );
 
-      const [{ profiles, accounts, categories, transactions, colors, backlog }, usdRates] =
-        await Promise.all([databasePagePromise, usdRatesPromise]);
-      const pages = { profiles, accounts, categories, transactions };
+      const [
+        { profiles, accounts, categories, transactions, spheres, allocations, colors, backlog },
+        usdRates,
+      ] = await Promise.all([databasePagePromise, usdRatesPromise]);
+      const pages = { profiles, accounts, categories, transactions, spheres, allocations };
       const nextCursors: SyncCursors = {};
       for (const table of Object.keys(pages) as SyncedTable[]) {
         const cursor = nextCursor(pages[table], cursors[table]);
@@ -312,6 +353,8 @@ export const pullChanges = createServerFn()
           accounts: withoutCursorColumn(accounts),
           categories: withoutCursorColumn(categories),
           transactions: withoutCursorColumn(transactions),
+          spheres: withoutCursorColumn(spheres),
+          allocations: withoutCursorColumn(allocations),
         },
         nextCursors,
         // A table that filled its page has more behind it. Reported per table so the client can start
@@ -445,6 +488,20 @@ export const checkIntegrity = createServerFn()
             ),
         );
 
+        const spheres = await db
+          .select(integrityOf(spheresTable))
+          .from(spheresTable)
+          .where(and(inArray(spheresTable.profileId, profileIds), isNull(spheresTable.deletedAt)));
+        const allocations = await db
+          .select(integrityOf(allocationsTable))
+          .from(allocationsTable)
+          .where(
+            and(
+              inArray(allocationsTable.profileId, profileIds),
+              isNull(allocationsTable.deletedAt),
+            ),
+          );
+
         // An aggregate always returns its one row; the fallback is here so the shape is a
         // `TableIntegrity` by construction rather than by argument.
         const empty: TableIntegrity = { count: 0, checksum: "0" };
@@ -456,6 +513,8 @@ export const checkIntegrity = createServerFn()
           accounts: accounts[0] ?? empty,
           categories: categories[0] ?? empty,
           transactions: transactions[0] ?? empty,
+          spheres: spheres[0] ?? empty,
+          allocations: allocations[0] ?? empty,
         };
       });
     } catch (error) {

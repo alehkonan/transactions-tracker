@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { expect } from "@playwright/test";
 import { E2E_ACCOUNT_NAME, openSecondDevice, test, waitForSynced } from "../fixtures/auth";
-import { pushMutations, readFinancialReplica, transferMutations } from "../fixtures/transfers";
+import {
+  expectOperatingReconciled,
+  pushMutations,
+  readFinancialReplica,
+  transferMutations,
+} from "../fixtures/transfers";
 import type { Page } from "@playwright/test";
 
 async function prepareAccounts(page: Page, currency = "USD") {
@@ -74,6 +79,8 @@ test("either transfer leg edits the whole operation offline, survives reload, an
   await page.getByTestId("transaction-submit").click();
   await expect(page.getByTestId("transaction-form")).toHaveCount(0);
   const initial = await readFinancialReplica(page);
+  expectOperatingReconciled(initial);
+  expect(initial.allocations).toHaveLength(4);
   expect(initial.transactions.map((row) => row.amount).toSorted()).toEqual(["-10.00", "10.00"]);
   expect(initial.outbox).toHaveLength(2);
   expect(initial.outbox[0].operation).toEqual(initial.outbox[1].operation);
@@ -81,6 +88,7 @@ test("either transfer leg edits the whole operation offline, survives reload, an
   await page.reload();
   await expect(page.getByTestId(`transaction-${initial.transactions[0].id}`)).toBeVisible();
   expect((await readFinancialReplica(page)).outbox).toEqual(initial.outbox);
+  expectOperatingReconciled(await readFinancialReplica(page));
   const incoming = initial.transactions.find((row) => Number(row.amount) > 0)!;
   const outgoing = initial.transactions.find((row) => Number(row.amount) < 0)!;
   await page.getByTestId(`transaction-${incoming.id}`).click();
@@ -90,10 +98,9 @@ test("either transfer leg edits the whole operation offline, survives reload, an
   await page.getByTestId("transaction-to-amount").fill("25.00");
   await page.getByTestId("transaction-submit").click();
   await expect(page.getByTestId("transaction-form")).toHaveCount(0);
-  expect((await readFinancialReplica(page)).transactions.map((row) => row.amount).toSorted()).toEqual([
-    "-25.00",
-    "25.00",
-  ]);
+  expect(
+    (await readFinancialReplica(page)).transactions.map((row) => row.amount).toSorted(),
+  ).toEqual(["-25.00", "25.00"]);
   await page.getByTestId(`transaction-${outgoing.id}`).click();
   await expect(page.getByTestId("transaction-amount")).toHaveValue("25.00");
   await expect(page.getByTestId("transaction-to-amount")).toHaveValue("25.00");
@@ -103,6 +110,7 @@ test("either transfer leg edits the whole operation offline, survives reload, an
   await waitForSynced(page);
   const second = await openSecondDevice(page, authCredentials);
   try {
+    expectOperatingReconciled(await readFinancialReplica(second.page));
     expect(
       (await readFinancialReplica(second.page)).transactions.map((row) => row.amount).toSorted(),
     ).toEqual(["-25.00", "25.00"]);
@@ -112,6 +120,7 @@ test("either transfer leg edits the whole operation offline, survives reload, an
     await expect(second.page.getByTestId("transaction-form")).toHaveCount(0);
     await waitForSynced(second.page);
     expect((await readFinancialReplica(second.page)).transactions).toEqual([]);
+    expectOperatingReconciled(await readFinancialReplica(second.page));
     await page.getByTestId("sync-status").click();
     await expect.poll(async () => (await readFinancialReplica(page)).transactions).toEqual([]);
   } finally {
@@ -136,6 +145,8 @@ test("an account cascade removes both local transfer legs and synchronizes their
   await page.getByTestId("account-delete-confirm").click();
   await expect(page.getByTestId("account-form")).toHaveCount(0);
   const deleted = await readFinancialReplica(page);
+  expectOperatingReconciled(deleted);
+  expect(deleted.allocations).toHaveLength(1);
   expect(deleted.transactions).toEqual([]);
   expect(deleted.accounts.map((account) => account.id)).toEqual([destination.id]);
   expect(deleted.outbox).toMatchObject([{ table: "accounts", op: "delete", rowId: source.id }]);
@@ -153,6 +164,49 @@ test("an account cascade removes both local transfer legs and synchronizes their
   }
 });
 
+test("a delayed accepted response cannot restore allocations after an offline account cascade", async ({
+  onboardedPage: page,
+  context,
+}) => {
+  const { source, destination } = await prepareAccounts(page);
+  await context.setOffline(true);
+  await fillTransfer(page, source.id, destination.id);
+  await page.getByTestId("transaction-submit").click();
+  await expect(page.getByTestId("transaction-form")).toHaveCount(0);
+  let accepted = false;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/_serverFn/**", async (route) => {
+    const body = route.request().postData() ?? "";
+    if (!body.includes('"mutations"')) return route.continue();
+    if (!accepted && body.includes('"TRANSFER"')) {
+      const response = await route.fetch();
+      accepted = true;
+      await held;
+      await route.fulfill({ response });
+    } else await route.abort("failed");
+  });
+  await context.setOffline(false);
+  await expect.poll(() => accepted).toBe(true);
+  await page.getByTestId("nav-accounts").click();
+  await page.getByTestId(`account-${source.id}`).click();
+  await page.getByTestId("account-delete").click();
+  await page.getByTestId("account-delete-confirm").click();
+  await expect(page.getByTestId("account-form")).toHaveCount(0);
+  release();
+  await expect.poll(async () => (await readFinancialReplica(page)).outbox.length).toBe(1);
+  await context.setOffline(true);
+  const local = await readFinancialReplica(page);
+  expect(local.transactions).toEqual([]);
+  expect(local.allocations).toHaveLength(1);
+  expectOperatingReconciled(local);
+  await page.reload();
+  await expect(page.getByTestId(`account-${destination.id}`)).toBeVisible();
+  expectOperatingReconciled(await readFinancialReplica(page));
+});
+
 test("failed durable settlement retains both accepted intents through reload and receipt replay", async ({
   onboardedPage: page,
   context,
@@ -164,6 +218,7 @@ test("failed durable settlement retains both accepted intents through reload and
   await page.getByTestId("transaction-submit").click();
   await expect(page.getByTestId("transaction-form")).toHaveCount(0);
   const pending = await readFinancialReplica(page);
+  expectOperatingReconciled(pending);
   await page.evaluate(() => {
     const original = IDBObjectStore.prototype.delete;
     const counts = new WeakMap<IDBTransaction, number>();
@@ -203,6 +258,7 @@ test("failed durable settlement retains both accepted intents through reload and
   await page.getByTestId("sync-status").click();
   await waitForSynced(page);
   const settled = await readFinancialReplica(page);
+  expectOperatingReconciled(settled);
   expect(settled.outbox).toEqual([]);
   expect(settled.transactions.map((row) => row.id).toSorted()).toEqual(
     pending.transactions.map((row) => row.id).toSorted(),
@@ -223,6 +279,7 @@ test("same-currency validation rejects unequal values and exchange edits keep in
   await page.getByTestId("transaction-submit").click();
   await expect(page.getByTestId("transaction-form")).toHaveCount(0);
   const before = await readFinancialReplica(page);
+  expectOperatingReconciled(before);
   expect(before.transactions.map((row) => row.amount).toSorted()).toEqual(["-10.00", "9.25"]);
   const incoming = before.transactions.find((row) => Number(row.amount) > 0)!;
   await page.getByTestId(`transaction-${incoming.id}`).click();
@@ -232,10 +289,9 @@ test("same-currency validation rejects unequal values and exchange edits keep in
   await page.getByTestId("transaction-to-amount").fill("18.50");
   await page.getByTestId("transaction-submit").click();
   await expect(page.getByTestId("transaction-form")).toHaveCount(0);
-  expect((await readFinancialReplica(page)).transactions.map((row) => row.amount).toSorted()).toEqual([
-    "-20.00",
-    "18.50",
-  ]);
+  expect(
+    (await readFinancialReplica(page)).transactions.map((row) => row.amount).toSorted(),
+  ).toEqual(["-20.00", "18.50"]);
   await context.setOffline(false);
   await page.getByTestId("sync-status").click();
   await waitForSynced(page);
@@ -330,19 +386,19 @@ test("CSV transfer at a push boundary survives a lost response and reload withou
   );
   const transfer = `,Boundary transfer,${source.name},10,USD,${destination.name},10,USD,2026-01-01`;
   const invalid = `,Mismatching transfer,${source.name},10,USD,${destination.name},9,USD,2026-01-01`;
-  await page
-    .getByTestId("import-file")
-    .setInputFiles({
-      name: "transfer-boundary.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from([headers, ...expenses, transfer, invalid].join("\n")),
-    });
+  await page.getByTestId("import-file").setInputFiles({
+    name: "transfer-boundary.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from([headers, ...expenses, transfer, invalid].join("\n")),
+  });
   await page.getByTestId("import-next").click();
   await expect(page.getByTestId("import-report")).toBeVisible();
   await expect(page.getByTestId("import-failures")).toContainText(
     "Same-currency transfer amounts must match",
   );
   const imported = await readFinancialReplica(page);
+  expectOperatingReconciled(imported);
+  expect(imported.allocations).toHaveLength(503);
   expect(imported.transactions).toHaveLength(501);
   expect(imported.outbox).toHaveLength(501);
   const transferIntents = imported.outbox.filter(
@@ -391,6 +447,8 @@ test("CSV transfer at a push boundary survives a lost response and reload withou
   const second = await openSecondDevice(page, authCredentials);
   try {
     const remote = await readFinancialReplica(second.page);
+    expectOperatingReconciled(remote);
+    expect(remote.allocations).toHaveLength(503);
     expect(remote.transactions).toHaveLength(501);
     expect(
       remote.transactions

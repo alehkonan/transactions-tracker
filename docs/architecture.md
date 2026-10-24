@@ -34,7 +34,8 @@ pullChanges({ cursors, withCounts }) → { rows, nextCursors, pending, transacti
 ```
 
 A keyset-paginated delta pull scoped to the caller's user, sending tombstones as ordinary rows with
-`deletedAt` set. Synced tables: `profiles`, `accounts`, `categories`, `transactions`. Never synced:
+`deletedAt` set. Synced tables: `profiles`, `accounts`, `categories`, `transactions`, `spheres`,
+`allocations`. Never synced:
 `users`, `credentials`, `sessions`, `webauthn_challenges`.
 
 - **The cursor is composite — `(updated_at, id)`, compared as a row value.** Rows are stamped in
@@ -265,6 +266,39 @@ New accounts use its legacy default and edits preserve the stored value; no UI, 
 or report classifies money by it. Keeping the field, storage version, and payload shape intact avoids
 rewriting pending intents, changing receipt fingerprints, or requiring a destructive replica upgrade.
 
+### System Operating sphere
+
+Each profile owns one permanent Operating sphere, identified by the profile's UUID. Allocations
+materialize the attribution of every transaction and each account's opening amount. Their UUIDs
+are deterministically derived from SHA-256 of `transaction:<uuid>` or `opening:<uuid>`, with UUIDv8
+version/variant bits, so a server backfill and a queued legacy edit address the same record.
+Account types do not participate, and unlinked transfers remain independent transactions.
+
+These two tables replicate normally but have no independent client mutation API. `commit` persists
+companions with their source rows in the same IndexedDB transaction; PostgreSQL triggers maintain
+them inside the existing receipt transaction. Thus imports still batch source mutations without
+alternating transaction/allocation runs or changing immutable legacy receipts. An opening allocation
+stores the cumulative amount assigned from that account: an edit changes Operating by the signed
+difference, and repeating acceptance cannot add the difference twice. It uses the epoch as an
+explicit non-transaction date and never enters transaction income or spending.
+
+IDB v4 bootstraps companions from the local working set behind a revision/version fence, preserving
+every outbox entry, sequence and payload. Inconsistent account references retain the rows and enter
+exportable recovery. Pending source intents also protect their companions from server backfill.
+Canonical settlement requires companions before releasing source intents. Pull pagination, integrity,
+full refresh, recovery export, replica replacement and child-first tombstone collection include both
+new tables. Protocol v3 rejects incompatible clients before reading or sending queued financial data.
+
+A canonical response from an earlier push must also yield to a newer queued account/profile deletion.
+Settlement suppresses those descendants, including both linked transfer legs and their allocations,
+on disk and in memory while releasing the earlier accepted intents. A pull racing a parent deletion
+aborts its whole page transaction instead, retaining its cursors until the deletion can be pushed.
+
+The Accounts page shows Operating balances per currency, including archived accounts. It compares
+exact decimal totals against actual holdings and reports incomplete hydration until accounts,
+transactions, spheres and allocations are all complete. Completeness metadata survives reloads, so
+an interrupted first pull cannot become a claim of reconciliation on an offline boot.
+
 ---
 
 ## The sync engine
@@ -440,7 +474,7 @@ otherwise.
 The authenticated server user and the local replica owner are deliberately separate state. IDB v3's
 `replicaDescriptor` records a fresh `replicaId`, optional server-confirmed `{ ownerUserId, username }`,
 lifecycle/transition fencing, legacy ownership classification, and durable sync admission. Every sync
-envelope carries protocol version 2 plus `expectedOwnerUserId`; every successful result echoes the
+envelope carries protocol version 3 plus `expectedOwnerUserId`; every successful result echoes the
 actual `ownerUserId`. The server rejects an owner mismatch before domain reads or writes.
 
 Sign-in finalization runs under the same browser-wide operation lock as sync. Reauthentication supplies

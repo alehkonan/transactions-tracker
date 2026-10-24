@@ -42,7 +42,7 @@ import {
   type SyncRunOutcome,
   type SyncRunPage,
 } from "./sync-run";
-import { PUSH_BATCH_LIMIT, SYNC_PROTOCOL_VERSION } from "./sync-types";
+import { PUSH_BATCH_LIMIT, SYNC_PROTOCOL_VERSION, SYNCED_TABLES } from "./sync-types";
 import {
   applyServerRows,
   clearWorkingSet,
@@ -236,6 +236,7 @@ async function hydrateFromLocal(): Promise<boolean> {
     // A cursor is what says the local copy is a complete picture rather than a partial one.
     isHydrated: state.isHydrated || snapshot.cursors != null,
     lastSyncedAt: snapshot.lastSyncedAt,
+    pending: SYNCED_TABLES.filter((table) => !snapshot.completeTables.includes(table)),
     syncAuth,
     isLocalBooted: true,
     ...(syncAuth === "login-required" || syncAuth === "owner-mismatch"
@@ -670,6 +671,8 @@ export function verifyIntegrity(): Promise<IntegrityReport> {
         accounts: state.accounts,
         categories: state.categories,
         transactions: state.transactions,
+        spheres: state.spheres,
+        allocations: state.allocations,
       }),
       server,
     );

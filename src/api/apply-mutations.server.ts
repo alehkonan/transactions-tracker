@@ -31,6 +31,7 @@ import type {
   PushConflict,
   SyncedRows,
   SyncedTable,
+  WritableTable,
   SyncedTransaction,
 } from "~/modules/sync/sync-types";
 
@@ -84,10 +85,10 @@ const now = (): SQL => sql`now()`;
  * Keyed by table so a check on `run.table` narrows `run.mutations` to that table's payload shape.
  */
 type Run = {
-  [Table in SyncedTable]:
+  [Table in WritableTable]:
     | { table: Table; op: "upsert"; mutations: Extract<MutationFor<Table>, { op: "upsert" }>[] }
     | { table: Table; op: "delete"; mutations: Extract<MutationFor<Table>, { op: "delete" }>[] };
-}[SyncedTable];
+}[WritableTable];
 
 /**
  * Groups the batch into runs without reordering it.
@@ -128,7 +129,7 @@ const syncedTables = {
 };
 
 /** The ids this batch touched, per table — what the caller reads canonical rows back for. */
-export type TouchedIds = Record<SyncedTable, Set<string>>;
+export type TouchedIds = Record<WritableTable, Set<string>>;
 
 /**
  * Reports rows this run is about to write over that have moved on since the client last saw them.
@@ -149,8 +150,8 @@ type StaleBase = {
 };
 
 type SnapshotState = {
-  rows: Record<SyncedTable, Map<string, CanonicalRow>>;
-  loadedIds: Record<SyncedTable, Set<string>>;
+  rows: Record<WritableTable, Map<string, CanonicalRow>>;
+  loadedIds: Record<WritableTable, Set<string>>;
 };
 
 function createSnapshotState(): SnapshotState {
@@ -266,7 +267,7 @@ async function findStaleBases(
  */
 async function tombstone(
   db: Executor,
-  tableName: SyncedTable,
+  tableName: WritableTable,
   where: SQL | undefined,
   runOperation: ApplyMutationOperationRunner,
 ): Promise<CanonicalRow[]> {
@@ -411,7 +412,7 @@ function acceptanceEntityLabel(
 ): string {
   if (canonicalRow && "name" in canonicalRow) return canonicalRow.name;
   if (mutation.op === "upsert" && "name" in mutation.payload) return mutation.payload.name;
-  if (canonicalRow && "amount" in canonicalRow) {
+  if (canonicalRow && "comment" in canonicalRow) {
     return canonicalRow.comment?.trim() || `${canonicalRow.type.toLowerCase()} transaction`;
   }
   return "Transaction";
@@ -570,7 +571,7 @@ async function executeApplyMutations(
     }
   };
 
-  const rememberReturnedRows = (table: SyncedTable, rows: CanonicalRow[]): void => {
+  const rememberReturnedRows = (table: WritableTable, rows: CanonicalRow[]): void => {
     for (const row of rows) {
       touched[table].add(row.id);
       snapshots.loadedIds[table].add(row.id);

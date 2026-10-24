@@ -59,7 +59,7 @@ async function push<Body = PushResult>(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          protocolVersion: 2,
+          protocolVersion: 3,
           expectedOwnerUserId,
           mutations: submittedMutations,
         }),

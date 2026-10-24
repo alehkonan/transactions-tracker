@@ -64,6 +64,8 @@ export function localIntegrity(rows: SyncedRows): IntegritySnapshot {
     accounts: tableIntegrity(rows.accounts),
     categories: tableIntegrity(rows.categories),
     transactions: tableIntegrity(rows.transactions),
+    spheres: tableIntegrity(rows.spheres),
+    allocations: tableIntegrity(rows.allocations),
   };
 }
 

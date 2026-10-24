@@ -1,6 +1,8 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import {
   accountsTable,
+  spheresTable,
+  allocationsTable,
   categoriesTable,
   colorsTable,
   profilesTable,
@@ -152,7 +154,38 @@ export async function readCanonicalRows(
         ),
   ]);
 
-  return { profiles, accounts, categories, transactions };
+  const spheres =
+    ids.profiles.length === 0
+      ? []
+      : await runOperation("canonical.read.spheres", () =>
+          db
+            .select()
+            .from(spheresTable)
+            .where(
+              and(
+                inArray(spheresTable.profileId, profileIds),
+                inArray(spheresTable.id, ids.profiles),
+              ),
+            ),
+        );
+  const allocations =
+    ids.accounts.length + ids.transactions.length === 0
+      ? []
+      : await runOperation("canonical.read.allocations", () =>
+          db
+            .select()
+            .from(allocationsTable)
+            .where(
+              and(
+                inArray(allocationsTable.profileId, profileIds),
+                or(
+                  inArray(allocationsTable.openingAccountId, ids.accounts),
+                  inArray(allocationsTable.transactionId, ids.transactions),
+                ),
+              ),
+            ),
+        );
+  return { profiles, accounts, categories, transactions, spheres, allocations };
 }
 
 /** The palette refreshed after a push, including colors minted by an import. */

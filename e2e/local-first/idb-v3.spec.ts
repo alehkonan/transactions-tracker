@@ -27,6 +27,13 @@ type RawSnapshot = {
   outbox: unknown[];
   cursors: unknown;
   localRevision: number;
+  spheres: Array<{ id: string; profileId: string; name: string }>;
+  allocations: Array<{
+    transactionId: string | null;
+    openingAccountId: string | null;
+    amount: string;
+    currencyCode: string;
+  }>;
 };
 
 async function seedV2(page: Page, seed: V2Seed): Promise<void> {
@@ -88,7 +95,10 @@ async function openAppAndReadMigratedSnapshot(page: Page): Promise<RawSnapshot> 
     });
 
     try {
-      const transaction = database.transaction(["profiles", "outbox", "meta"], "readonly");
+      const transaction = database.transaction(
+        ["profiles", "outbox", "meta", "spheres", "allocations"],
+        "readonly",
+      );
       const profilesRequest = transaction.objectStore("profiles").getAll();
       const outboxRequest = transaction.objectStore("outbox").getAll();
       const meta = transaction.objectStore("meta");
@@ -108,6 +118,8 @@ async function openAppAndReadMigratedSnapshot(page: Page): Promise<RawSnapshot> 
         read(cursorsRequest),
         read(localRevisionRequest),
       ]);
+      const spheres = await read(transaction.objectStore("spheres").getAll());
+      const allocations = await read(transaction.objectStore("allocations").getAll());
 
       return {
         version: database.version,
@@ -116,6 +128,8 @@ async function openAppAndReadMigratedSnapshot(page: Page): Promise<RawSnapshot> 
         outbox,
         cursors,
         localRevision,
+        spheres,
+        allocations,
       } as RawSnapshot;
     } finally {
       database.close();
@@ -131,7 +145,9 @@ async function downloadText(download: Download): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-test("v2 to v3 migration preserves rows, metadata, and queued mutation order", async ({ page }) => {
+test("legacy migration preserves queued order and attributes openings and unlinked transfers once", async ({
+  page,
+}) => {
   const queuedMutation = {
     mutationId: "019d0000-0000-7000-8000-000000000001",
     table: "accounts",
@@ -151,7 +167,27 @@ test("v2 to v3 migration preserves rows, metadata, and queued mutation order", a
   };
   await seedV2(page, {
     profiles: [{ id: "profile-a", userId: 41, name: "A" }],
-    accounts: [{ id: "account-a", profileId: "profile-a", name: "Cash" }],
+    accounts: [
+      {
+        id: "account-a",
+        profileId: "profile-a",
+        name: "Cash",
+        initialBalance: "12.34",
+        currencyCode: "USD",
+      },
+    ],
+    transactions: [
+      {
+        id: "legacy-transfer",
+        profileId: "profile-a",
+        accountId: "account-a",
+        type: "TRANSFER",
+        amount: "-2.34",
+        createdAt: new Date("2026-01-01"),
+        updatedAt: new Date("2026-01-01"),
+        deletedAt: null,
+      },
+    ],
     outbox: [queuedMutation, secondQueuedMutation],
   });
 
@@ -166,6 +202,21 @@ test("v2 to v3 migration preserves rows, metadata, and queued mutation order", a
     { ...queuedMutation, seq: 1 },
     { ...secondQueuedMutation, seq: 2 },
   ]);
+  expect(snapshot.spheres).toMatchObject([
+    { id: "profile-a", profileId: "profile-a", name: "Operating" },
+  ]);
+  expect(snapshot.allocations).toHaveLength(2);
+  expect(snapshot.allocations.find((row) => row.openingAccountId === "account-a")).toMatchObject({
+    amount: "12.34",
+    currencyCode: "USD",
+  });
+  expect(snapshot.allocations.find((row) => row.transactionId === "legacy-transfer")).toMatchObject(
+    { amount: "-2.34", currencyCode: "USD" },
+  );
+  await page.reload();
+  const repeated = await openAppAndReadMigratedSnapshot(page);
+  expect(repeated.outbox).toEqual(snapshot.outbox);
+  expect(repeated.allocations).toEqual(snapshot.allocations);
 });
 
 for (const scenario of [

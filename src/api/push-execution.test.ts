@@ -18,6 +18,8 @@ const emptyRows: SyncedRows = {
   accounts: [],
   categories: [],
   transactions: [],
+  spheres: [],
+  allocations: [],
 };
 
 function createTestExecution(options?: {
@@ -81,7 +83,7 @@ describe("createPushExecution", () => {
     const { executePush, events } = createTestExecution();
 
     await expect(executePush(42, [])).resolves.toEqual({
-      protocolVersion: 2,
+      protocolVersion: 3,
       ownerUserId: 42,
       applied: [],
       canonicalRows: emptyRows,
@@ -95,7 +97,7 @@ describe("createPushExecution", () => {
     const { executePush, events } = createTestExecution({ colors: [{ id: 7, hex: "#123456" }] });
 
     await expect(executePush(42, [mutation])).resolves.toEqual({
-      protocolVersion: 2,
+      protocolVersion: 3,
       ownerUserId: 42,
       applied: [mutation.mutationId],
       canonicalRows: emptyRows,

@@ -18,6 +18,25 @@ export type TransferUpsert = Extract<MutationFor<"transactions">, { op: "upsert"
 export type PushResult = {
   applied: string[];
   canonicalRows: {
+    spheres: Array<{
+      id: string;
+      profileId: string;
+      name: string;
+      type: string;
+      deletedAt: string | null;
+    }>;
+    allocations: Array<{
+      id: string;
+      profileId: string;
+      sphereId: string;
+      transactionId: string | null;
+      openingAccountId: string | null;
+      amount: string;
+      currencyCode: string;
+      createdAt: string;
+      updatedAt: string;
+      deletedAt: string | null;
+    }>;
     transactions: WireTransaction[];
     accounts: Array<{ id: string; currencyCode: string; deletedAt: string | null }>;
   };
@@ -39,7 +58,7 @@ export async function pushMutations(page: Page, mutations: Mutation[]) {
       const response = await fetch("/api/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ protocolVersion: 2, expectedOwnerUserId, mutations }),
+        body: JSON.stringify({ protocolVersion: 3, expectedOwnerUserId, mutations }),
       });
       const text = await response.text();
       let body: PushResult;
@@ -88,6 +107,25 @@ export async function seedTransferAccounts(page: Page, currency: "USD" | "EUR" =
     ),
   ]);
   expect(result.status).toBe(200);
+  expect(
+    result.body.canonicalRows.spheres
+      .map((row) => ({ id: row.id, profileId: row.profileId, name: row.name, type: row.type }))
+      .toSorted((a, b) => a.id.localeCompare(b.id)),
+  ).toEqual(
+    [profileId, otherProfileId]
+      .toSorted()
+      .map((id) => ({ id, profileId: id, name: "Operating", type: "OPERATING" })),
+  );
+  expect(result.body.canonicalRows.allocations).toHaveLength(3);
+  expect(
+    result.body.canonicalRows.allocations.every(
+      (row) =>
+        row.amount === "100.00" &&
+        row.transactionId === null &&
+        row.sphereId === row.profileId &&
+        row.deletedAt === null,
+    ),
+  ).toBe(true);
   return { profileId, otherProfileId, accounts };
 }
 
@@ -148,6 +186,8 @@ export function deleteTransfer(rows: WireTransaction[]): MutationFor<"transactio
 }
 
 export async function readFinancialReplica(page: Page): Promise<{
+  spheres: PushResult["canonicalRows"]["spheres"];
+  allocations: PushResult["canonicalRows"]["allocations"];
   transactions: WireTransaction[];
   accounts: Array<{
     id: string;
@@ -166,9 +206,12 @@ export async function readFinancialReplica(page: Page): Promise<{
       open.onerror = () => reject(open.error);
     });
     try {
-      const tx = db.transaction(["transactions", "accounts", "outbox"], "readonly");
+      const tx = db.transaction(
+        ["transactions", "accounts", "outbox", "spheres", "allocations"],
+        "readonly",
+      );
       const values = await Promise.all(
-        ["transactions", "accounts", "outbox"].map(
+        ["transactions", "accounts", "outbox", "spheres", "allocations"].map(
           (table) =>
             new Promise<unknown[]>((resolve, reject) => {
               const request = tx.objectStore(table).getAll();
@@ -178,10 +221,46 @@ export async function readFinancialReplica(page: Page): Promise<{
         ),
       );
       return JSON.parse(
-        JSON.stringify({ transactions: values[0], accounts: values[1], outbox: values[2] }),
+        JSON.stringify({
+          transactions: values[0],
+          accounts: values[1],
+          outbox: values[2],
+          spheres: values[3],
+          allocations: values[4],
+        }),
       );
     } finally {
       db.close();
     }
   });
+}
+
+/** The domain invariant compares independent account holdings and purpose records, per currency. */
+export function expectOperatingReconciled(
+  replica: Awaited<ReturnType<typeof readFinancialReplica>>,
+) {
+  const actual = new Map<string, number>();
+  const allocated = new Map<string, number>();
+  for (const account of replica.accounts) {
+    const key = `${account.profileId}:${account.currencyCode}`;
+    actual.set(key, (actual.get(key) ?? 0) + Math.round(Number(account.initialBalance) * 100));
+    for (const transaction of replica.transactions.filter((row) => row.accountId === account.id)) {
+      actual.set(key, actual.get(key)! + Math.round(Number(transaction.amount) * 100));
+      expect(replica.allocations.find((row) => row.transactionId === transaction.id)).toMatchObject(
+        {
+          amount: transaction.amount,
+          currencyCode: account.currencyCode,
+          createdAt: transaction.createdAt,
+          profileId: account.profileId,
+          sphereId: account.profileId,
+        },
+      );
+    }
+  }
+  for (const allocation of replica.allocations) {
+    const key = `${allocation.profileId}:${allocation.currencyCode}`;
+    allocated.set(key, (allocated.get(key) ?? 0) + Math.round(Number(allocation.amount) * 100));
+  }
+  expect(allocated).toEqual(actual);
+  expect(new Set(replica.spheres.map((row) => row.profileId)).size).toBe(replica.spheres.length);
 }

@@ -19,6 +19,22 @@ test("linked transfer creation, stale edits, deletion, and lost-response replays
   expect(created.status).toBe(200);
   const initial = canonicalLegs(created.body, create);
   expect(initial.map((row) => row.amount)).toEqual(["-10.00", "10.00"]);
+  expect(created.body.canonicalRows.allocations.map((row) => row.amount).toSorted()).toEqual([
+    "-10.00",
+    "10.00",
+  ]);
+  for (const leg of initial) {
+    expect(
+      created.body.canonicalRows.allocations.find((row) => row.transactionId === leg.id),
+    ).toMatchObject({
+      profileId,
+      sphereId: profileId,
+      amount: leg.amount,
+      currencyCode: "USD",
+      createdAt: leg.createdAt,
+      deletedAt: null,
+    });
+  }
   expect(
     initial.every(
       (row) => row.type === "TRANSFER" && row.transferId === create[0].payload.transferId,
@@ -31,6 +47,9 @@ test("linked transfer creation, stale edits, deletion, and lost-response replays
     conflicts: created.body.conflicts,
   });
   expect(canonicalLegs(createReplay.body, create)).toEqual(initial);
+  expect(createReplay.body.canonicalRows.allocations).toEqual(
+    created.body.canonicalRows.allocations,
+  );
 
   const firstEdit = transferMutations(profileId, accounts, ["-20.00", "20.00"], initial);
   const first = await pushMutations(page, firstEdit);
@@ -47,7 +66,9 @@ test("linked transfer creation, stale edits, deletion, and lost-response replays
   // Incoming first: the operation is independent of which leg a caller opened.
   const later = await pushMutations(
     page,
-    asOperation([...laterEdit].toReversed().map(({ operation: _operation, ...mutation }) => mutation)),
+    asOperation(
+      [...laterEdit].toReversed().map(({ operation: _operation, ...mutation }) => mutation),
+    ),
   );
   expect(later.status).toBe(200);
   const replay = await pushMutations(page, staleEdit);
@@ -57,12 +78,18 @@ test("linked transfer creation, stale edits, deletion, and lost-response replays
     "-40.00",
     "40.00",
   ]);
+  expect(replay.body.canonicalRows.allocations.map((row) => row.amount).toSorted()).toEqual([
+    "-40.00",
+    "40.00",
+  ]);
 
   const deletion = deleteTransfer(canonicalLegs(later.body, laterEdit).toReversed());
   const deleted = await pushMutations(page, deletion);
   expect(deleted.status).toBe(200);
   expect(deleted.body.canonicalRows.transactions).toHaveLength(2);
   expect(deleted.body.canonicalRows.transactions.every((row) => row.deletedAt != null)).toBe(true);
+  expect(deleted.body.canonicalRows.allocations).toHaveLength(2);
+  expect(deleted.body.canonicalRows.allocations.every((row) => row.deletedAt != null)).toBe(true);
   const deleteReplay = await pushMutations(page, deletion);
   expect(deleteReplay.status).toBe(200);
   expect(deleteReplay.body).toMatchObject({
@@ -153,6 +180,8 @@ for (const parent of ["accounts", "profiles"] as const) {
     expect(deleted.body.canonicalRows.transactions.every((row) => row.deletedAt != null)).toBe(
       true,
     );
+    expect(deleted.body.canonicalRows.allocations).toHaveLength(parent === "accounts" ? 3 : 4);
+    expect(deleted.body.canonicalRows.allocations.every((row) => row.deletedAt != null)).toBe(true);
     const pending = transferMutations(profileId, accounts, ["-20.00", "18.50"], rows);
     const settled = await pushMutations(page, pending);
     expect(settled.status).toBe(200);
@@ -192,6 +221,7 @@ test("historical unlinked transfers keep independent edits, categories, and dele
   const created = await pushMutations(page, legacy);
   expect(created.status).toBe(200);
   expect(created.body.canonicalRows.transactions.every((row) => row.transferId == null)).toBe(true);
+  expect(created.body.canonicalRows.allocations).toHaveLength(2);
   const original = canonicalLegs(created.body, legacy);
   const edited = {
     ...legacy[0],

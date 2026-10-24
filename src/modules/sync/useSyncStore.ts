@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { readOutboxState, rowKey } from "./outbox";
+import { filterPendingCascades, hasPendingSource } from "~/modules/spheres/operating";
+import { readOutboxState } from "./outbox";
 import type { ReplicaContext, ReplicaSyncAuth } from "./replica-identity";
 import type {
   Color,
@@ -94,6 +95,8 @@ type SyncState = {
   accounts: SyncedAccount[];
   categories: SyncedCategory[];
   transactions: SyncedTransaction[];
+  spheres: SyncedRows["spheres"];
+  allocations: SyncedRows["allocations"];
   colors: Color[];
   /** Units of each currency per 1 USD, cached from the last pull so statistics work offline. */
   usdRates: Record<string, number>;
@@ -122,6 +125,8 @@ function initialState(): SyncState {
     accounts: [],
     categories: [],
     transactions: [],
+    spheres: [],
+    allocations: [],
     colors: [],
     usdRates: {},
   };
@@ -137,6 +142,7 @@ export const useSyncStore = create<SyncState>(initialState);
  * has not accepted yet. The local copy wins until its own entry is confirmed and dropped.
  */
 let pendingRowKeys = new Set<string>();
+let pendingDeletedParents = new Set<string>();
 
 /**
  * Applies a set of rows to an in-memory table: rows are upserted by id, and a tombstone removes its
@@ -155,7 +161,7 @@ function mergeRows<T extends SyncedRow>(
 
   const byId = new Map(current.map((row) => [row.id, row]));
   for (const row of incoming) {
-    if (fromServer && pendingRowKeys.has(rowKey(table, row.id))) continue;
+    if (fromServer && hasPendingSource(table, row, pendingRowKeys)) continue;
     if (row.deletedAt) byId.delete(row.id);
     else byId.set(row.id, row);
   }
@@ -164,11 +170,14 @@ function mergeRows<T extends SyncedRow>(
 
 /** Folds a set of rows into the store, from either direction. */
 function applyRows(rows: Partial<SyncedRows>, fromServer: boolean, colors?: Color[]): void {
+  if (fromServer) rows = filterPendingCascades(rows, pendingDeletedParents);
   useSyncStore.setState((state) => ({
     profiles: mergeRows(state.profiles, rows.profiles, "profiles", fromServer),
     accounts: mergeRows(state.accounts, rows.accounts, "accounts", fromServer),
     categories: mergeRows(state.categories, rows.categories, "categories", fromServer),
     transactions: mergeRows(state.transactions, rows.transactions, "transactions", fromServer),
+    spheres: mergeRows(state.spheres, rows.spheres, "spheres", fromServer),
+    allocations: mergeRows(state.allocations, rows.allocations, "allocations", fromServer),
     colors: colors ?? state.colors,
   }));
 }
@@ -214,6 +223,8 @@ export function clearWorkingSet(): void {
     accounts: [],
     categories: [],
     transactions: [],
+    spheres: [],
+    allocations: [],
     isHydrated: false,
     lastSyncedAt: null,
     pending: [],
@@ -224,8 +235,13 @@ export function clearWorkingSet(): void {
 }
 
 /** Publishes queue state captured consistently with a local snapshot or guarded read. */
-export function replaceOutboxState(state: { count: number; rowKeys: Set<string> }): void {
+export function replaceOutboxState(state: {
+  count: number;
+  rowKeys: Set<string>;
+  deletedParentKeys?: Set<string>;
+}): void {
   pendingRowKeys = state.rowKeys;
+  pendingDeletedParents = state.deletedParentKeys ?? new Set();
   useSyncStore.setState({ outboxCount: state.count });
 }
 
@@ -245,5 +261,6 @@ export function clearConflicts(reported: PushConflict[]): void {
 /** Forgets the in-memory copy and everything known about the sync. */
 export function resetSyncState(): void {
   pendingRowKeys = new Set();
+  pendingDeletedParents = new Set();
   useSyncStore.setState(initialState(), true);
 }

@@ -319,3 +319,64 @@ export const transactionsTable = pgTable(
     ),
   ],
 );
+
+/** System-owned purpose. Its id is the profile id, so bootstrap retries cannot duplicate it. */
+export const spheresTable = pgTable(
+  "spheres",
+  {
+    id: uuid("id").primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .unique()
+      .references(() => profilesTable.id, {
+        onUpdate: "cascade",
+        onDelete: "cascade",
+      }),
+    name: text("name").notNull().default("Operating"),
+    type: text("type").$type<"OPERATING">().notNull().default("OPERATING"),
+    ...syncColumns,
+  },
+  (table) => [
+    check(
+      "spheres_system_check",
+      sql`${table.id} = ${table.profileId} and ${table.name} = 'Operating' and ${table.type} = 'OPERATING'`,
+    ),
+    index("spheres_profile_id_updated_at_id_idx").on(table.profileId, table.updatedAt, table.id),
+  ],
+);
+
+/** Accompanies either one transaction or an account's opening amount; never ordinary income. */
+export const allocationsTable = pgTable(
+  "allocations",
+  {
+    id: uuid("id").primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profilesTable.id, { onDelete: "cascade" }),
+    sphereId: uuid("sphere_id")
+      .notNull()
+      .references(() => spheresTable.id, { onDelete: "cascade" }),
+    transactionId: uuid("transaction_id")
+      .unique()
+      .references(() => transactionsTable.id, { onDelete: "cascade" }),
+    openingAccountId: uuid("opening_account_id")
+      .unique()
+      .references(() => accountsTable.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    currencyCode: currencyCodeEnum("currency_code").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    ...syncColumns,
+  },
+  (table) => [
+    check(
+      "allocations_source_check",
+      sql`(${table.transactionId} is null) <> (${table.openingAccountId} is null)`,
+    ),
+    check("allocations_operating_check", sql`${table.sphereId} = ${table.profileId}`),
+    index("allocations_profile_id_updated_at_id_idx").on(
+      table.profileId,
+      table.updatedAt,
+      table.id,
+    ),
+  ],
+);

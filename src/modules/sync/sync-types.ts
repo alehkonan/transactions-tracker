@@ -5,6 +5,8 @@ import type {
   colorsTable,
   profilesTable,
   transactionsTable,
+  spheresTable,
+  allocationsTable,
 } from "~/database/tables";
 
 export { STALE_CURSOR_AFTER_DAYS, SYNCED_TABLES } from "./synced-tables";
@@ -40,12 +42,17 @@ export type SyncedTransaction = Omit<typeof transactionsTable.$inferSelect, "tra
 export type Color = typeof colorsTable.$inferSelect;
 
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
+export type WritableTable = keyof MutationPayloads;
+export type SyncedSphere = typeof spheresTable.$inferSelect;
+export type SyncedAllocation = typeof allocationsTable.$inferSelect;
 
 export type SyncedRows = {
   profiles: SyncedProfile[];
   accounts: SyncedAccount[];
   categories: SyncedCategory[];
   transactions: SyncedTransaction[];
+  spheres: SyncedSphere[];
+  allocations: SyncedAllocation[];
 };
 
 /**
@@ -70,7 +77,7 @@ export type SyncCursor = {
 export type SyncCursors = Partial<Record<SyncedTable, SyncCursor>>;
 
 /** Version of the owner-aware wire protocol. This is independent of the IndexedDB schema version. */
-export const SYNC_PROTOCOL_VERSION = 2 as const;
+export const SYNC_PROTOCOL_VERSION = 3 as const;
 
 export type ReplicaSyncContext = {
   protocolVersion: typeof SYNC_PROTOCOL_VERSION;
@@ -211,18 +218,18 @@ type MutationBase = {
 };
 
 type UpsertMutation = {
-  [Table in SyncedTable]: MutationBase & {
+  [Table in WritableTable]: MutationBase & {
     table: Table;
     op: "upsert";
     payload: MutationPayloads[Table];
   };
-}[SyncedTable];
+}[WritableTable];
 
 // Spelled out per table, like the upserts above, so `Extract<Mutation, { table: "accounts" }>`
 // narrows to both of that table's operations rather than losing the deletes.
 type DeleteMutation = {
-  [Table in SyncedTable]: MutationBase & { table: Table; op: "delete" };
-}[SyncedTable];
+  [Table in WritableTable]: MutationBase & { table: Table; op: "delete" };
+}[WritableTable];
 
 export type Mutation = UpsertMutation | DeleteMutation;
 
