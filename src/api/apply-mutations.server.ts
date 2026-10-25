@@ -9,6 +9,7 @@ import {
   spheresTable,
   allocationsTable,
 } from "~/database/tables";
+import { validateReallocationMutations } from "~/modules/spheres/reallocation";
 import { assertCompleteOperations } from "~/modules/sync/outbox-acceptance";
 import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import {
@@ -37,6 +38,7 @@ import type {
   WritableTable,
   SyncedTransaction,
   SyncedSphere,
+  SyncedAllocation,
 } from "~/modules/sync/sync-types";
 
 export type ApplyMutationOperation =
@@ -51,6 +53,8 @@ export type ApplyMutationOperation =
   | "receipt.persist-outcomes"
   | "transfer.read"
   | "sphere.balances"
+  | "reallocation.read"
+  | "reallocation.spheres"
   | "balance.recompute";
 
 export type ApplyMutationOperationRunner = <Result>(
@@ -132,6 +136,7 @@ const syncedTables = {
   categories: categoriesTable,
   transactions: transactionsTable,
   spheres: spheresTable,
+  allocations: allocationsTable,
 };
 
 /** The ids this batch touched, per table — what the caller reads canonical rows back for. */
@@ -168,6 +173,7 @@ function createSnapshotState(): SnapshotState {
       categories: new Map(),
       transactions: new Map(),
       spheres: new Map(),
+      allocations: new Map(),
     },
     loadedIds: {
       profiles: new Set(),
@@ -175,6 +181,7 @@ function createSnapshotState(): SnapshotState {
       categories: new Set(),
       transactions: new Set(),
       spheres: new Set(),
+      allocations: new Set(),
     },
   };
 }
@@ -220,6 +227,12 @@ async function readCanonicalSnapshots(
               .select(sphereSyncColumns)
               .from(spheresTable)
               .where(and(inArray(spheresTable.id, ids), scope))
+              .for("update");
+          case "allocations":
+            return db
+              .select()
+              .from(allocationsTable)
+              .where(and(inArray(allocationsTable.id, ids), scope))
               .for("update");
         }
       },
@@ -327,6 +340,12 @@ async function tombstone(
           .set({ deletedAt: now(), updatedAt: now() })
           .where(and(where, isNull(spheresTable.deletedAt)))
           .returning(sphereSyncColumns);
+      case "allocations":
+        return db
+          .update(allocationsTable)
+          .set({ deletedAt: now(), updatedAt: now() })
+          .where(and(where, isNull(allocationsTable.deletedAt)))
+          .returning();
     }
   });
 }
@@ -445,6 +464,7 @@ function acceptanceEntityLabel(
   if (canonicalRow && "comment" in canonicalRow) {
     return canonicalRow.comment?.trim() || `${canonicalRow.type.toLowerCase()} transaction`;
   }
+  if (mutation.table === "allocations") return "Reallocation";
   return "Transaction";
 }
 
@@ -476,6 +496,7 @@ async function executeApplyMutations(
     categories: new Set(),
     transactions: new Set(),
     spheres: new Set(),
+    allocations: new Set(),
   };
   const profileIds = new Set<string>();
   const appliedMutationIds = new Set<string>();
@@ -490,7 +511,13 @@ async function executeApplyMutations(
     fingerprintedMutations.map(({ mutation, fingerprint }) => [mutation.mutationId, fingerprint]),
   );
 
-  for (const mutation of mutations) touched[mutation.table].add(mutation.rowId);
+  for (const mutation of mutations) {
+    touched[mutation.table].add(mutation.rowId);
+    // Also return attempted destinations on rejection/replay so optimistic history evidence
+    // on a never-used sphere is replaced by its canonical value.
+    if (mutation.table === "allocations" && mutation.op === "upsert")
+      touched.spheres.add(mutation.payload.sphereId);
+  }
 
   // Claim before applying. The unique key serializes concurrent delivery of the same mutation, while
   // the surrounding transaction ensures a claim disappears if any later authorization or write fails.
@@ -655,7 +682,9 @@ async function executeApplyMutations(
     const ids = run.mutations.map((mutation) => mutation.rowId);
     // A stale edit of an already deleted pair settles from its canonical tombstones even when
     // the account/profile cascade also removed the references in its pending intent.
-    const authorized = authorization.authorize(run.table === "transactions" ? [] : run.mutations);
+    const authorized = authorization.authorize(
+      run.table === "transactions" || run.table === "allocations" ? [] : run.mutations,
+    );
 
     if (run.table === "profiles") {
       // A profile's own scope is its owner. Nothing is asserted up front: an insert stamps `userId`
@@ -755,6 +784,166 @@ async function executeApplyMutations(
     const scope = inArray(table.profileId, owned);
 
     const runStaleBases = await findStaleBases(db, run, scope, snapshots, runOperation);
+    if (run.table === "allocations") {
+      const targets = run.mutations.flatMap((mutation) => {
+        const row = snapshots.rows.allocations.get(mutation.rowId);
+        return row ? [row as SyncedAllocation] : [];
+      });
+      const reallocationIds = [
+        ...new Set([
+          ...targets.flatMap((row) => row.reallocationId ?? []),
+          ...run.mutations.flatMap((mutation) =>
+            mutation.op === "upsert" ? [mutation.payload.reallocationId] : [],
+          ),
+        ]),
+      ];
+      const paired =
+        reallocationIds.length === 0
+          ? []
+          : await runOperation("reallocation.read", () =>
+              db
+                .select()
+                .from(allocationsTable)
+                .where(and(inArray(allocationsTable.reallocationId, reallocationIds), scope))
+                .orderBy(allocationsTable.id)
+                .for("update"),
+            );
+      const existing = [...new Map([...targets, ...paired].map((row) => [row.id, row])).values()];
+      const sphereIds = [
+        ...new Set([
+          ...existing.map((row) => row.sphereId),
+          ...run.mutations.flatMap((mutation) =>
+            mutation.op === "upsert" ? [mutation.payload.sphereId] : [],
+          ),
+        ]),
+      ];
+      const spheres =
+        sphereIds.length === 0
+          ? []
+          : await runOperation("reallocation.spheres", () =>
+              db
+                .select()
+                .from(spheresTable)
+                .where(
+                  and(inArray(spheresTable.id, sphereIds), inArray(spheresTable.profileId, owned)),
+                )
+                .orderBy(spheresTable.id)
+                .for("update"),
+            );
+      const blocked = validateReallocationMutations(run.mutations, existing, spheres);
+      const allowed = run.mutations.filter((mutation) => !blocked.has(mutation.mutationId));
+      authorization.authorize(allowed);
+      // A never-accepted offline reservation may target a sphere another device archived/deleted.
+      // Persist a complete, financially inert tombstone pair so its rejection can settle/replay
+      // through the same canonical-row contract as any other operation, rather than blocking sync.
+      const rejectedNew = run.mutations.filter(
+        (mutation) =>
+          mutation.op === "upsert" &&
+          blocked.has(mutation.mutationId) &&
+          !targets.some((row) => row.id === mutation.rowId),
+      );
+      const rejectedRows =
+        rejectedNew.length === 0
+          ? []
+          : await runOperation("mutation.upsert.allocations", () =>
+              db
+                .insert(allocationsTable)
+                .values(
+                  rejectedNew.map((mutation) => {
+                    if (mutation.op !== "upsert")
+                      throw new Error("Invalid reallocation operation.");
+                    return {
+                      id: mutation.rowId,
+                      ...mutation.payload,
+                      deletedAt: now(),
+                      updatedAt: now(),
+                    };
+                  }),
+                )
+                .onConflictDoNothing()
+                .returning(),
+            );
+      if (rejectedRows.length !== rejectedNew.length)
+        throw new Response("The complete reallocation could not be changed.", { status: 403 });
+      for (const mutation of run.mutations) {
+        if (
+          !blocked.has(mutation.mutationId) ||
+          runStaleBases.some((base) => base.mutationId === mutation.mutationId)
+        )
+          continue;
+        const current =
+          targets.find((row) => row.id === mutation.rowId) ??
+          rejectedRows.find((row) => row.id === mutation.rowId);
+        if (current)
+          runStaleBases.push({
+            mutationId: mutation.mutationId,
+            table: "allocations",
+            rowId: mutation.rowId,
+            baseUpdatedAt: mutation.baseUpdatedAt,
+            conflictingServerUpdatedAt:
+              spheres
+                .find(
+                  (sphere) =>
+                    sphere.id === current.sphereId && (sphere.archived || sphere.deletedAt != null),
+                )
+                ?.updatedAt.getTime() ?? current.updatedAt.getTime(),
+            preWriteCanonicalRow: current,
+          });
+      }
+      const affectedRows =
+        allowed.length === 0
+          ? []
+          : run.op === "delete"
+            ? await tombstone(
+                db,
+                "allocations",
+                and(
+                  inArray(
+                    allocationsTable.id,
+                    allowed.map((mutation) => mutation.rowId),
+                  ),
+                  scope,
+                ),
+                runOperation,
+              )
+            : await runOperation("mutation.upsert.allocations", () =>
+                db
+                  .insert(allocationsTable)
+                  .values(
+                    allowed.map((mutation) => {
+                      if (mutation.op !== "upsert")
+                        throw new Error("Invalid reallocation operation.");
+                      return { id: mutation.rowId, ...mutation.payload, updatedAt: now() };
+                    }),
+                  )
+                  .onConflictDoUpdate({
+                    target: allocationsTable.id,
+                    set: {
+                      sphereId: excluded(allocationsTable.sphereId),
+                      amount: excluded(allocationsTable.amount),
+                      currencyCode: excluded(allocationsTable.currencyCode),
+                      createdAt: excluded(allocationsTable.createdAt),
+                      updatedAt: now(),
+                    },
+                    setWhere: and(
+                      scope,
+                      isNull(allocationsTable.deletedAt),
+                      eq(allocationsTable.profileId, excluded(allocationsTable.profileId)),
+                      eq(
+                        allocationsTable.reallocationId,
+                        excluded(allocationsTable.reallocationId),
+                      ),
+                    ),
+                  })
+                  .returning(),
+              );
+      if (run.op === "upsert" && affectedRows.length !== allowed.length)
+        throw new Response("The complete reallocation could not be changed.", { status: 403 });
+      recordAppliedMutations(run, affectedRows, appliedMutationIds);
+      captureAcceptanceOutcomes(runStaleBases, [...affectedRows, ...rejectedRows]);
+      rememberReturnedRows(run.table, [...affectedRows, ...rejectedRows]);
+      continue;
+    }
     if (run.table === "spheres") {
       const archiveIds =
         run.op === "upsert"

@@ -348,7 +348,7 @@ export const spheresTable = pgTable(
   ],
 );
 
-/** Accompanies either one transaction or an account's opening amount; never ordinary income. */
+/** Transaction/opening attribution, or one of a reallocation's two balanced sides. */
 export const allocationsTable = pgTable(
   "allocations",
   {
@@ -365,6 +365,7 @@ export const allocationsTable = pgTable(
     openingAccountId: uuid("opening_account_id")
       .unique()
       .references(() => accountsTable.id, { onDelete: "cascade" }),
+    reallocationId: uuid("reallocation_id"),
     amount: money("amount").notNull(),
     currencyCode: currencyCodeEnum("currency_code").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -373,8 +374,9 @@ export const allocationsTable = pgTable(
   (table) => [
     check(
       "allocations_source_check",
-      sql`(${table.transactionId} is null) <> (${table.openingAccountId} is null)`,
+      sql`num_nonnulls(${table.transactionId}, ${table.openingAccountId}, ${table.reallocationId}) = 1`,
     ),
+    index("allocations_reallocation_id_idx").on(table.reallocationId),
     index("allocations_profile_id_updated_at_id_idx").on(
       table.profileId,
       table.updatedAt,

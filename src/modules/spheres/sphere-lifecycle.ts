@@ -27,7 +27,10 @@ export function sphereBalances(
 }
 
 export function sphereHasHistory(sphere: SyncedSphere, allocations: SyncedAllocation[]): boolean {
-  return sphere.hasHistory || allocations.some((row) => row.sphereId === sphere.id);
+  return (
+    sphere.hasHistory ||
+    allocations.some((row) => row.sphereId === sphere.id && row.deletedAt == null)
+  );
 }
 
 /** Shared by the optimistic write and the serialized IndexedDB transaction. */

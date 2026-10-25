@@ -113,6 +113,34 @@
       "when": 1792870034051,
       "tag": "0015_sphere_lifecycle_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792907462445,
+      "tag": "0016_fine_mimic",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792907641830,
+      "tag": "0017_reallocation_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792908249563,
+      "tag": "0018_settle_rejected_reallocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792908407245,
+      "tag": "0019_preserve_unused_spheres_after_rejection",
+      "breakpoints": true
     }
   ]
 }

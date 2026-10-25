@@ -11,8 +11,9 @@ export const WRITABLE_TABLES = [
   "categories",
   "transactions",
   "spheres",
+  "allocations",
 ] as const;
-export const SYNCED_TABLES = [...WRITABLE_TABLES, "allocations"] as const;
+export const SYNCED_TABLES = [...WRITABLE_TABLES] as const;
 
 /**
  * The same tables in child-first order for tombstone collection.

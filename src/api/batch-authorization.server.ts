@@ -195,10 +195,11 @@ export async function createBatchAuthorization(
           profiles,
         );
         if (
-          first.table === "spheres" &&
+          (first.table === "spheres" || first.table === "allocations") &&
           upserts.some(
             (mutation) =>
-              mutation.table === "spheres" && !profiles.get(mutation.payload.profileId)?.live,
+              (mutation.table === "spheres" || mutation.table === "allocations") &&
+              !profiles.get(mutation.payload.profileId)?.live,
           )
         )
           throw forbidden();

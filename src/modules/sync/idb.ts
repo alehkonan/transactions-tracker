@@ -5,6 +5,7 @@ import {
   operatingRows,
   pendingParentDeletes,
 } from "~/modules/spheres/operating";
+import { validateReallocationMutations } from "~/modules/spheres/reallocation";
 import { validateSphereMutations } from "~/modules/spheres/sphere-lifecycle";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
@@ -805,6 +806,54 @@ export function writeLocalMutations(
               expected.ownerUserId,
               ["spheres", "allocations"].every((table) => complete.result?.includes(table)),
             );
+            const reallocationMutations = mutations.filter(
+              (mutation) => mutation.table === "allocations",
+            );
+            if (reallocationMutations.length > 0) {
+              if (!["spheres", "allocations"].every((table) => complete.result?.includes(table)))
+                throw new Error("Finish loading sphere balances before reallocating money.");
+              for (const mutation of reallocationMutations) {
+                const current = allocations.result.find(
+                  (row: SyncedRows["allocations"][number]) => row.id === mutation.rowId,
+                );
+                const profileId =
+                  mutation.op === "upsert" ? mutation.payload.profileId : current?.profileId;
+                const profile = profiles.result.find(
+                  (row: SyncedRows["profiles"][number]) =>
+                    row.id === profileId && row.deletedAt == null,
+                );
+                if (!profile || (profile.userId != null && profile.userId !== expected.ownerUserId))
+                  throw new Error(
+                    "The reallocation profile does not belong to this local replica.",
+                  );
+              }
+              if (
+                validateReallocationMutations(
+                  reallocationMutations,
+                  allocations.result,
+                  spheres.result,
+                ).size > 0
+              )
+                throw new Error(
+                  "This reallocation or one of its spheres is deleted or archived. Restore archived spheres before changing their history.",
+                );
+              for (const mutation of reallocationMutations) {
+                const row = rows.allocations?.find((row) => row.id === mutation.rowId);
+                if (
+                  !row ||
+                  (mutation.op === "delete"
+                    ? row.deletedAt == null
+                    : row.deletedAt != null ||
+                      Object.entries(mutation.payload).some(([key, value]) => {
+                        const actual = row[key as keyof typeof row];
+                        return value instanceof Date
+                          ? !(actual instanceof Date) || value.getTime() !== actual.getTime()
+                          : actual !== value;
+                      }))
+                )
+                  throw new Error("The local reallocation must match its queued intent.");
+              }
+            }
             const currentSpheres = new Map<string, SyncedRows["spheres"][number]>(
               spheres.result.map((row) => [row.id, row]),
             );
@@ -863,6 +912,17 @@ export function writeLocalMutations(
               });
             for (const row of rows.allocations ?? []) {
               const previous = previousAllocations.get(row.id);
+              if (
+                (row.reallocationId || previous?.reallocationId) &&
+                !reallocationMutations.some((mutation) => mutation.rowId === row.id) &&
+                !rows.profiles?.some(
+                  (profile) =>
+                    profile.id === row.profileId &&
+                    profile.deletedAt != null &&
+                    row.deletedAt != null,
+                )
+              )
+                throw new Error("Reallocation changes require both queued sides.");
               // Editing a transaction/opening amount changes its companion's money, not its purpose.
               // A different tab may have newer attribution than this tab's in-memory source snapshot.
               if (

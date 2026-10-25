@@ -44,7 +44,10 @@ export type Color = typeof colorsTable.$inferSelect;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 export type WritableTable = keyof MutationPayloads;
 export type SyncedSphere = typeof spheresTable.$inferSelect;
-export type SyncedAllocation = typeof allocationsTable.$inferSelect;
+export type SyncedAllocation = Omit<typeof allocationsTable.$inferSelect, "reallocationId"> & {
+  /** Absent on replicas created before reallocations were supported. */
+  reallocationId?: string | null;
+};
 
 export type SyncedRows = {
   profiles: SyncedProfile[];
@@ -189,6 +192,14 @@ export type CategoryPayload = Owned<ClientColumns<SyncedCategory>> & {
 
 export type TransactionPayload = ClientColumns<SyncedTransaction>;
 export type SpherePayload = Omit<ClientColumns<SyncedSphere>, "hasHistory">;
+export type ReallocationPayload = Omit<
+  ClientColumns<SyncedAllocation>,
+  "reallocationId" | "transactionId" | "openingAccountId"
+> & {
+  reallocationId: string;
+  transactionId: null;
+  openingAccountId: null;
+};
 
 export type MutationPayloads = {
   profiles: ProfilePayload;
@@ -196,6 +207,7 @@ export type MutationPayloads = {
   categories: CategoryPayload;
   transactions: TransactionPayload;
   spheres: SpherePayload;
+  allocations: ReallocationPayload;
 };
 
 type MutationBase = {

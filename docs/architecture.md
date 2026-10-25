@@ -274,13 +274,28 @@ are deterministically derived from SHA-256 of `transaction:<uuid>` or `opening:<
 version/variant bits, so a server backfill and a queued legacy edit address the same record.
 Account types do not participate, and unlinked transfers remain independent transactions.
 
-These two tables replicate normally. Allocations have no independent client mutation API. `commit` persists
+These two tables replicate normally. Transaction/opening allocations have no independent client mutation API. `commit` persists
 companions with their source rows in the same IndexedDB transaction; PostgreSQL triggers maintain
 them inside the existing receipt transaction. Thus imports still batch source mutations without
 alternating transaction/allocation runs or changing immutable legacy receipts. An opening allocation
 stores the cumulative amount assigned from that account: an edit changes Operating by the signed
 difference, and repeating acceptance cannot add the difference twice. It uses the epoch as an
 explicit non-transaction date and never enters transaction income or spending.
+
+Reallocations are two allocation rows with one `reallocationId`, equal opposite amounts, distinct
+active spheres in the same profile, and one shared currency and date. They have no transaction,
+opening account, or category. Creating, editing, and deleting a pair uses one immutable outbox
+operation: IndexedDB persists both sides and intents together, push batching never splits the pair,
+and receipt settlement retains both until the complete canonical result is durable. Local and
+server acceptance validate the whole pair; a deferred PostgreSQL constraint also prevents partial
+or unbalanced pairs from committing. Tombstoned pairs cannot be resurrected by stale edits.
+Pull pages include any missing companion from the same database snapshot while advancing the cursor
+only through the original bounded page. Profile deletion tombstones the complete reallocation;
+account deletion leaves it intact. Insufficient sphere money is allowed with a warning, since a
+reallocation preserves the sum across spheres in each currency without changing account money.
+If a sphere closes on another device before an offline operation arrives, both sides settle as
+rejected canonical outcomes. A never-accepted reservation is retained as an inert tombstone pair
+for replay; it creates no accepted history and does not prevent deleting an otherwise unused sphere.
 
 IDB v4 bootstraps companions from the local working set behind a revision/version fence, preserving
 every outbox entry, sequence and payload. Inconsistent account references retain the rows and enter

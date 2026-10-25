@@ -103,6 +103,7 @@ export async function readCanonicalRows(
     categories: [...touched.categories],
     transactions: [...touched.transactions],
     spheres: [...(touched.spheres ?? [])],
+    allocations: [...(touched.allocations ?? [])],
   };
 
   const profileIds =
@@ -167,7 +168,7 @@ export async function readCanonicalRows(
   ]);
 
   const spheres =
-    ids.profiles.length + ids.spheres.length === 0
+    ids.profiles.length + ids.spheres.length + ids.allocations.length === 0
       ? []
       : await runOperation("canonical.read.spheres", () =>
           db
@@ -179,12 +180,26 @@ export async function readCanonicalRows(
                 or(
                   inArray(spheresTable.profileId, ids.profiles),
                   inArray(spheresTable.id, ids.spheres),
+                  inArray(
+                    spheresTable.id,
+                    db
+                      .select({ id: allocationsTable.sphereId })
+                      .from(allocationsTable)
+                      .where(inArray(allocationsTable.id, ids.allocations)),
+                  ),
                 ),
               ),
             ),
         );
+  const deletedProfileIds = profiles
+    .filter((profile) => profile.deletedAt != null)
+    .map((profile) => profile.id);
   const allocations =
-    ids.accounts.length + ids.transactions.length === 0
+    ids.accounts.length +
+      ids.transactions.length +
+      ids.allocations.length +
+      deletedProfileIds.length ===
+    0
       ? []
       : await runOperation("canonical.read.allocations", () =>
           db
@@ -196,6 +211,8 @@ export async function readCanonicalRows(
                 or(
                   inArray(allocationsTable.openingAccountId, ids.accounts),
                   inArray(allocationsTable.transactionId, ids.transactions),
+                  inArray(allocationsTable.id, ids.allocations),
+                  inArray(allocationsTable.profileId, deletedProfileIds),
                 ),
               ),
             ),

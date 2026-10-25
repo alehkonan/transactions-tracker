@@ -1,4 +1,5 @@
 import { operatingRows } from "~/modules/spheres/operating";
+import { validateReallocationMutations } from "~/modules/spheres/reallocation";
 import { validateSphereMutations } from "~/modules/spheres/sphere-lifecycle";
 import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import { uuidV7 } from "~/utils/uuid-v7";
@@ -222,6 +223,29 @@ export async function commit(
     }
   }
   validateTransferMutations(transactionMutations, state.transactions, [...accounts.values()]);
+
+  const allocationMutations = mutations.filter((mutation) => mutation.table === "allocations");
+  if (allocationMutations.length > 0) {
+    if (
+      !state.isHydrated ||
+      state.pending.some((table) => ["spheres", "allocations"].includes(table))
+    )
+      throw new Error("Finish loading sphere balances before reallocating money.");
+    for (const mutation of allocationMutations) {
+      if (mutation.op !== "upsert") continue;
+      const profile = state.profiles.find(
+        (row) => row.id === mutation.payload.profileId && row.deletedAt == null,
+      );
+      if (!profile || (profile.userId != null && profile.userId !== replicaContext.ownerUserId))
+        throw new Error("The reallocation profile does not belong to this local replica.");
+    }
+    if (
+      validateReallocationMutations(allocationMutations, state.allocations, state.spheres).size > 0
+    )
+      throw new Error(
+        "This reallocation or one of its spheres is deleted or archived. Restore archived spheres before changing their history.",
+      );
+  }
 
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.

@@ -15,6 +15,7 @@ import type {
   ProfilePayload,
   TransactionPayload,
   SpherePayload,
+  ReallocationPayload,
 } from "~/modules/sync/sync-types";
 
 /** A client-minted id used by both the RPC and the plain HTTP push route. */
@@ -73,6 +74,17 @@ const spherePayloadSchema = z.object({
   archived: z.boolean(),
 }) satisfies z.ZodType<SpherePayload>;
 
+const reallocationPayloadSchema = z.object({
+  profileId: rowIdSchema,
+  sphereId: rowIdSchema,
+  reallocationId: rowIdSchema,
+  transactionId: z.null(),
+  openingAccountId: z.null(),
+  amount: z.string().regex(/^-?(?:\d{1,12}(?:\.\d{1,2})?|\.\d{1,2})$/),
+  currencyCode: z.enum(currencyCodeEnum.enumValues),
+  createdAt: z.coerce.date(),
+}) satisfies z.ZodType<ReallocationPayload>;
+
 /**
  * A whole-row mutation. Keeping this in one module prevents the page RPC and the service-worker
  * endpoint from accepting different write protocols.
@@ -109,6 +121,12 @@ const mutationSchema = z.union([
       op: z.literal("upsert"),
       table: z.literal("spheres"),
       payload: spherePayloadSchema,
+    }),
+    z.object({
+      ...mutationBaseSchema,
+      op: z.literal("upsert"),
+      table: z.literal("allocations"),
+      payload: reallocationPayloadSchema,
     }),
   ]),
 ]);
@@ -152,6 +170,23 @@ export const pushChangesSchema = replicaSyncContextSchema.extend({
       (mutations) =>
         new Set(mutations.map((mutation) => mutation.mutationId)).size === mutations.length,
       { message: "Mutation ids must be unique within a push batch." },
+    )
+    .refine(
+      (mutations) =>
+        mutations.every(
+          (mutation) =>
+            mutation.table !== "allocations" ||
+            (mutation.operation?.mutationIds.length === 2 &&
+              mutation.operation.mutationIds.every((id) =>
+                mutations.some(
+                  (member) =>
+                    member.mutationId === id &&
+                    member.table === "allocations" &&
+                    member.op === mutation.op,
+                ),
+              )),
+        ),
+      { message: "Reallocations require both allocation sides in one operation." },
     )
     .refine(
       (mutations) => {

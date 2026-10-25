@@ -91,10 +91,24 @@ export async function operatingRows(
   }
   return {
     spheres,
-    allocations: allocations.map((row) => ({
-      ...row,
-      sphereId: existingAllocations.get(row.id)?.sphereId ?? row.sphereId,
-    })),
+    allocations: [
+      ...(sources.allocations ?? []),
+      ...allocations.map((row) => ({
+        ...row,
+        sphereId: existingAllocations.get(row.id)?.sphereId ?? row.sphereId,
+      })),
+      ...(sources.profiles ?? []).flatMap((profile) =>
+        profile.deletedAt == null
+          ? []
+          : (existing.allocations ?? [])
+              .filter((row) => row.profileId === profile.id && row.reallocationId)
+              .map((row) => ({
+                ...row,
+                deletedAt: profile.deletedAt,
+                updatedAt: profile.updatedAt,
+              })),
+      ),
+    ],
   };
 }
 

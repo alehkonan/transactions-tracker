@@ -283,7 +283,7 @@ export const pullChanges = createServerFn()
             )
             .orderBy(asc(spheresTable.updatedAt), asc(spheresTable.id))
             .limit(PULL_PAGE_SIZE);
-          const allocations = await db
+          const allocationPage = await db
             .select({
               ...getTableColumns(allocationsTable),
               cursorAt: exactUpdatedAt(allocationsTable.updatedAt),
@@ -297,6 +297,32 @@ export const pullChanges = createServerFn()
             )
             .orderBy(asc(allocationsTable.updatedAt), asc(allocationsTable.id))
             .limit(PULL_PAGE_SIZE);
+          // Complete reallocation pairs from the same repeatable-read snapshot. Keep paging from
+          // the original bounded page: a companion beyond its cursor must not skip intervening rows.
+          const membership = new Map<string, number>();
+          for (const row of allocationPage) {
+            if (row.reallocationId)
+              membership.set(row.reallocationId, (membership.get(row.reallocationId) ?? 0) + 1);
+          }
+          const partialIds = [...membership].filter(([, size]) => size === 1).map(([id]) => id);
+          const companions =
+            partialIds.length === 0
+              ? []
+              : await db
+                  .select({
+                    ...getTableColumns(allocationsTable),
+                    cursorAt: exactUpdatedAt(allocationsTable.updatedAt),
+                  })
+                  .from(allocationsTable)
+                  .where(
+                    and(
+                      inOwnProfiles(allocationsTable.profileId),
+                      inArray(allocationsTable.reallocationId, partialIds),
+                    ),
+                  );
+          const allocations = [
+            ...new Map([...allocationPage, ...companions].map((row) => [row.id, row])).values(),
+          ];
           // Global, and re-read on every pull rather than once: the CSV import mints new colors for the
           // categories it creates, so a client holding a stale palette would draw them untinted.
           const colors = await withSyncPhase(
@@ -328,6 +354,7 @@ export const pullChanges = createServerFn()
             transactions,
             spheres,
             allocations,
+            allocationPage,
             colors,
             backlog,
           };
@@ -335,10 +362,27 @@ export const pullChanges = createServerFn()
       );
 
       const [
-        { profiles, accounts, categories, transactions, spheres, allocations, colors, backlog },
+        {
+          profiles,
+          accounts,
+          categories,
+          transactions,
+          spheres,
+          allocations,
+          allocationPage,
+          colors,
+          backlog,
+        },
         usdRates,
       ] = await Promise.all([databasePagePromise, usdRatesPromise]);
-      const pages = { profiles, accounts, categories, transactions, spheres, allocations };
+      const pages = {
+        profiles,
+        accounts,
+        categories,
+        transactions,
+        spheres,
+        allocations: allocationPage,
+      };
       const nextCursors: SyncCursors = {};
       for (const table of Object.keys(pages) as SyncedTable[]) {
         const cursor = nextCursor(pages[table], cursors[table]);
