@@ -59,12 +59,14 @@ export function useTransactionFormSubmit({ transaction }: Options) {
               type: "TRANSFER",
               accountId: values.accountId || null,
               amount: signedAmount,
+              sphereId: values.sphereId || profileId,
             },
             {
               ...shared,
               type: "TRANSFER",
               accountId: values.toAccountId || null,
               amount: values.toAmount,
+              sphereId: values.toSphereId || profileId,
             },
           ],
           replicaContext,
@@ -77,6 +79,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
             type: values.type,
             accountId: values.accountId || null,
             amount: signedAmount,
+            sphereId: values.sphereId || profileId,
           },
           replicaContext,
         );
@@ -92,12 +95,14 @@ export function useTransactionFormSubmit({ transaction }: Options) {
                 type: "TRANSFER",
                 accountId: values.accountId || null,
                 amount: signedAmount,
+                sphereId: values.sphereId || profileId,
               },
               {
                 ...shared,
                 type: "TRANSFER",
                 accountId: values.toAccountId || null,
                 amount: values.toAmount,
+                sphereId: values.toSphereId || profileId,
               },
             ]
           : [
@@ -106,6 +111,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
                 type: values.type,
                 accountId: values.accountId || null,
                 amount: signedAmount,
+                sphereId: values.sphereId || profileId,
               },
             ];
 

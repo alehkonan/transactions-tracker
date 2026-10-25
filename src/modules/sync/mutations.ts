@@ -249,7 +249,14 @@ export async function commit(
 
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.
-  Object.assign(rows, await operatingRows(rows, state.accounts, state));
+  const transactionSpheres = new Map(
+    transactionMutations.flatMap((mutation) =>
+      mutation.op === "upsert" && mutation.payload.sphereId
+        ? [[mutation.rowId, mutation.payload.sphereId] as const]
+        : [],
+    ),
+  );
+  Object.assign(rows, await operatingRows(rows, state.accounts, state, transactionSpheres));
   await writeLocalMutations(replicaContext, rows, mutations);
   await assertCurrentReplicaContext(replicaContext);
   await refreshOutboxState(replicaContext);

@@ -55,6 +55,7 @@ const categoryPayloadSchema = z.object({
 }) satisfies z.ZodType<CategoryPayload>;
 
 const transactionPayloadSchema = z.object({
+  sphereId: rowIdSchema.optional(),
   transferId: rowIdSchema.nullable().optional(),
   type: z.enum(transactionTypeEnum.enumValues),
   necessityLevel: z.enum(necessityLevelEnum.enumValues),

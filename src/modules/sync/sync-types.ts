@@ -190,7 +190,10 @@ export type CategoryPayload = Owned<ClientColumns<SyncedCategory>> & {
   colorHex?: string;
 };
 
-export type TransactionPayload = ClientColumns<SyncedTransaction>;
+export type TransactionPayload = ClientColumns<SyncedTransaction> & {
+  /** Attribution intent; persisted in the transaction's allocation, not duplicated on the source. */
+  sphereId?: string;
+};
 export type SpherePayload = Omit<ClientColumns<SyncedSphere>, "hasHistory">;
 export type ReallocationPayload = Omit<
   ClientColumns<SyncedAllocation>,

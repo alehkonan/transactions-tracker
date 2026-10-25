@@ -1,6 +1,12 @@
+import { sphereLabel } from "~/modules/spheres/sphere-label";
 import { toUsd } from "~/utils/money";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
-import type { SyncedAccount, SyncedTransaction } from "~/modules/sync/sync-types";
+import type {
+  SyncedAccount,
+  SyncedTransaction,
+  SyncedAllocation,
+  SyncedSphere,
+} from "~/modules/sync/sync-types";
 
 /**
  * One row of the transactions table: the transaction plus the bits of its account and category the
@@ -9,6 +15,8 @@ import type { SyncedAccount, SyncedTransaction } from "~/modules/sync/sync-types
 export type TransactionRow = {
   id: string;
   transferId?: string | null;
+  sphereId?: string;
+  sphere?: string;
   createdAt: Date;
   categoryId: string | null;
   category: string | null;
@@ -29,6 +37,8 @@ type Options = {
   accounts: SyncedAccount[];
   categories: CategoryRow[];
   usdRates: Record<string, number>;
+  allocations?: SyncedAllocation[];
+  spheres?: SyncedSphere[];
 };
 
 /**
@@ -42,9 +52,17 @@ export function toTransactionRows({
   accounts,
   categories,
   usdRates,
+  allocations = [],
+  spheres = [],
 }: Options): TransactionRow[] {
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
   const categoriesById = new Map(categories.map((category) => [category.id, category]));
+  const allocationsByTransaction = new Map(
+    allocations
+      .filter((row) => row.deletedAt == null && row.transactionId)
+      .map((row) => [row.transactionId, row]),
+  );
+  const spheresById = new Map(spheres.map((row) => [row.id, row]));
 
   return transactions
     .map((transaction): TransactionRow => {
@@ -52,10 +70,14 @@ export function toTransactionRows({
         transaction.accountId != null ? accountsById.get(transaction.accountId) : undefined;
       const category =
         transaction.categoryId != null ? categoriesById.get(transaction.categoryId) : undefined;
+      const sphereId = allocationsByTransaction.get(transaction.id)?.sphereId;
+      const sphere = sphereId ? spheresById.get(sphereId) : undefined;
 
       return {
         id: transaction.id,
         transferId: transaction.transferId,
+        sphereId,
+        sphere: sphere ? sphereLabel(sphere) : "Loading sphere…",
         createdAt: transaction.createdAt,
         categoryId: transaction.categoryId,
         category: category?.name ?? null,

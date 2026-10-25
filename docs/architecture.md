@@ -282,6 +282,14 @@ stores the cumulative amount assigned from that account: an edit changes Operati
 difference, and repeating acceptance cannot add the difference twice. It uses the epoch as an
 explicit non-transaction date and never enters transaction income or spending.
 
+Transaction upserts may carry a `sphereId` attribution intent. Each transfer leg chooses its sphere
+independently; the allocation remains the sole stored purpose record. Local persistence applies the
+choice alongside the source and its outbox entry, and the server updates attribution inside the same
+receipt transaction after its source trigger runs. An omitted choice preserves existing attribution
+and defaults new transactions and CSV imports to Operating. Sphere ownership and archive rules apply
+to both paths. Stale operations against archived spheres settle with canonical conflict outcomes,
+including financially inert tombstone pairs for transfers that were never accepted.
+
 Reallocations are two allocation rows with one `reallocationId`, equal opposite amounts, distinct
 active spheres in the same profile, and one shared currency and date. They have no transaction,
 opening account, or category. Creating, editing, and deleting a pair uses one immutable outbox

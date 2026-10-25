@@ -87,6 +87,10 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
     isEditing,
     isPending,
     rootError,
+    sphereOptions,
+    sphereWarnings,
+    balancesComplete,
+    attributionReady,
   } = useTransactionForm({ accounts, transaction });
   const { control } = form;
 
@@ -314,6 +318,53 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         </div>
       )}
 
+      <div className={showTransferSplit ? "grid gap-3 sm:grid-cols-2" : "flex flex-col"}>
+        {(showTransferSplit ? (["sphereId", "toSphereId"] as const) : (["sphereId"] as const)).map(
+          (name) => (
+            <label key={name} className="flex min-w-0 flex-col gap-1 text-sm">
+              {showTransferSplit ? (name === "sphereId" ? "From sphere" : "To sphere") : "Sphere"}
+              <select
+                {...form.register(name)}
+                data-testid={name === "sphereId" ? "transaction-sphere" : "transaction-to-sphere"}
+                className="border-border bg-surface text-text focus-visible:ring-accent h-11 w-full min-w-0 rounded-2xl border px-3 focus-visible:ring-2 focus-visible:outline-none sm:h-9"
+              >
+                {sphereOptions.map((option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={"disabled" in option && option.disabled}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ),
+        )}
+      </div>
+      <div aria-live="polite">
+        {!balancesComplete && (
+          <p className="text-text-muted text-sm">
+            Sphere balances are still loading. Negative-balance warnings are incomplete.
+          </p>
+        )}
+        {!attributionReady && (
+          <p className="text-warning text-sm">
+            Finish loading this transaction's sphere before editing.
+          </p>
+        )}
+        {sphereWarnings.map((warning) => (
+          <p
+            key={`${warning.label}:${warning.currencyCode}`}
+            className="text-warning text-sm"
+            data-testid="transaction-sphere-warning"
+          >
+            {warning.label} will have {formatMoney(warning.balance, warning.currencyCode)} after
+            saving. You can continue with a negative sphere balance.
+          </p>
+        ))}
+      </div>
+
       <TextareaControl
         control={control}
         name="comment"
@@ -349,7 +400,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             className="min-w-20"
             type="submit"
             variant="primary"
-            disabled={isPending}
+            disabled={isPending || !attributionReady}
           >
             {isEditing ? (isPending ? "Updating…" : "Update") : isPending ? "Saving…" : "Save"}
           </Button>

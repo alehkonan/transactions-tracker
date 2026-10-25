@@ -11,6 +11,8 @@ export type TransactionFormValues = {
   createdAt: Date;
   accountId: string;
   toAccountId: string;
+  sphereId: string;
+  toSphereId: string;
   amount: string;
   toAmount: string;
   categoryId: string;
@@ -20,13 +22,15 @@ export type TransactionFormValues = {
 
 export function getDefaultFormValues(
   transaction: TransactionRow | undefined,
-  incoming?: Pick<TransactionRow, "accountId" | "amount">,
+  incoming?: Pick<TransactionRow, "accountId" | "amount" | "sphereId">,
 ): TransactionFormValues {
   return {
     type: transaction?.type ?? "EXPENSE",
     createdAt: transaction?.createdAt ?? new Date(),
     accountId: transaction?.accountId ?? "",
     toAccountId: incoming?.accountId ?? "",
+    sphereId: transaction?.sphereId ?? "",
+    toSphereId: incoming?.sphereId ?? "",
     amount: transaction?.amount.replace(/^-/, "") ?? "",
     toAmount: incoming?.amount ?? "",
     categoryId: transaction?.categoryId ?? "",

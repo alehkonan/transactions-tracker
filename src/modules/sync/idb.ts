@@ -910,6 +910,11 @@ export function writeLocalMutations(
                 ...row,
                 hasHistory: currentSpheres.get(row.id)?.hasHistory || row.hasHistory,
               });
+            const transactionIntents = new Map(
+              mutations
+                .filter((mutation) => mutation.table === "transactions")
+                .map((mutation) => [mutation.rowId, mutation]),
+            );
             for (const row of rows.allocations ?? []) {
               const previous = previousAllocations.get(row.id);
               if (
@@ -923,10 +928,19 @@ export function writeLocalMutations(
                 )
               )
                 throw new Error("Reallocation changes require both queued sides.");
-              // Editing a transaction/opening amount changes its companion's money, not its purpose.
-              // A different tab may have newer attribution than this tab's in-memory source snapshot.
+              const sourceIntent = row.transactionId
+                ? transactionIntents.get(row.transactionId)
+                : undefined;
+              const selectedSphere =
+                sourceIntent?.table === "transactions" && sourceIntent.op === "upsert"
+                  ? sourceIntent.payload.sphereId
+                  : undefined;
+              if (selectedSphere && selectedSphere !== row.sphereId)
+                throw new Error("The allocation must match its transaction's sphere intent.");
+              // Legacy intents preserve the latest attribution from the serialized snapshot.
               if (
                 previous &&
+                !selectedSphere &&
                 sourceRowKeys.has(
                   row.transactionId != null
                     ? `transactions:${row.transactionId}`

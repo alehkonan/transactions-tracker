@@ -27,6 +27,7 @@ export async function operatingRows(
   sources: Partial<SyncedRows>,
   accounts: SyncedRows["accounts"],
   existing: Partial<Pick<SyncedRows, "spheres" | "allocations">> = {},
+  transactionSpheres: ReadonlyMap<string, string> = new Map(),
 ): Promise<Pick<SyncedRows, "spheres" | "allocations">> {
   const byId = new Map(accounts.map((account) => [account.id, account]));
   const existingAllocations = new Map((existing.allocations ?? []).map((row) => [row.id, row]));
@@ -95,7 +96,10 @@ export async function operatingRows(
       ...(sources.allocations ?? []),
       ...allocations.map((row) => ({
         ...row,
-        sphereId: existingAllocations.get(row.id)?.sphereId ?? row.sphereId,
+        sphereId:
+          (row.transactionId ? transactionSpheres.get(row.transactionId) : undefined) ??
+          existingAllocations.get(row.id)?.sphereId ??
+          row.sphereId,
       })),
       ...(sources.profiles ?? []).flatMap((profile) =>
         profile.deletedAt == null

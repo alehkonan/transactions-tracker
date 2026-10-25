@@ -20,6 +20,10 @@ function toPayload(profileId: string, input: TransactionInput): TransactionPaylo
   return { ...input, createdAt: input.createdAt ?? new Date(), profileId };
 }
 
+function sourceColumns({ sphereId: _sphereId, ...source }: TransactionPayload) {
+  return source;
+}
+
 /**
  * Creates transactions — plural, because a transfer between two of the user's own accounts is two
  * rows, one per account, and the CSV import arrives thousands at a time.
@@ -36,7 +40,7 @@ export function createTransactions(
   return commit(
     inputs.map((input): LocalChange => {
       const payload = { ...toPayload(profileId, input), transferId };
-      return { op: "upsert", table: "transactions", row: newRow(payload), payload };
+      return { op: "upsert", table: "transactions", row: newRow(sourceColumns(payload)), payload };
     }),
     replicaContext,
   );
@@ -59,7 +63,14 @@ export function updateTransaction(
   });
 
   return commit(
-    [{ op: "upsert", table: "transactions", row: { ...transaction, ...payload }, payload }],
+    [
+      {
+        op: "upsert",
+        table: "transactions",
+        row: { ...transaction, ...sourceColumns(payload) },
+        payload,
+      },
+    ],
     replicaContext,
   );
 }
@@ -76,7 +87,12 @@ export function updateTransfer(
   return commit(
     legs.map((row, index): LocalChange => {
       const payload = { ...toPayload(row.profileId, inputs[index]), transferId: row.transferId };
-      return { op: "upsert", table: "transactions", row: { ...row, ...payload }, payload };
+      return {
+        op: "upsert",
+        table: "transactions",
+        row: { ...row, ...sourceColumns(payload) },
+        payload,
+      };
     }),
     replicaContext,
   );
