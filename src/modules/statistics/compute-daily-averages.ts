@@ -56,6 +56,7 @@ function formatShortRunway(from: Date, days: number) {
 }
 
 export type DailyAverages = {
+  historyComplete: boolean;
   days: number;
   rangeLabel: string;
   expense: { totalUsd: number; perDayUsd: number };
@@ -71,11 +72,13 @@ export type DailyAverages = {
 };
 
 type Options = {
+  /** Expenses must already be selected by Operating sphere attribution. Income stays unfiltered. */
   transactions: SyncedTransaction[];
   /** Every account of the profile; archive status changes visibility, not holdings. */
   accounts: AccountWithBalance[];
   usdRates: Record<string, number>;
   period: AveragePeriod;
+  historyComplete?: boolean;
 };
 
 /**
@@ -88,6 +91,7 @@ export function computeDailyAverages({
   accounts,
   usdRates,
   period,
+  historyComplete = true,
 }: Options): DailyAverages {
   const now = new Date();
   // Exclusive upper bound at tomorrow's midnight, so today counts in full.
@@ -126,9 +130,13 @@ export function computeDailyAverages({
   // dividing by zero.
   const expensePerDay = totals.EXPENSE / days;
   const today = startOfDay(now);
-  const runwayDays = expensePerDay > 0 ? Math.floor(Math.max(0, balanceUsd) / expensePerDay) : null;
+  const runwayDays =
+    historyComplete && expensePerDay > 0
+      ? Math.floor(Math.max(0, balanceUsd) / expensePerDay)
+      : null;
 
   return {
+    historyComplete,
     days,
     rangeLabel,
     expense: { totalUsd: round2(totals.EXPENSE), perDayUsd: round2(totals.EXPENSE / days) },

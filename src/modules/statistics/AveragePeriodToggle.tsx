@@ -19,7 +19,9 @@ export function AveragePeriodToggle({ value, onValueChange }: Props) {
 
   return (
     <fieldset className="shrink-0">
-      <legend className="sr-only">Spending history used for runway and daily averages</legend>
+      <legend className="sr-only">
+        Operating Spending history used for runway and daily averages
+      </legend>
       <div className="border-border bg-surface flex items-center gap-1 rounded-lg border p-1">
         {options.map((option) => (
           <label key={option.value} className="cursor-pointer">
