@@ -1051,6 +1051,7 @@ async function executeApplyMutations(
     }
     const blockedTransactions = new Set<string>();
     const rejectedNewTransactions = new Set<string>();
+    const linkingTransactionIds: string[] = [];
     if (run.table === "transactions") {
       const targetRows = run.mutations.flatMap((mutation) => {
         const row = snapshots.rows.transactions.get(mutation.rowId);
@@ -1108,6 +1109,16 @@ async function executeApplyMutations(
           status: 400,
         });
       }
+      linkingTransactionIds.push(
+        ...run.mutations.flatMap((mutation) => {
+          const row = snapshots.rows.transactions.get(mutation.rowId) as
+            | SyncedTransaction
+            | undefined;
+          return mutation.op === "upsert" && mutation.payload.transferId && row && !row.transferId
+            ? [row.id]
+            : [];
+        }),
+      );
       for (const mutation of run.mutations) {
         if (
           !blockedTransactions.has(mutation.mutationId) ||
@@ -1177,7 +1188,7 @@ async function executeApplyMutations(
           if (
             purpose?.archived ||
             purpose?.deletedAt != null ||
-            source?.archived ||
+            (source?.archived && !linkingTransactionIds.includes(mutation.rowId)) ||
             source?.deletedAt != null
           ) {
             const members = mutation.operation?.mutationIds ?? [mutation.mutationId];
@@ -1412,7 +1423,13 @@ async function executeApplyMutations(
                     },
                     setWhere: and(
                       sql`${transactionsTable.profileId} = excluded.profile_id`,
-                      sql`${transactionsTable.transferId} is not distinct from excluded.transfer_id`,
+                      or(
+                        sql`${transactionsTable.transferId} is not distinct from excluded.transfer_id`,
+                        and(
+                          inArray(transactionsTable.id, linkingTransactionIds),
+                          isNull(transactionsTable.transferId),
+                        ),
+                      ),
                       isNull(transactionsTable.deletedAt),
                     ),
                   })

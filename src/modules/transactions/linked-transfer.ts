@@ -91,6 +91,27 @@ export function findLinkedTransfer(
   return legs.length === 2 && outgoing && incoming ? [outgoing, incoming] : undefined;
 }
 
+/** Linking classifies saved events; it must not rewrite their financial or descriptive details. */
+function assertUnchangedTransfer(current: SyncedTransaction, payload: TransactionPayload): void {
+  if (
+    current.deletedAt != null ||
+    current.type !== "TRANSFER" ||
+    payload.type !== current.type ||
+    payload.profileId !== current.profileId ||
+    payload.accountId !== current.accountId ||
+    sumMoney([payload.amount]) !== sumMoney([current.amount]) ||
+    payload.createdAt.getTime() !== current.createdAt.getTime() ||
+    payload.categoryId !== current.categoryId ||
+    payload.necessityLevel !== current.necessityLevel ||
+    payload.comment !== current.comment ||
+    payload.sphereId !== undefined
+  ) {
+    throw new Error(
+      "Link the saved Transfer records without changing their details or spheres. Save edits separately first.",
+    );
+  }
+}
+
 /** Checks complete replacements against locked server rows or the current local working set. */
 export function validateTransferMutations(
   mutations: MutationFor<"transactions">[],
@@ -102,8 +123,8 @@ export function validateTransferMutations(
   for (const mutation of mutations) {
     const current = currentById.get(mutation.rowId);
     const transferId = mutation.op === "upsert" ? mutation.payload.transferId : current?.transferId;
-    if (current && (current.transferId ?? null) !== (transferId ?? null)) {
-      throw new Error("An existing transaction's transfer link cannot change.");
+    if (current?.transferId && current.transferId !== transferId) {
+      throw new Error("This transaction is already linked. Choose an unpaired Transfer record.");
     }
     if (
       current?.transferId &&
@@ -139,6 +160,25 @@ export function validateTransferMutations(
       throw new Error("Both linked transfer legs must be changed in one complete operation.");
     }
     if (first.op === "upsert" && second.op === "upsert") {
+      const linking = group.some((mutation) => {
+        const row = currentById.get(mutation.rowId);
+        return row && !row.transferId;
+      });
+      if (linking) {
+        for (const mutation of group) {
+          const row = currentById.get(mutation.rowId);
+          if (!row || row.transferId || mutation.op !== "upsert")
+            throw new Error("Select two existing, unpaired Transfer records to link.");
+          assertUnchangedTransfer(row, mutation.payload);
+        }
+      }
+      if (
+        group.some((mutation) => mutation.baseUpdatedAt != null && !currentById.has(mutation.rowId))
+      ) {
+        throw new Error(
+          "A saved Transfer record no longer exists. Reload history before linking or editing.",
+        );
+      }
       if (current.some((row) => row.deletedAt != null)) {
         group.forEach((mutation) => blocked.add(mutation.mutationId));
       } else {

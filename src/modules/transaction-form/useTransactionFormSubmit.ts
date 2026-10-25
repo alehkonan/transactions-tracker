@@ -9,6 +9,7 @@ import {
 } from "~/modules/transaction-form/transaction-form-values";
 import {
   createTransactions,
+  linkTransfers,
   updateTransaction,
   updateTransfer,
   type TransactionInput,
@@ -121,5 +122,12 @@ export function useTransactionFormSubmit({ transaction }: Options) {
     onClose();
   };
 
-  return { submit };
+  const link = async (counterpartId: string) => {
+    if (!transaction || !profileId || !replicaContext)
+      throw new Error("Open a saved Transfer in the selected profile before linking.");
+    await linkTransfers(profileId, [transaction.id, counterpartId], replicaContext);
+    onClose();
+  };
+
+  return { submit, link };
 }

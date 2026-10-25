@@ -91,6 +91,11 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
     sphereWarnings,
     balancesComplete,
     attributionReady,
+    counterpartId,
+    setCounterpartId,
+    counterpartOptions,
+    linkCounterpart,
+    isLinking,
   } = useTransactionForm({ accounts, transaction });
   const { control } = form;
 
@@ -375,8 +380,62 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         className="w-full"
       />
 
+      {transaction?.type === "TRANSFER" && !isLinkedTransfer && (
+        <fieldset
+          className="border-border flex min-w-0 flex-col gap-2 border-t pt-3"
+          disabled={isPending || isLinking}
+        >
+          <legend className="text-sm font-semibold">Link an existing transfer</legend>
+          <p className="text-text-muted text-sm">
+            Choose the other saved record yourself. Linking preserves both records' amounts, dates,
+            categories, and spheres. After linking, edits and deletion affect both sides.
+          </p>
+          <label className="flex flex-col gap-1 text-sm">
+            Counterpart Transfer
+            <select
+              data-testid="transfer-counterpart"
+              value={counterpartId}
+              onChange={(event) => setCounterpartId(event.target.value)}
+              className="border-border bg-surface text-text focus-visible:ring-accent h-11 w-full min-w-0 rounded-2xl border px-3 text-base focus-visible:ring-2 focus-visible:outline-none sm:h-9 sm:text-sm"
+            >
+              <option value="">Select a saved Transfer</option>
+              {counterpartOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {counterpartOptions.length === 0 && (
+            <p className="text-text-muted text-sm">
+              No other unpaired Transfer records in this profile.
+            </p>
+          )}
+          {form.formState.isDirty && (
+            <p className="text-warning text-sm">
+              Save or discard your edits before linking the saved records.
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="transfer-link"
+            onClick={linkCounterpart}
+            disabled={
+              !counterpartId ||
+              isPending ||
+              isLinking ||
+              !balancesComplete ||
+              form.formState.isDirty
+            }
+          >
+            {isLinking ? "Linking…" : "Link saved records"}
+          </Button>
+        </fieldset>
+      )}
+
       {rootError && (
-        <p data-testid="transaction-error" className="text-danger text-sm">
+        <p data-testid="transaction-error" className="text-danger text-sm" aria-live="polite">
           {rootError}
         </p>
       )}
@@ -400,7 +459,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             className="min-w-20"
             type="submit"
             variant="primary"
-            disabled={isPending || !attributionReady}
+            disabled={isPending || isLinking || !attributionReady}
           >
             {isEditing ? (isPending ? "Updating…" : "Update") : isPending ? "Saving…" : "Save"}
           </Button>

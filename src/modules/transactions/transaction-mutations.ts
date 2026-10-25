@@ -1,7 +1,7 @@
 import { commit, newRow } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { uuidV7 } from "~/utils/uuid-v7";
-import { expandTransferSelection, findLinkedTransfer } from "./linked-transfer";
+import { assertTransferPair, expandTransferSelection, findLinkedTransfer } from "./linked-transfer";
 import type { LocalChange } from "~/modules/sync/mutations";
 import type { ReplicaContext } from "~/modules/sync/replica-identity";
 import type { SyncedTransaction, TransactionPayload } from "~/modules/sync/sync-types";
@@ -93,6 +93,51 @@ export function updateTransfer(
         row: { ...row, ...sourceColumns(payload) },
         payload,
       };
+    }),
+    replicaContext,
+  );
+}
+
+/** Explicitly pairs two saved legacy events, without changing either event or its attribution. */
+export async function linkTransfers(
+  profileId: string,
+  ids: [string, string],
+  replicaContext?: ReplicaContext,
+): Promise<void> {
+  const state = useSyncStore.getState();
+  if (
+    !state.isHydrated ||
+    state.pending.some((table) =>
+      ["accounts", "transactions", "spheres", "allocations"].includes(table),
+    )
+  )
+    throw new Error("Finish loading transfer history and sphere attribution before linking.");
+  const legs = ids.map((id) =>
+    state.transactions.find((row) => row.id === id && row.deletedAt == null),
+  );
+  const [first, second] = legs;
+  if (!first || !second || first.id === second.id)
+    throw new Error("Select two different saved Transfer records.");
+  if (legs.some((row) => row?.profileId !== profileId))
+    throw new Error("Both transfer records must belong to the selected financial profile.");
+  if (first.transferId || second.transferId) {
+    if (
+      first.transferId &&
+      first.transferId === second.transferId &&
+      findLinkedTransfer(state.transactions, first.transferId)?.every((row) => ids.includes(row.id))
+    ) {
+      assertTransferPair([first, second], state.accounts);
+      return;
+    }
+    throw new Error("This transaction is already linked. Choose an unpaired Transfer record.");
+  }
+  const transferId = uuidV7();
+  const linked = [first, second].map((row) => ({ ...row, transferId }));
+  assertTransferPair(linked, state.accounts);
+  await commit(
+    linked.map((row): LocalChange => {
+      const { id: _id, updatedAt: _updatedAt, deletedAt: _deletedAt, ...payload } = row;
+      return { op: "upsert", table: "transactions", row, payload };
     }),
     replicaContext,
   );

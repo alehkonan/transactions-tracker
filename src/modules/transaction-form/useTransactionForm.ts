@@ -1,4 +1,5 @@
-import { use, useEffect, useRef } from "react";
+import { format } from "date-fns";
+import { use, useEffect, useRef, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { DialogContext } from "~/components/Dialog";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
@@ -13,6 +14,7 @@ import { useAccountBalancePreview } from "~/modules/transaction-form/useAccountB
 import { useTransactionFormSubmit } from "~/modules/transaction-form/useTransactionFormSubmit";
 import { useTransferAmountMirror } from "~/modules/transaction-form/useTransferAmountMirror";
 import { findLinkedTransfer } from "~/modules/transactions/linked-transfer";
+import { formatMoney } from "~/utils/format-money";
 import { isMoneyInput, sumMoney } from "~/utils/money";
 import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
@@ -108,7 +110,41 @@ export function useTransactionForm({ accounts, transaction }: Options) {
       selectedAccount != null && selectedAccount.currencyCode === selectedToAccount?.currencyCode,
     initiallyTouched: isLinkedTransfer,
   });
-  const { submit } = useTransactionFormSubmit({ transaction });
+  const { submit, link } = useTransactionFormSubmit({ transaction });
+  const [counterpartId, setCounterpartId] = useState("");
+  const [isLinking, startLinking] = useTransition();
+  const counterpartOptions = transactions
+    .filter(
+      (row) =>
+        row.id !== transaction?.id &&
+        row.profileId === profileId &&
+        row.type === "TRANSFER" &&
+        !row.transferId &&
+        row.deletedAt == null,
+    )
+    .map((row) => {
+      const account = accounts.find((account) => account.id === row.accountId);
+      return {
+        value: row.id,
+        label: `${format(row.createdAt, "MMM d, yyyy HH:mm")} · ${account?.name ?? "Unknown account"} · ${account ? formatMoney(row.amount, account.currencyCode) : row.amount}${row.comment ? ` · ${row.comment}` : ""}`,
+      };
+    });
+  const linkCounterpart = () => {
+    if (formState.isDirty) {
+      setError("root", { message: "Save or discard your edits before linking the saved records." });
+      return;
+    }
+    startLinking(async () => {
+      try {
+        await link(counterpartId);
+      } catch (error) {
+        setError("root", {
+          message:
+            error instanceof Error ? error.message : "Could not link these records. Try again.",
+        });
+      }
+    });
+  };
   const split = type === "TRANSFER" && (!isEditing || isLinkedTransfer);
   const editedIds = new Set(isLinkedTransfer ? [outgoing?.id, incoming?.id] : [transaction?.id]);
   const effects = [
@@ -212,5 +248,10 @@ export function useTransactionForm({ accounts, transaction }: Options) {
     isEditing,
     isPending: formState.isSubmitting,
     rootError: formState.errors.root?.message,
+    counterpartId,
+    setCounterpartId,
+    counterpartOptions,
+    linkCounterpart,
+    isLinking,
   };
 }

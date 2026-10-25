@@ -46,6 +46,155 @@ async function fillTransfer(
   await page.getByTestId("transaction-comment").fill("Linked transfer lifecycle");
 }
 
+test("manual selection links saved records offline, preserves their history through replay, and enables whole-transfer editing and deletion", async ({
+  onboardedPage: page,
+  context,
+  authCredentials,
+}) => {
+  const { source, destination } = await prepareAccounts(page);
+  const legacy = transferMutations(source.profileId, [source.id, destination.id]).map(
+    (
+      { operation: _operation, payload: { transferId: _transferId, ...payload }, ...mutation },
+      index,
+    ) => ({
+      ...mutation,
+      payload: {
+        ...payload,
+        comment: `Manual link saved leg ${index}`,
+        createdAt: new Date(`2026-01-0${index + 1}T12:00:00Z`),
+      },
+    }),
+  );
+  const invalid = [
+    {
+      ...legacy[0],
+      mutationId: randomUUID(),
+      rowId: randomUUID(),
+      payload: { ...legacy[0].payload, comment: "Same direction" },
+    },
+    {
+      ...legacy[1],
+      mutationId: randomUUID(),
+      rowId: randomUUID(),
+      payload: { ...legacy[1].payload, amount: "9.00", comment: "Mismatched amount" },
+    },
+  ];
+  expect((await pushMutations(page, [...legacy, ...invalid])).status).toBe(200);
+  await page.getByTestId("sync-status").click();
+  await expect.poll(async () => (await readFinancialReplica(page)).transactions.length).toBe(4);
+  await waitForSynced(page);
+  const original = await readFinancialReplica(page);
+  expect(original.transactions.every((row) => row.transferId == null)).toBe(true);
+  await context.setOffline(true);
+  await page.getByTestId(`transaction-${legacy[0].rowId}`).click();
+  await expect(page.getByTestId("transfer-counterpart")).toHaveValue("");
+  await page.getByTestId("transfer-counterpart").selectOption(invalid[0].rowId);
+  await page.getByTestId("transfer-link").click();
+  await expect(page.getByTestId("transaction-error")).toContainText(
+    "one outgoing and one incoming",
+  );
+  expect((await readFinancialReplica(page)).outbox).toEqual([]);
+  await page.getByTestId("transfer-counterpart").selectOption(invalid[1].rowId);
+  await page.getByTestId("transfer-link").click();
+  await expect(page.getByTestId("transaction-error")).toContainText(
+    "Same-currency transfer amounts must match",
+  );
+  expect((await readFinancialReplica(page)).transactions).toEqual(original.transactions);
+  await page.getByTestId("transfer-counterpart").selectOption(legacy[1].rowId);
+  await page.getByTestId("transfer-link").click();
+  await expect(page.getByTestId("transaction-form")).toHaveCount(0);
+  const linked = await readFinancialReplica(page);
+  expect(linked.transactions).toHaveLength(4);
+  const pair = linked.transactions.filter((row) => row.transferId);
+  expect(pair.map((row) => row.id).toSorted()).toEqual(legacy.map((row) => row.rowId).toSorted());
+  expect(pair[0].transferId).toBe(pair[1].transferId);
+  expect(linked.outbox).toHaveLength(2);
+  expect(linked.outbox[0].operation).toEqual(linked.outbox[1].operation);
+  for (const row of pair) {
+    const saved = original.transactions.find((item) => item.id === row.id)!;
+    expect(row).toEqual({ ...saved, transferId: row.transferId });
+  }
+  for (const row of linked.allocations) {
+    const saved = original.allocations.find((item) => item.id === row.id)!;
+    expect(row).toMatchObject({
+      sphereId: saved.sphereId,
+      amount: saved.amount,
+      createdAt: saved.createdAt,
+      currencyCode: saved.currencyCode,
+      transactionId: saved.transactionId,
+      openingAccountId: saved.openingAccountId,
+    });
+  }
+  expectOperatingReconciled(linked);
+  await page.reload();
+  await expect(page.getByTestId(`transaction-${legacy[1].rowId}`)).toBeVisible();
+  expect((await readFinancialReplica(page)).outbox).toEqual(linked.outbox);
+
+  let lost = false;
+  await page.route("**/_serverFn/**", async (route) => {
+    const body = route.request().postData() ?? "";
+    if (!lost && body.includes('"mutations"') && body.includes('"TRANSFER"')) {
+      await route.fetch();
+      lost = true;
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await context.setOffline(false);
+  await page.getByTestId("sync-status").click();
+  await expect.poll(() => lost).toBe(true);
+  await context.setOffline(true);
+  expect((await readFinancialReplica(page)).outbox).toEqual(linked.outbox);
+  await page.reload();
+  await expect(page.getByTestId(`transaction-${legacy[1].rowId}`)).toBeVisible();
+  await context.setOffline(false);
+  await page.getByTestId("sync-status").click();
+  await waitForSynced(page);
+  expect((await readFinancialReplica(page)).transactions).toHaveLength(4);
+
+  const second = await openSecondDevice(page, authCredentials);
+  try {
+    const remote = await readFinancialReplica(second.page);
+    for (const row of remote.transactions.filter((row) => row.transferId)) {
+      const { updatedAt: _updatedAt, ...saved } = pair.find((item) => item.id === row.id)!;
+      expect(row).toMatchObject(saved);
+    }
+  } finally {
+    await second.context.close();
+  }
+
+  await context.setOffline(true);
+  await page.getByTestId(`transaction-${legacy[1].rowId}`).click();
+  await expect(page.getByTestId("transfer-counterpart")).toHaveCount(0);
+  await expect(page.getByTestId("transaction-to-account")).toHaveValue(destination.id);
+  await page.getByTestId("transaction-amount").fill("20.00");
+  await page.getByTestId("transaction-to-amount").fill("20.00");
+  await page.getByTestId("transaction-submit").click();
+  await expect(page.getByTestId("transaction-form")).toHaveCount(0);
+  const edited = await readFinancialReplica(page);
+  expect(
+    edited.transactions
+      .filter((row) => row.transferId)
+      .map((row) => row.amount)
+      .toSorted(),
+  ).toEqual(["-20.00", "20.00"]);
+  expectOperatingReconciled(edited);
+  await page.getByTestId(`transaction-${legacy[0].rowId}`).click();
+  await page.getByTestId("transaction-delete").click();
+  await page.getByTestId("transaction-delete-confirm").click();
+  await expect(page.getByTestId("transaction-form")).toHaveCount(0);
+  const deleted = await readFinancialReplica(page);
+  expect(deleted.transactions.map((row) => row.id).toSorted()).toEqual(
+    invalid.map((row) => row.rowId).toSorted(),
+  );
+  expect(
+    deleted.allocations.some((row) => legacy.some((leg) => row.transactionId === leg.rowId)),
+  ).toBe(false);
+  expectOperatingReconciled(deleted);
+  await context.setOffline(false);
+  await page.getByTestId("sync-status").click();
+  await waitForSynced(page);
+});
+
 test("either transfer leg edits the whole operation offline, survives reload, and deletes on another device", async ({
   onboardedPage: page,
   context,

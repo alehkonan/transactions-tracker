@@ -185,6 +185,23 @@ export function deleteTransfer(rows: WireTransaction[]): MutationFor<"transactio
   );
 }
 
+/** Manual linking submits saved values, with fresh receipt identities and one shared link. */
+export function linkExistingTransfers(rows: WireTransaction[]): TransferUpsert[] {
+  const transferId = randomUUID();
+  return asOperation(
+    rows.map(
+      ({ id, updatedAt, deletedAt: _deletedAt, ...source }): TransferUpsert => ({
+        mutationId: randomUUID(),
+        rowId: id,
+        table: "transactions",
+        op: "upsert",
+        baseUpdatedAt: Date.parse(updatedAt),
+        payload: { ...source, createdAt: new Date(source.createdAt), transferId },
+      }),
+    ),
+  );
+}
+
 export async function readFinancialReplica(page: Page): Promise<{
   spheres: PushResult["canonicalRows"]["spheres"];
   allocations: PushResult["canonicalRows"]["allocations"];

@@ -7,6 +7,7 @@ import {
 } from "~/modules/spheres/operating";
 import { validateReallocationMutations } from "~/modules/spheres/reallocation";
 import { validateSphereMutations } from "~/modules/spheres/sphere-lifecycle";
+import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
 import { assertCompleteAcceptance, assertCompleteOperations } from "./outbox-acceptance";
@@ -789,13 +790,47 @@ export function writeLocalMutations(
       const meta = transaction.objectStore(META_STORE);
       const complete = meta.get(COMPLETE_TABLES_KEY);
       const revision = meta.get(LOCAL_REVISION_KEY);
-      const requests = [profiles, spheres, allocations, complete, revision];
+      // Check even unlinked intents: another tab may have linked their saved records meanwhile.
+      const transactionMutations = mutations.filter(
+        (mutation) => mutation.table === "transactions",
+      );
+      const savedTransactions =
+        transactionMutations.length > 0
+          ? transaction.objectStore("transactions").getAll()
+          : undefined;
+      const savedAccounts =
+        transactionMutations.length > 0 ? transaction.objectStore("accounts").getAll() : undefined;
+      const requests = [
+        profiles,
+        spheres,
+        allocations,
+        complete,
+        revision,
+        ...(savedTransactions && savedAccounts ? [savedTransactions, savedAccounts] : []),
+      ];
       let remaining = requests.length;
       for (const request of requests) {
         request.addEventListener("error", () => fail(request.error));
         request.addEventListener("success", () => {
           if (--remaining !== 0) return;
           try {
+            if (savedTransactions && savedAccounts) {
+              const accounts = new Map<string, SyncedRows["accounts"][number]>(
+                savedAccounts.result.map((row: SyncedRows["accounts"][number]) => [row.id, row]),
+              );
+              for (const row of rows.accounts ?? []) accounts.set(row.id, row);
+              for (const mutation of transactionMutations) {
+                if (mutation.op !== "upsert" || !mutation.payload.transferId) continue;
+                const profile = [...(rows.profiles ?? []), ...profiles.result].find(
+                  (row) => row.id === mutation.payload.profileId && row.deletedAt == null,
+                );
+                if (!profile || (profile.userId != null && profile.userId !== expected.ownerUserId))
+                  throw new Error("The transfer profile does not belong to this local replica.");
+              }
+              validateTransferMutations(transactionMutations, savedTransactions.result, [
+                ...accounts.values(),
+              ]);
+            }
             validateSphereMutations(
               mutations,
               {

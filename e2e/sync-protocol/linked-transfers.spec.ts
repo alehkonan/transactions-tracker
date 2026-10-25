@@ -5,10 +5,137 @@ import {
   asOperation,
   canonicalLegs,
   deleteTransfer,
+  linkExistingTransfers,
   pushMutations,
   seedTransferAccounts,
   transferMutations,
 } from "../fixtures/transfers";
+
+for (const currency of ["USD", "EUR"] as const) {
+  test(`manual linking preserves ${currency} history and sphere attribution through replay and the whole-transfer lifecycle`, async ({
+    authenticatedPage: page,
+  }) => {
+    const { profileId, otherProfileId, accounts } = await seedTransferAccounts(page, currency);
+    const categoryId = randomUUID();
+    const sphereId = randomUUID();
+    expect(
+      (
+        await pushMutations(page, [
+          {
+            mutationId: randomUUID(),
+            rowId: categoryId,
+            table: "categories",
+            op: "upsert",
+            baseUpdatedAt: null,
+            payload: { name: "Saved category", profileId, colorId: null },
+          },
+          {
+            mutationId: randomUUID(),
+            rowId: sphereId,
+            table: "spheres",
+            op: "upsert",
+            baseUpdatedAt: null,
+            payload: { name: "Saved reserve", profileId, type: "FUNDS", archived: false },
+          },
+        ])
+      ).status,
+    ).toBe(200);
+    const legacy = transferMutations(profileId, accounts, [
+      "-10.00",
+      currency === "EUR" ? "9.25" : "10.00",
+    ]).map(
+      (
+        { operation: _operation, payload: { transferId: _transferId, ...payload }, ...mutation },
+        index,
+      ) => ({
+        ...mutation,
+        payload: {
+          ...payload,
+          categoryId,
+          sphereId: index === 0 ? sphereId : profileId,
+          createdAt: new Date(`2026-01-0${index + 1}T12:00:00Z`),
+          comment: `Saved leg ${index}`,
+        },
+      }),
+    );
+    const created = await pushMutations(page, legacy);
+    expect(created.status).toBe(200);
+    const original = canonicalLegs(created.body, legacy);
+    expect(original.every((row) => row.transferId == null)).toBe(true);
+    const link = linkExistingTransfers(original);
+    const changedHistory = link.map((mutation, index) => ({
+      ...mutation,
+      payload: { ...mutation.payload, amount: index === 0 ? "-20.00" : "20.00" },
+    }));
+    expect((await pushMutations(page, changedHistory)).status).toBe(400);
+
+    // Both profiles are owned, but they cannot participate in one transfer.
+    const otherLegacy = transferMutations(otherProfileId, [accounts[2], accounts[2]])
+      .slice(0, 1)
+      .map(
+        ({
+          operation: _operation,
+          payload: { transferId: _transferId, ...payload },
+          ...mutation
+        }) => ({ ...mutation, payload: { ...payload, amount: "10.00" } }),
+      );
+    const other = await pushMutations(page, otherLegacy);
+    expect(other.status).toBe(200);
+    expect(
+      (
+        await pushMutations(
+          page,
+          linkExistingTransfers([original[0], other.body.canonicalRows.transactions[0]]),
+        )
+      ).status,
+    ).toBe(400);
+
+    const linked = await pushMutations(page, link);
+    expect(linked.status).toBe(200); // The rejected attempt did not consume receipt identities.
+    const pair = canonicalLegs(linked.body, link);
+    for (const [index, row] of pair.entries()) {
+      const { updatedAt: _updatedAt, transferId: _transferId, ...saved } = original[index];
+      expect(row).toMatchObject({ ...saved, transferId: link[0].payload.transferId });
+    }
+    expect(
+      linked.body.canonicalRows.allocations
+        .map(({ updatedAt: _updatedAt, ...row }) => row)
+        .toSorted((a, b) => a.id.localeCompare(b.id)),
+    ).toEqual(
+      created.body.canonicalRows.allocations
+        .map(({ updatedAt: _updatedAt, ...row }) => row)
+        .toSorted((a, b) => a.id.localeCompare(b.id)),
+    );
+    const replay = await pushMutations(page, link);
+    expect(replay.status).toBe(200);
+    expect(replay.body.applied).toEqual(linked.body.applied);
+    expect(canonicalLegs(replay.body, link)).toEqual(pair);
+    expect((await pushMutations(page, linkExistingTransfers(pair))).status).toBe(400);
+
+    const edit = transferMutations(
+      profileId,
+      accounts,
+      ["-20.00", currency === "EUR" ? "18.50" : "20.00"],
+      pair,
+    );
+    const edited = await pushMutations(page, edit);
+    expect(edited.status).toBe(200);
+    expect(edited.body.canonicalRows.allocations.map((row) => row.amount).toSorted()).toEqual(
+      currency === "EUR" ? ["-20.00", "18.50"] : ["-20.00", "20.00"],
+    );
+    const deleted = await pushMutations(
+      page,
+      deleteTransfer(canonicalLegs(edited.body, edit).toReversed()),
+    );
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.canonicalRows.transactions).toHaveLength(2);
+    expect(deleted.body.canonicalRows.transactions.every((row) => row.deletedAt != null)).toBe(
+      true,
+    );
+    expect(deleted.body.canonicalRows.allocations).toHaveLength(2);
+    expect(deleted.body.canonicalRows.allocations.every((row) => row.deletedAt != null)).toBe(true);
+  });
+}
 
 test("linked transfer creation, stale edits, deletion, and lost-response replays retain complete immutable outcomes", async ({
   authenticatedPage: page,

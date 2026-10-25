@@ -272,7 +272,7 @@ export const transactionsTable = pgTable(
   {
     id: syncedId(),
     type: transactionTypeEnum("type").notNull(),
-    /** Only newly linked transfers carry this id; historical legs are never matched. */
+    /** New transfers and manually linked historical pairs carry this id; never inferred. */
     transferId: uuid("transfer_id"),
     necessityLevel: necessityLevelEnum("necessity_level").notNull().default("MEDIUM"),
     amount: money("amount").notNull(),
