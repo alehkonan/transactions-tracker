@@ -44,7 +44,14 @@ describe("tableIntegrity", () => {
 
 describe("compareIntegrity", () => {
   const rows = (transactions: SyncedRow[]): SyncedRows =>
-    ({ profiles: [A], accounts: [B], categories: [], transactions }) as unknown as SyncedRows;
+    ({
+      profiles: [A],
+      accounts: [B],
+      categories: [],
+      transactions,
+      spheres: [],
+      allocations: [],
+    }) as unknown as SyncedRows;
 
   const local: IntegritySnapshot = localIntegrity(rows([C]));
 

@@ -14,123 +14,123 @@ slug: src-routes-statistics-tsx
 
 Method: dual-agent (A: 8121dac2-c05b-4dc9-992d-c36b6bc13a33 · B: 07ca08c0-9714-47ba-819d-2af6dd484a18)
 
-# Критика /statistics
+# Critique: /statistics
 
 Target: src/routes/statistics.tsx and src/modules/statistics. Mode: Operate.
 
-## Общий вывод и специфичность дизайна
+## Overall Verdict and Design Specificity
 
-25/40. Страница визуально собрана, но недостаточно ясно объясняет деньги. Главная возможность — понятная связь между доступными средствами, расходами и финансовым запасом времени, а не новая визуальная система.
+25/40. The page is visually coherent but does not explain the money clearly enough. The main opportunity is to connect available funds, spending and financial runway clearly, rather than introduce a new visual system.
 
-Визуальный язык свой: тёплая бумага, коричневый текст, сдержанные семантические цвета соответствуют Cracker Tracker. Композиция типовая: три равнозначные карточки над большим графиком. Согласно PRODUCT.md, ключевой ответ продукта — на сколько хватит средств при прекращении дохода; здесь он третий и подчинён Averages.
+The visual language is distinctive: warm paper, brown text and restrained semantic colors suit Cracker Tracker. The composition is conventional: three equally weighted cards above a large chart. According to PRODUCT.md, the product's key answer is how long funds would last if income stopped; here, it appears third and is subordinate to Averages.
 
-Проверены текущий код, desktop 1440×900 и mobile 390×844; светлая и тёмная темы в совокупности независимых проверок. Данные синтетические. Это экспертная UX-критика, не полный accessibility-аудит.
+The current code, desktop at 1440×900 and mobile at 390×844 were inspected; the independent assessments collectively covered light and dark themes. Data was synthetic. This is an expert UX critique, not a full accessibility audit.
 
-## Что работает
+## What Works
 
-1. Спокойная визуальная среда: плоские поверхности, аккуратные границы и осмысленные цвета не конкурируют с цифрами.
-2. Категории читаются напрямую: ранжированные полосы, названия, точные суммы и количество операций без отдельной легенды.
-3. На телефоне нет горизонтального скролла на проверенной ширине; сводка и график доступны быстро, карточки имеют удобные области нажатия. Период отражается в URL, клавиатурное перемещение по графику работает.
+1. A calm visual environment: flat surfaces, careful borders and meaningful colors do not compete with the figures.
+2. Categories are directly readable: ranked bars, names, exact amounts and transaction counts require no separate legend.
+3. There is no horizontal scrolling at the tested phone width; the summary and chart are quickly accessible, and cards have comfortable tap areas. The period is reflected in the URL, and keyboard navigation through the chart works.
 
-## Приоритетные замечания
+## Priority Issues
 
-### [P1] Runway выглядит точнее и надёжнее, чем показанные основания
+### [P1] Runway appears more precise and reliable than its visible basis supports
 
-В синтетическом наборе операции только за июль–сентябрь. При неизменных записях и балансе $36,275 переключение 3M → 6M изменило расходы $83.06/day → $41.76/day и runway 1 год 2 месяца → 2 года 4 месяца. Вычисление делит расходы на полный календарный период. Отсутствие более ранних записей можно принять за действительно меньшие расходы. Empty by звучит как прогноз, а не условная оценка. Не названы допущения: без будущего дохода, все активные счета включая savings, USD-конверсия.
+The synthetic dataset contains transactions only for July–September. With unchanged records and a $36,275 balance, switching 3M → 6M changed spending from $83.06/day → $41.76/day and runway from 1 year 2 months → 2 years 4 months. The calculation divides spending by the full calendar period. Missing earlier records could be interpreted as genuinely lower spending. Empty by sounds like a forecast rather than a conditional estimate. Assumptions are not stated: no future income, all active accounts including savings, and USD conversion.
 
-Fix: Estimated runway if income stopped; показать период расходов и состав средств. Отдельно определить правило полноты истории: отсутствие записей нельзя автоматически считать ни пропусками, ни подтверждённым нулём. Это продуктовый вопрос, не основание молча менять формулу.
+Fix: Estimated runway if income stopped; show the spending period and which funds are included. Define a separate policy for history completeness: an absence of records cannot automatically mean either missing data or confirmed zero spending. This is a product question, not grounds for silently changing the formula.
 
 Evidence: src/modules/statistics/compute-daily-averages.ts:92–128; src/modules/statistics/MoneyRunwayCard.tsx:30–35.
-Suggested command: impeccable clarify; отдельное решение о полноте истории.
+Suggested command: impeccable clarify; make a separate decision about history completeness.
 
-### [P1] Главный ответ продукта имеет второстепенный визуальный вес
+### [P1] The product's main answer has secondary visual weight
 
-Runway — третья равнозначная карточка после дохода и расходов. На телефоне Runway / 1y 2mo, баланс и ставка расходов спрятаны за нажатием. Страница прежде предлагает изучать активность, чем понимать финансовые возможности.
+Runway is the third equally weighted card, after income and spending. On mobile, Runway / 1y 2mo, the balance and the spending rate are hidden behind a tap. The page first invites users to inspect activity rather than understand financial capacity.
 
-Fix: runway как первая точка чтения; доступный баланс и расходы как объяснение. Сохранить компактность и быстрый доступ к графику, не возвращать три высокие мобильные карточки.
+Fix: Make runway the first reading point, with the available balance and spending as its explanation. Preserve compactness and quick chart access rather than returning to three tall mobile cards.
 
 Evidence: src/routes/statistics.tsx:74–108; src/modules/statistics/MoneyRunwayCard.tsx:43–60; PRODUCT.md.
 Suggested command: impeccable layout.
 
-### [P1] Не объяснено, что график накопительный
+### [P1] The chart's cumulative nature is unexplained
 
-Spending trend и tooltip Day 2 / $1,980.00. В fixture расход второго дня $480, а $1,980 — сумма двух дней. Растущую линию можно принять за рост ежедневных расходов. Точность суммы не компенсирует неопределённость её смысла.
+The labels are Spending trend and the tooltip Day 2 / $1,980.00. In the fixture, day-two spending is $480, while $1,980 is the two-day total. A rising line could be interpreted as an increase in daily spending. A precise amount does not compensate for ambiguity about its meaning.
 
-Fix: Cumulative spending; tooltip Spent through Sep 2; итог выбранного месяца и самостоятельный заголовок Spending by category.
+Fix: Cumulative spending; tooltip Spent through Sep 2; the selected month's total and a separate Spending by category heading.
 
 Evidence: src/modules/statistics/SpendingTrendCard.tsx:67–73,114–140; src/modules/statistics/CategoryBreakdownCard.tsx:15–20.
 Suggested command: impeccable clarify.
 
-### [P2] Доступная версия теряет важную часть сводки
+### [P2] The accessible interface loses an important part of the summary
 
-Accessibility tree: мобильные кнопки Show Income per day details, Show Spending per day details, Show money runway details не включают текущие суммы/длительность. Месяц — combobox без accessible name; график — application без имени; поповер расходов — dialog без имени. Нет main и h1. Пользователю скринридера приходится открывать карточки для получения сводки. Клавиатурная работа графика и Escape проверены и работают; не представлять это как keyboard failure.
+Accessibility tree: the mobile buttons Show Income per day details, Show Spending per day details and Show money runway details omit current amounts/duration. The month is a combobox without an accessible name; the chart is an unnamed application; the spending popover is an unnamed dialog. There is no main or h1. Screen reader users must open cards to obtain the summary. Chart keyboard interaction and Escape were tested and work; do not describe this as a keyboard failure.
 
-Fix: включить значения в доступные имена/описания, подписать месяц и график, связать поповер с заголовком, добавить основную область страницы.
+Fix: Include values in accessible names/descriptions, label the month and chart, associate the popover with its heading, and add a main page region.
 
 Evidence: src/modules/statistics/DailyAverageCard.tsx:33–77; MoneyRunwayCard.tsx:49–56; SpendingTrendCard.tsx:113–146; src/routes/statistics.tsx:115–122; src/components/Popover.tsx:37–46; src/components/PageContainer.tsx:8–9.
-Suggested command: impeccable harden, затем целевой impeccable audit.
+Suggested command: impeccable harden, then a targeted impeccable audit.
 
-### [P2] Небольшие расходы сжимаются фиксированной шкалой
+### [P2] A fixed scale compresses small spending amounts
 
-Fixture с расходом $12.34: ось $0–$500, кривая высотой около 6.17 px на desktop. Данные отрисовались, но визуально почти плоские. Причина — нижний предел максимума шкалы.
+For a fixture with $12.34 spending, the axis spans $0–$500 and the desktop curve is about 6.17 px high. The data renders but looks almost flat. The cause is a lower bound on the scale maximum.
 
-Fix: адаптивный округлённый максимум относительно данных, отдельный разумный масштаб для пустого месяца.
+Fix: Use an adaptive rounded maximum based on the data and a separate reasonable scale for an empty month.
 
 Evidence: src/modules/statistics/SpendingTrendCard.tsx:33–36,92–94,129–135.
 Suggested command: impeccable polish.
 
-## Эвристики Nielsen
+## Nielsen Heuristics
 
-Экспертная шкала 0–4, все десять применимы.
+Expert scale of 0–4; all ten apply.
 
-| #   | Эвристика                    |  Балл | Главное наблюдение                                 |
-| --- | ---------------------------- | ----: | -------------------------------------------------- |
-| 1   | Видимость состояния          |     3 | Период виден; полнота данных не объяснена          |
-| 2   | Соответствие реальному миру  |     2 | Неясны накопительный график и допущения runway     |
-| 3   | Контроль и свобода           |     3 | URL-фильтры, закрытие меню и поповеров             |
-| 4   | Последовательность           |     3 | Хорошая система, отклонения размеров и типографики |
-| 5   | Предотвращение ошибок        |     2 | Неполную историю можно принять за низкие расходы   |
-| 6   | Узнавание вместо запоминания |     2 | Контекст расчёта приходится собирать               |
-| 7   | Эффективность                |     3 | Быстрые переключения, клавиатурный график          |
-| 8   | Эстетика и минимализм        |     3 | Чисто, приоритеты не отражают назначение продукта  |
-| 9   | Ошибки и восстановление      |     2 | Пустые состояния без следующего шага               |
-| 10  | Помощь и объяснения          |     2 | Детали средних есть, методика runway неясна        |
-|     | Total                        | 25/40 | Хорошая основа, существенные пробелы интерпретации |
+| #   | Heuristic                       | Score | Main observation                                           |
+| --- | ------------------------------- | ----: | ---------------------------------------------------------- |
+| 1   | Visibility of system status     |     3 | The period is visible; data completeness is unexplained    |
+| 2   | Match with the real world       |     2 | The cumulative chart and runway assumptions are unclear    |
+| 3   | User control and freedom        |     3 | URL filters and dismissible menus/popovers                 |
+| 4   | Consistency                     |     3 | A good system with size and typography deviations          |
+| 5   | Error prevention                |     2 | Incomplete history could be mistaken for low spending      |
+| 6   | Recognition rather than recall  |     2 | Users must assemble the calculation context themselves     |
+| 7   | Efficiency                      |     3 | Quick switching and keyboard chart navigation              |
+| 8   | Aesthetic and minimalist design |     3 | Clean, but priorities do not reflect the product's purpose |
+| 9   | Errors and recovery             |     2 | Empty states offer no next step                            |
+| 10  | Help and explanations           |     2 | Average details exist; runway methodology is unclear       |
+|     | Total                           | 25/40 | A good foundation with substantial interpretation gaps     |
 
-## Когнитивная нагрузка и эмоциональный путь
+## Cognitive Load and Emotional Journey
 
-Нагрузка умеренная. Три периода легко обозримы; проблема — самостоятельно связать баланс, период, расход и runway. В тестовой fixture ни одна точка решения не имела более четырёх видимых вариантов действий. Категории — данные, не варианты действий. Когнитивные слабости: нет единого фокуса, недостаточная иерархия, необходимость помнить контекст из соседних карточек/поповеров.
+Load is moderate. Three periods are easy to scan; the difficulty is independently connecting the balance, period, spending and runway. No decision point in the fixture had more than four visible action options. Categories are data, not action options. Cognitive weaknesses: no single focus, insufficient hierarchy and a need to remember context from adjacent cards/popovers.
 
-Первое впечатление — спокойствие и контроль. Эмоциональная слабость — срок безопасности существенно меняется после переключения периода без объяснения. Страница заканчивается категориями, а не более ясным пониманием финансовых возможностей.
+The first impression is calm and control. The emotional weakness is that the safety horizon changes substantially after switching periods without explanation. The page ends with categories rather than a clearer understanding of financial capacity.
 
-## Persona red flags
+## Persona Red Flags
 
-- Alex, опытный пользователь: быстро меняет период, но не может так же быстро проверить состав средств или смысл графика.
-- Sam, пользователь скринридера: текущие значения мобильной сводки отсутствуют в именах кнопок; месяц и график не названы.
-- Casey, телефон на ходу: компактный обзор, но детали нужны для понимания оценки; фактические кнопки периода меньше, чем внешняя группа.
+- Alex, experienced user: can switch periods quickly but cannot verify the included funds or the chart's meaning as quickly.
+- Sam, screen reader user: current mobile summary values are missing from button names; the month and chart are unnamed.
+- Casey, using a phone on the go: the overview is compact, but details are necessary to understand the estimate; actual period buttons are smaller than their outer group.
 
-## Небольшие замечания
+## Minor Observations
 
-- 3M/6M/1Y имеют высоту 34 px внутри группы 44 px; ниже стандарта DESIGN.md, но это не заявленное нарушение WCAG AA. AveragePeriodToggle.tsx:26–34.
-- Денежные headline-значения sans, категории mono: непоследовательность Figures Register.
-- Для мультивалютной статистики явно назвать USD вместо одного $.
-- Пустые состояния не предлагают следующий шаг; формулировка No spending in this period to burn it менее ясна, чем объяснение невозможности оценить runway.
-- Длинные категории используют truncate; проблема на проверенных названиях не воспроизведена.
+- 3M/6M/1Y are 34 px tall inside a 44 px group; below the DESIGN.md standard, but not claimed as a WCAG AA violation. AveragePeriodToggle.tsx:26–34.
+- Monetary headline values use sans while categories use mono: an inconsistency with Figures Register.
+- For multicurrency statistics, explicitly name USD rather than using $ alone.
+- Empty states offer no next step; No spending in this period to burn it is less clear than explaining why runway cannot be estimated.
+- Long categories use truncate; the issue was not reproduced with the tested names.
 
-## Детектор и границы доказательств
+## Detector and Evidence Limits
 
 CLI: node .agents/skills/impeccable/scripts/detect.mjs --json src/routes/statistics.tsx src/modules/statistics → [], 0 findings.
 
-Browser detector: каждый viewport 8 групп / 9 occurrences / 5 правил: dark-glow (2), clipped-overflow-container (3), layout-transition (2), ai-color-palette (1), gradient-text (1). Не установлено ни одного статистического дефекта по этим сигналам. Clipping/transition/gradient/cyan относятся к скрытым TanStack Devtools. Warm shadows относятся к навигации, sync-кнопке или скрытому popup и разрешены DESIGN.md для плавающих слоёв. Не суммировать desktop/mobile как уникальные проблемы.
+Browser detector: each viewport produced 8 groups / 9 occurrences / 5 rules: dark-glow (2), clipped-overflow-container (3), layout-transition (2), ai-color-palette (1), gradient-text (1). These signals established no defect in the statistics interface. Clipping/transition/gradient/cyan concern hidden TanStack Devtools. Warm shadows concern navigation, the sync button or a hidden popup and are permitted by DESIGN.md for floating layers. Do not add desktop/mobile counts as unique issues.
 
-Overlay действительно инъецирован, выполнен и виден при проверке. После проверки временный сервер остановлен, вкладка B закрыта. Overlay сейчас не оставлен. Отсутствие линии в ранних screenshots было связано с незавершённой анимацией; не считать persistent blank-chart bug.
+The overlay was injected, executed and visible during inspection. After inspection, the temporary server was stopped and tab B was closed. The overlay was not left running. Missing lines in early screenshots were caused by unfinished animation; do not classify this as a persistent blank-chart bug.
 
-Проверка A: изолированный local-only набор 21 операции, 2 счёта, 6 категорий, без outbox и backend records; fetch/XHR заблокированы. Проверка B: публичный e2e flow создал в dev-бэкенде отдельного пользователя e2e-assessment-b-20260910-7c24f9d1, профиль E2E Profile, счёт E2E Account (Current/Active/USD/initial 0), расход $12.34 (None/Medium/comment Assessment B synthetic statistics fixture). Эти тестовые записи и обычные auth/sync bookkeeping остаются, существующие пользовательские записи не менялись. Никакой destructive cleanup не выполнялся.
+Assessment A: an isolated local-only dataset of 21 transactions, 2 accounts and 6 categories, with no outbox or backend records; fetch/XHR were blocked. Assessment B: the public e2e flow created a separate dev-backend user e2e-assessment-b-20260910-7c24f9d1, profile E2E Profile, account E2E Account (Current/Active/USD/initial 0), and a $12.34 expense (None/Medium/comment Assessment B synthetic statistics fixture). These test records and normal auth/sync bookkeeping remain; existing user records were unchanged. No destructive cleanup was performed.
 
-Не проверены реальный пользовательский набор, VoiceOver/NVDA, полный контраст, 200% zoom, 320 px, tablet, большие истории, настоящая синхронизация/восстановление. Код не изменён, build/lint/tests не запускались.
+Not inspected: real user data, VoiceOver/NVDA, full contrast, 200% zoom, 320 px, tablet, large histories or real synchronization/recovery. Code was unchanged; build/lint/tests were not run.
 
-## Вопросы для следующего шага
+## Questions for the Next Step
 
-1. С чего начать: понятность расчётов и подписей, runway-first иерархия, или доступность?
-2. Объём: три P1, все пять приоритетов, или только точечные исправления без перестройки?
-3. До начала истории операций продукт должен считать расходы нулевыми, считать полноту неизвестной, или опираться на подтверждение пользователя?
+1. Where should work begin: calculation and label clarity, runway-first hierarchy, or accessibility?
+2. Scope: the three P1 issues, all five priorities, or targeted fixes without restructuring?
+3. Before transaction history begins, should the product assume zero spending, treat completeness as unknown, or rely on user confirmation?

@@ -13,10 +13,6 @@ type Props = {
   account: AccountWithBalance;
   /** What this account has been doing lately; absent for one that has never been touched. */
   activity?: AccountActivity;
-  /** Overrides the default "click opens the edit dialog" behavior — the collapsed peek stack uses this to expand the group on click instead. */
-  onClick?: () => void;
-  /** Accessible action announced when `onClick` overrides editing. */
-  actionLabel?: string;
 };
 
 /**
@@ -27,39 +23,27 @@ type Props = {
  * carry four short facts, so three accounts filled a screen; the height it gave up is now paying
  * for two it didn't have.
  */
-export function AccountCard({ account, activity, onClick, actionLabel }: Props) {
+export function AccountCard({ account, activity }: Props) {
   const [isEditOpen, setEditOpen] = useState(false);
   const monthAmount = Number(activity?.monthToDateAmount ?? 0);
-  const typeLabel =
-    account.status === "ARCHIVED"
-      ? `${account.type.charAt(0)}${account.type.slice(1).toLowerCase()}`
-      : undefined;
   const formattedBalance = formatMoney(account.balance, account.currencyCode);
   const details = [
-    typeLabel,
     account.currencyCode,
     activity && `${formatDistanceToNowStrict(activity.lastActivityAt)} ago`,
   ]
     .filter(Boolean)
     .join(" · ");
-  const accessibleAction = actionLabel ?? `Edit ${account.name}`;
 
   return (
     <>
       <button
         type="button"
-        onClick={onClick ?? (() => setEditOpen(true))}
-        aria-label={`${accessibleAction}. ${account.status.toLowerCase()} account, balance ${formattedBalance}`}
+        onClick={() => setEditOpen(true)}
+        data-testid={`account-${account.id}`}
+        aria-label={`Edit ${account.name}. ${account.status.toLowerCase()} account, balance ${formattedBalance}`}
         className={twMerge(
-          // `bg-surface` under the gradient, not just at its start: the tint the gradient ends on
-          // is translucent, and in a collapsed peek stack that means reading the card behind
-          // through this one.
           "group from-surface bg-surface focus-visible:ring-accent flex min-h-28 w-full cursor-pointer flex-col justify-between gap-3 rounded-2xl bg-linear-to-br p-3 text-left shadow-sm transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transform-none motion-reduce:transition-none",
-          account.status === "ARCHIVED"
-            ? "to-archived-muted"
-            : account.type === "CURRENT"
-              ? "to-accent-muted"
-              : "to-saving-muted",
+          account.status === "ARCHIVED" ? "to-archived-muted" : "to-accent-muted",
         )}
       >
         <div className="flex items-start justify-between gap-2">

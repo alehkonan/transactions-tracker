@@ -9,7 +9,7 @@ export function CreateAccountButton() {
     <Dialog
       title="Add account"
       renderTrigger={({ onOpen }) => (
-        <Button variant="secondary" onClick={onOpen}>
+        <Button variant="secondary" onClick={onOpen} data-testid="account-create">
           <PlusIcon className="size-4" />
           Add account
         </Button>

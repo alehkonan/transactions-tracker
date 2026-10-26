@@ -5,6 +5,8 @@ import type {
   colorsTable,
   profilesTable,
   transactionsTable,
+  spheresTable,
+  allocationsTable,
 } from "~/database/tables";
 
 export { STALE_CURSOR_AFTER_DAYS, SYNCED_TABLES } from "./synced-tables";
@@ -25,22 +27,35 @@ export type SyncedProfile = typeof profilesTable.$inferSelect;
  * over, so it never rides along in a pull. Clients derive it from `initialBalance` plus the
  * transactions they already hold (see `compute-balances.ts`).
  */
+// `type` is legacy wire/storage metadata only. Keep it intact so queued intents and their receipt
+// fingerprints survive this upgrade; account workflows no longer classify money by this field.
 export type SyncedAccount = Omit<typeof accountsTable.$inferSelect, "balance">;
 
 export type SyncedCategory = typeof categoriesTable.$inferSelect;
 
-export type SyncedTransaction = typeof transactionsTable.$inferSelect;
+// Older replicas and queued intents have no transfer link. Absence remains meaningful on replay.
+export type SyncedTransaction = Omit<typeof transactionsTable.$inferSelect, "transferId"> & {
+  transferId?: string | null;
+};
 
 /** The fixed palette a category can be tinted with — global, tiny, and pulled in full. */
 export type Color = typeof colorsTable.$inferSelect;
 
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
+export type WritableTable = keyof MutationPayloads;
+export type SyncedSphere = typeof spheresTable.$inferSelect;
+export type SyncedAllocation = Omit<typeof allocationsTable.$inferSelect, "reallocationId"> & {
+  /** Absent on replicas created before reallocations were supported. */
+  reallocationId?: string | null;
+};
 
 export type SyncedRows = {
   profiles: SyncedProfile[];
   accounts: SyncedAccount[];
   categories: SyncedCategory[];
   transactions: SyncedTransaction[];
+  spheres: SyncedSphere[];
+  allocations: SyncedAllocation[];
 };
 
 /**
@@ -65,7 +80,7 @@ export type SyncCursor = {
 export type SyncCursors = Partial<Record<SyncedTable, SyncCursor>>;
 
 /** Version of the owner-aware wire protocol. This is independent of the IndexedDB schema version. */
-export const SYNC_PROTOCOL_VERSION = 2 as const;
+export const SYNC_PROTOCOL_VERSION = 3 as const;
 
 export type ReplicaSyncContext = {
   protocolVersion: typeof SYNC_PROTOCOL_VERSION;
@@ -175,16 +190,32 @@ export type CategoryPayload = Owned<ClientColumns<SyncedCategory>> & {
   colorHex?: string;
 };
 
-export type TransactionPayload = ClientColumns<SyncedTransaction>;
+export type TransactionPayload = ClientColumns<SyncedTransaction> & {
+  /** Attribution intent; persisted in the transaction's allocation, not duplicated on the source. */
+  sphereId?: string;
+};
+export type SpherePayload = Omit<ClientColumns<SyncedSphere>, "hasHistory">;
+export type ReallocationPayload = Omit<
+  ClientColumns<SyncedAllocation>,
+  "reallocationId" | "transactionId" | "openingAccountId"
+> & {
+  reallocationId: string;
+  transactionId: null;
+  openingAccountId: null;
+};
 
 export type MutationPayloads = {
   profiles: ProfilePayload;
   accounts: AccountPayload;
   categories: CategoryPayload;
   transactions: TransactionPayload;
+  spheres: SpherePayload;
+  allocations: ReallocationPayload;
 };
 
 type MutationBase = {
+  /** Immutable membership of one financial operation; legacy single-row intents omit it. */
+  operation?: { id: string; mutationIds: string[] };
   /** Identifies the entry across a retry, and correlates it with its slot in the response. */
   mutationId: string;
   rowId: string;
@@ -204,18 +235,18 @@ type MutationBase = {
 };
 
 type UpsertMutation = {
-  [Table in SyncedTable]: MutationBase & {
+  [Table in WritableTable]: MutationBase & {
     table: Table;
     op: "upsert";
     payload: MutationPayloads[Table];
   };
-}[SyncedTable];
+}[WritableTable];
 
 // Spelled out per table, like the upserts above, so `Extract<Mutation, { table: "accounts" }>`
 // narrows to both of that table's operations rather than losing the deletes.
 type DeleteMutation = {
-  [Table in SyncedTable]: MutationBase & { table: Table; op: "delete" };
-}[SyncedTable];
+  [Table in WritableTable]: MutationBase & { table: Table; op: "delete" };
+}[WritableTable];
 
 export type Mutation = UpsertMutation | DeleteMutation;
 

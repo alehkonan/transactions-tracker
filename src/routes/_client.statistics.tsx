@@ -1,30 +1,23 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { format } from "date-fns";
 import { useMemo } from "react";
 import { z } from "zod";
 import { PageContainer } from "~/components/PageContainer";
 import { Select } from "~/components/Select";
 import { Title } from "~/components/Title";
-import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useCategories } from "~/modules/categories/useCategories";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { AveragePeriodToggle } from "~/modules/statistics/AveragePeriodToggle";
 import { CategoryBreakdownCard } from "~/modules/statistics/CategoryBreakdownCard";
-import { computeAvailableSpendingMonths } from "~/modules/statistics/compute-available-spending-months";
-import { computeCategorySpending } from "~/modules/statistics/compute-category-spending";
 import {
   averagePeriodSchema,
-  computeDailyAverages,
   DEFAULT_AVERAGE_PERIOD,
 } from "~/modules/statistics/compute-daily-averages";
-import { computeMonthlySpendingTrend } from "~/modules/statistics/compute-monthly-spending-trend";
+import { computeStatistics } from "~/modules/statistics/compute-statistics";
 import { DailyAverageCard } from "~/modules/statistics/DailyAverageCard";
 import { MoneyRunwayCard } from "~/modules/statistics/MoneyRunwayCard";
 import { RunwayCalculationDetails } from "~/modules/statistics/RunwayCalculationDetails";
 import { SpendingTrendCard } from "~/modules/statistics/SpendingTrendCard";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
-
-const currentYearMonth = () => format(new Date(), "yyyy-MM");
 
 export const Route = createFileRoute("/_client/statistics")({
   validateSearch: z.object({
@@ -43,31 +36,42 @@ export const Route = createFileRoute("/_client/statistics")({
 
     const profileId = useSelectedProfileId();
     const allTransactions = useSyncStore((state) => state.transactions);
+    const allAccounts = useSyncStore((state) => state.accounts);
+    const allocations = useSyncStore((state) => state.allocations);
+    const spheres = useSyncStore((state) => state.spheres);
+    const isHydrated = useSyncStore((state) => state.isHydrated);
+    const pending = useSyncStore((state) => state.pending);
     const usdRates = useSyncStore((state) => state.usdRates);
-    const accounts = useAccounts();
     const categories = useCategories();
 
-    const transactions = useMemo(
-      () => allTransactions.filter((transaction) => transaction.profileId === profileId),
-      [allTransactions, profileId],
-    );
-
-    // Three pure functions over the same in-memory array; what used to be 216 lines of SQL and
-    // three round trips is now recomputed on every keystroke of a filter for free.
-    const months = useMemo(() => computeAvailableSpendingMonths(transactions), [transactions]);
-    const month = search.month ?? months[0]?.value ?? currentYearMonth();
-    const averages = useMemo(
-      () => computeDailyAverages({ transactions, accounts, usdRates, period }),
-      [transactions, accounts, usdRates, period],
-    );
-    const trend = useMemo(
-      () => computeMonthlySpendingTrend({ transactions, accounts, usdRates, month }),
-      [transactions, accounts, usdRates, month],
-    );
-    // The breakdown and the trend share the same month selector, so paging one pages the other.
-    const categorySpending = useMemo(
-      () => computeCategorySpending({ transactions, accounts, categories, usdRates, month }),
-      [transactions, accounts, categories, usdRates, month],
+    const { months, month, averages, trend, categorySpending } = useMemo(
+      () =>
+        computeStatistics({
+          profileId,
+          transactions: allTransactions,
+          accounts: allAccounts,
+          allocations,
+          spheres,
+          categories,
+          usdRates,
+          period,
+          month: search.month,
+          isHydrated,
+          pending,
+        }),
+      [
+        profileId,
+        allTransactions,
+        allAccounts,
+        allocations,
+        spheres,
+        categories,
+        usdRates,
+        period,
+        search.month,
+        isHydrated,
+        pending,
+      ],
     );
 
     return (
@@ -77,12 +81,12 @@ export const Route = createFileRoute("/_client/statistics")({
             <h1 id="statistics-heading" className="sr-only">
               Statistics
             </h1>
-            <p className="text-text-muted text-sm">All amounts in USD</p>
+            <p className="text-text-muted text-sm">Approximate totals in USD</p>
           </header>
           <section aria-label="Runway and daily averages">
             <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
               <div>
-                <p className="text-sm font-semibold">Spending history</p>
+                <p className="text-sm font-semibold">Operating Spending history</p>
                 <p className="text-text-muted text-xs">{averages.rangeLabel}</p>
               </div>
               <AveragePeriodToggle
@@ -94,11 +98,15 @@ export const Route = createFileRoute("/_client/statistics")({
             </div>
             <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
               <div className="col-span-2 min-w-0">
-                <MoneyRunwayCard runway={averages.runway} perDayUsd={averages.expense.perDayUsd} />
+                <MoneyRunwayCard
+                  runway={averages.runway}
+                  perDayUsd={averages.expense.perDayUsd}
+                  historyComplete={averages.historyComplete}
+                />
               </div>
               <DailyAverageCard
-                title="Spending per day"
-                shortTitle="Spent / day"
+                title="Operating Spending per day"
+                shortTitle="Operating / day"
                 tone="expense"
                 perDayUsd={averages.expense.perDayUsd}
                 totalUsd={averages.expense.totalUsd}
@@ -118,13 +126,13 @@ export const Route = createFileRoute("/_client/statistics")({
             <RunwayCalculationDetails averages={averages} />
           </section>
           <hr className="border-border" />
-          <section aria-label="Monthly spending">
+          <section aria-label="Monthly Operating Spending">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <Title variant="section">Monthly spending</Title>
+              <Title variant="section">Monthly Operating Spending</Title>
               {months.length > 0 && (
                 <div>
                   <label htmlFor="statistics-month" className="sr-only">
-                    Month for spending chart and categories
+                    Month for Operating Spending chart and categories
                   </label>
                   <Select
                     id="statistics-month"

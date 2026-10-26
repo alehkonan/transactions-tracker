@@ -34,7 +34,8 @@ pullChanges({ cursors, withCounts }) → { rows, nextCursors, pending, transacti
 ```
 
 A keyset-paginated delta pull scoped to the caller's user, sending tombstones as ordinary rows with
-`deletedAt` set. Synced tables: `profiles`, `accounts`, `categories`, `transactions`. Never synced:
+`deletedAt` set. Synced tables: `profiles`, `accounts`, `categories`, `transactions`, `spheres`,
+`allocations`. Never synced:
 `users`, `credentials`, `sessions`, `webauthn_challenges`.
 
 - **The cursor is composite — `(updated_at, id)`, compared as a row value.** Rows are stamped in
@@ -165,6 +166,15 @@ pushChanges({ mutations }) → { applied, canonicalRows, conflicts, colors }
 - **A batch is atomic** — 500 mutations, applied in outbox order in one DB transaction, so "create
   account, then create a transaction referencing it" works and a rejected parent rejects its
   dependents.
+- **A financial operation has immutable membership.** New linked account transfers carry a nullable
+  `transferId` on both transactions and an ordered mutation-id list on each queued member. `commit`
+  persists both legs and their intents together; batching stops before an operation would cross the
+  500-mutation limit. The server requires the complete pair, validates accounts, signs, profile and
+  same-currency amounts, and accepts both inside the existing receipt transaction. Settlement rejects
+  partial operation receipts and retains all pending members until their canonical rows can be
+  committed locally. Other multi-row operations can use `LocalChange.operationId` at the same seam.
+  Unlinked historical transfers and their queued receipt fingerprints are preserved without matching
+  them. Fees remain separate Expense transactions. Account cascades tombstone both linked legs.
 - **An optimistic write leaves `updatedAt` alone.** Only the server advances it. It is the client's
   record of what it last saw; a client clock stamped over it makes the _second_ edit of a row report
   a base the server has never heard of, and every edit after the first looks like a clobber.
@@ -187,6 +197,9 @@ same generic 403):
 
 - owned profiles and names are loaded once for newly claimed mutations, then successful profile writes
   returned by PostgreSQL evolve that ownership in batch order;
+- owned profiles and referenced accounts are locked in id order with `FOR NO KEY UPDATE` through
+  acceptance, serializing child writes against soft-delete cascades and avoiding later lock upgrades
+  during balance recomputation;
 - only account/category ids referenced by transaction upserts are preloaded, at most once per kind and
   scoped through proven-owned profiles; later successful writes install or invalidate those mappings;
 - the account and category a transaction is filed against must be live and mapped to that exact profile;
@@ -233,6 +246,91 @@ every user. So a category created by an import carries `colorHex` in its payload
 `pushChanges` resolves it to a row (`hex` is unique, so two devices importing the same file converge
 on one palette entry) and the refreshed palette rides back in the response. Until that push lands, an
 imported category draws untinted.
+
+### Fixed-currency accounts and legacy compatibility
+
+Accounts are storage locations with a currency chosen at creation. Local commits reject a changed
+currency, and the server's guarded account upsert checks it against the locked canonical row.
+An incompatible queued edit settles with an immutable `canonical-diverged` conflict outcome, even
+when its base timestamp matches, preserving the original holdings and making the rejected intent
+visible without trapping the outbox in a retry loop. Identical receipt replays retain that outcome.
+
+The flat account list filters active, archived, or all accounts. Archiving only changes visibility:
+profile totals and the runway numerator continue to include the account's money and history.
+CSV currency mismatches fail the entire source row, including both sides of a transfer; they never
+rewrite an existing account's currency. Blank CSV currency cells make no claim. The existing explicit
+warning/fallback for a new account in an unsupported currency remains available.
+
+The database and protocol-v2 `accounts.type` field is retained as inert compatibility metadata.
+New accounts use its legacy default and edits preserve the stored value; no UI, balance calculation,
+or report classifies money by it. Keeping the field, storage version, and payload shape intact avoids
+rewriting pending intents, changing receipt fingerprints, or requiring a destructive replica upgrade.
+
+### System Operating sphere
+
+Each profile owns one permanent Operating sphere, identified by the profile's UUID. Allocations
+materialize the attribution of every transaction and each account's opening amount. Their UUIDs
+are deterministically derived from SHA-256 of `transaction:<uuid>` or `opening:<uuid>`, with UUIDv8
+version/variant bits, so a server backfill and a queued legacy edit address the same record.
+Account types do not participate, and unlinked transfers remain independent transactions.
+
+These two tables replicate normally. Transaction/opening allocations have no independent client mutation API. `commit` persists
+companions with their source rows in the same IndexedDB transaction; PostgreSQL triggers maintain
+them inside the existing receipt transaction. Thus imports still batch source mutations without
+alternating transaction/allocation runs or changing immutable legacy receipts. An opening allocation
+stores the cumulative amount assigned from that account: an edit changes Operating by the signed
+difference, and repeating acceptance cannot add the difference twice. It uses the epoch as an
+explicit non-transaction date and never enters transaction income or spending.
+
+Transaction upserts may carry a `sphereId` attribution intent. Each transfer leg chooses its sphere
+independently; the allocation remains the sole stored purpose record. Local persistence applies the
+choice alongside the source and its outbox entry, and the server updates attribution inside the same
+receipt transaction after its source trigger runs. An omitted choice preserves existing attribution
+and defaults new transactions and CSV imports to Operating. Sphere ownership and archive rules apply
+to both paths. Stale operations against archived spheres settle with canonical conflict outcomes,
+including financially inert tombstone pairs for transfers that were never accepted.
+
+Reallocations are two allocation rows with one `reallocationId`, equal opposite amounts, distinct
+active spheres in the same profile, and one shared currency and date. They have no transaction,
+opening account, or category. Creating, editing, and deleting a pair uses one immutable outbox
+operation: IndexedDB persists both sides and intents together, push batching never splits the pair,
+and receipt settlement retains both until the complete canonical result is durable. Local and
+server acceptance validate the whole pair; a deferred PostgreSQL constraint also prevents partial
+or unbalanced pairs from committing. Tombstoned pairs cannot be resurrected by stale edits.
+Pull pages include any missing companion from the same database snapshot while advancing the cursor
+only through the original bounded page. Profile deletion tombstones the complete reallocation;
+account deletion leaves it intact. Insufficient sphere money is allowed with a warning, since a
+reallocation preserves the sum across spheres in each currency without changing account money.
+If a sphere closes on another device before an offline operation arrives, both sides settle as
+rejected canonical outcomes. A never-accepted reservation is retained as an inert tombstone pair
+for replay; it creates no accepted history and does not prevent deleting an otherwise unused sphere.
+
+IDB v4 bootstraps companions from the local working set behind a revision/version fence, preserving
+every outbox entry, sequence and payload. Inconsistent account references retain the rows and enter
+exportable recovery. Pending source intents also protect their companions from server backfill.
+Canonical settlement requires companions before releasing source intents. Pull pagination, integrity,
+full refresh, recovery export, replica replacement and child-first tombstone collection include both
+new tables. Protocol v3 rejects incompatible clients before reading or sending queued financial data.
+
+A canonical response from an earlier push must also yield to a newer queued account/profile deletion.
+Settlement suppresses those descendants, including both linked transfer legs and their allocations,
+on disk and in memory while releasing the earlier accepted intents. A pull racing a parent deletion
+aborts its whole page transaction instead, retaining its cursors until the deletion can be pushed.
+
+Named Funds and Capital spheres use the same local commit/outbox path as accounts and categories.
+Their type and profile are fixed, and Operating remains a permanent system record. Local commits
+validate ownership and lifecycle against the serialized IndexedDB snapshot as well as the store.
+PostgreSQL guards apply the same rules to every sphere and allocation writer: only unused spheres
+may be deleted, and archiving requires a zero balance in every currency. Named spheres retain a
+monotonic history marker after allocation tombstones are collected. Rejected stale lifecycle intents
+settle with immutable canonical conflict outcomes instead of blocking the outbox. Profile deletion
+cascades to every sphere while preserving the ordinary tombstone lifecycle.
+
+The Accounts page shows all three sphere types and their per-currency balances, including archived
+spheres and accounts. It compares
+exact decimal totals against actual holdings and reports incomplete hydration until accounts,
+transactions, spheres and allocations are all complete. Completeness metadata survives reloads, so
+an interrupted first pull cannot become a claim of reconciliation on an offline boot.
 
 ---
 
@@ -409,7 +507,7 @@ otherwise.
 The authenticated server user and the local replica owner are deliberately separate state. IDB v3's
 `replicaDescriptor` records a fresh `replicaId`, optional server-confirmed `{ ownerUserId, username }`,
 lifecycle/transition fencing, legacy ownership classification, and durable sync admission. Every sync
-envelope carries protocol version 2 plus `expectedOwnerUserId`; every successful result echoes the
+envelope carries protocol version 3 plus `expectedOwnerUserId`; every successful result echoes the
 actual `ownerUserId`. The server rejects an owner mismatch before domain reads or writes.
 
 Sign-in finalization runs under the same browser-wide operation lock as sync. Reauthentication supplies

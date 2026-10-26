@@ -3,6 +3,7 @@ import { accountsTable, categoriesTable, profilesTable } from "~/database/tables
 import { withSyncPhase } from "./sync-observability.server";
 import type { Executor } from "~/database/get-db.server";
 import type { Mutation } from "~/modules/sync/sync-types";
+import type { TransferAccount } from "~/modules/transactions/linked-transfer";
 
 export type BatchAuthorizationOperation =
   | "authorization.owned-profiles"
@@ -18,6 +19,8 @@ type ObservedRow = {
   id: string;
   profileId?: string | null;
   name?: string;
+  currencyCode?: TransferAccount["currencyCode"];
+  deletedAt?: Date | null;
 };
 
 type ProfileState = {
@@ -37,6 +40,7 @@ export type BatchAuthorization = {
   observe(mutations: Mutation[], returnedRows: ObservedRow[]): void;
   ownedProfileIds(): string[];
   profileName(profileId: string): string | null;
+  transferAccounts(): TransferAccount[];
 };
 
 function forbidden(): Response {
@@ -75,7 +79,11 @@ export async function createBatchAuthorization(
             deletedAt: profilesTable.deletedAt,
           })
           .from(profilesTable)
-          .where(eq(profilesTable.userId, userId)),
+          .where(eq(profilesTable.userId, userId))
+          // Soft-delete cascades must serialize against child creation. Foreign keys alone only
+          // protect hard deletes; hold the proven parent rows through the whole acceptance.
+          .orderBy(profilesTable.id)
+          .for("no key update"),
       { authorizationCheck: "owned_profiles" },
       (rows) => ({ rowCount: rows.length }),
     ),
@@ -106,7 +114,12 @@ export async function createBatchAuthorization(
             "push.authorization",
             () =>
               db
-                .select({ id: accountsTable.id, profileId: accountsTable.profileId })
+                .select({
+                  id: accountsTable.id,
+                  profileId: accountsTable.profileId,
+                  currencyCode: accountsTable.currencyCode,
+                  deletedAt: accountsTable.deletedAt,
+                })
                 .from(accountsTable)
                 .where(
                   and(
@@ -114,7 +127,9 @@ export async function createBatchAuthorization(
                     inArray(accountsTable.profileId, initialOwnedProfileIds),
                     isNull(accountsTable.deletedAt),
                   ),
-                ),
+                )
+                .orderBy(accountsTable.id)
+                .for("no key update"),
             {
               authorizationCheck: "transaction_accounts",
               referenceCount: referencedAccountIds.length,
@@ -147,6 +162,9 @@ export async function createBatchAuthorization(
           ),
         );
   const accountProfiles = new Map(accountRows.map((row) => [row.id, row.profileId]));
+  const transferAccounts = new Map<string, TransferAccount>(
+    accountRows.map((row) => [row.id, row]),
+  );
   const categoryProfiles = new Map(categoryRows.map((row) => [row.id, row.profileId]));
 
   return {
@@ -176,11 +194,21 @@ export async function createBatchAuthorization(
           ),
           profiles,
         );
+        if (
+          (first.table === "spheres" || first.table === "allocations") &&
+          upserts.some(
+            (mutation) =>
+              (mutation.table === "spheres" || mutation.table === "allocations") &&
+              !profiles.get(mutation.payload.profileId)?.live,
+          )
+        )
+          throw forbidden();
 
         if (first.table === "transactions") {
           for (const mutation of upserts) {
             if (mutation.table !== "transactions") continue;
             const { accountId, categoryId, profileId } = mutation.payload;
+            if (mutation.payload.transferId && !profiles.get(profileId)?.live) throw forbidden();
             if (accountId != null && accountProfiles.get(accountId) !== profileId)
               throw forbidden();
             if (categoryId != null && categoryProfiles.get(categoryId) !== profileId) {
@@ -221,9 +249,18 @@ export async function createBatchAuthorization(
 
       if (first.table === "accounts") {
         for (const row of returnedRows) {
-          if (first.op === "delete") accountProfiles.delete(row.id);
-          else if (row.profileId != null && profiles.has(row.profileId)) {
+          if (first.op === "delete") {
+            accountProfiles.delete(row.id);
+            transferAccounts.delete(row.id);
+          } else if (row.profileId != null && profiles.has(row.profileId)) {
             accountProfiles.set(row.id, row.profileId);
+            if (row.currencyCode)
+              transferAccounts.set(row.id, {
+                id: row.id,
+                profileId: row.profileId,
+                currencyCode: row.currencyCode,
+                deletedAt: row.deletedAt ?? null,
+              });
           }
         }
         return;
@@ -241,5 +278,9 @@ export async function createBatchAuthorization(
 
     ownedProfileIds: () => [...profiles.keys()],
     profileName: (profileId) => profiles.get(profileId)?.name ?? null,
+    transferAccounts: () =>
+      [...transferAccounts.values()].filter(
+        (account) => account.profileId != null && profiles.get(account.profileId)?.live,
+      ),
   };
 }

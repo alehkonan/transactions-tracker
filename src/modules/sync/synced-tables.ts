@@ -5,7 +5,15 @@
  * later mutations. This module intentionally has no imports: the standalone tombstone GC imports it
  * without pulling in the application's database or bundler graph.
  */
-export const SYNCED_TABLES = ["profiles", "accounts", "categories", "transactions"] as const;
+export const WRITABLE_TABLES = [
+  "profiles",
+  "accounts",
+  "categories",
+  "transactions",
+  "spheres",
+  "allocations",
+] as const;
+export const SYNCED_TABLES = [...WRITABLE_TABLES] as const;
 
 /**
  * The same tables in child-first order for tombstone collection.
@@ -13,7 +21,14 @@ export const SYNCED_TABLES = ["profiles", "accounts", "categories", "transaction
  * Profiles and accounts cascade on a real delete. Sweeping children first keeps each table's count
  * meaningful and avoids a parent delete removing child tombstones before their own sweep runs.
  */
-export const SWEPT_TABLES = ["transactions", "categories", "accounts", "profiles"] as const;
+export const SWEPT_TABLES = [
+  "allocations",
+  "spheres",
+  "transactions",
+  "categories",
+  "accounts",
+  "profiles",
+] as const;
 
 /**
  * A local cursor older than this is discarded and the client pulls a fresh copy. It stays below the

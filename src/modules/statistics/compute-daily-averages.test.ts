@@ -94,7 +94,7 @@ describe("computeDailyAverages summary calculations", () => {
     expect(sixMonths.runway.days).toBe(185);
   });
 
-  it("combines active current and savings balances but still counts archived spending and income", () => {
+  it("includes every account's balance, spending, and income regardless of archive status or legacy type", () => {
     const averages = computeDailyAverages({
       accounts: [
         account(),
@@ -117,8 +117,8 @@ describe("computeDailyAverages summary calculations", () => {
 
     expect(averages.expense).toEqual({ totalUsd: 186, perDayUsd: 2 });
     expect(averages.income).toEqual({ totalUsd: 186, perDayUsd: 2 });
-    expect(averages.runway.balanceUsd).toBe(200);
-    expect(averages.runway.days).toBe(100);
+    expect(averages.runway.balanceUsd).toBe(40200);
+    expect(averages.runway.days).toBe(20100);
   });
 
   it("excludes both transfer legs from averages and does not offset runway spending with income", () => {

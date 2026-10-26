@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "transactions_transfer_direction_idx" ON "transactions" USING btree ("transfer_id",("amount" > 0));--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_linked_transfer_check" CHECK ("transactions"."transfer_id" is null or ("transactions"."type" = 'TRANSFER' and "transactions"."amount" <> 0 and "transactions"."account_id" is not null));

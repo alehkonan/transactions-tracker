@@ -76,6 +76,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
     form,
     type,
     showTransferSplit,
+    isLinkedTransfer,
     selectedAccount,
     selectedToAccount,
     projectedBalance,
@@ -86,11 +87,26 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
     isEditing,
     isPending,
     rootError,
+    sphereOptions,
+    sphereWarnings,
+    balancesComplete,
+    attributionReady,
+    counterpartId,
+    setCounterpartId,
+    counterpartOptions,
+    linkCounterpart,
+    isLinking,
   } = useTransactionForm({ accounts, transaction });
   const { control } = form;
 
   const activeAccountOptions = accounts
-    .filter((account) => account.status === "ACTIVE")
+    .filter(
+      (account) =>
+        account.status === "ACTIVE" ||
+        (isEditing &&
+          (account.id === form.getValues("accountId") ||
+            account.id === form.getValues("toAccountId"))),
+    )
     .map((account) => ({
       value: account.id,
       label: `${account.name} (${account.currencyCode})`,
@@ -102,25 +118,32 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
   }));
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-2">
+    <form onSubmit={onSubmit} data-testid="transaction-form" className="flex flex-col gap-3 pt-2">
       <RadioGroupControl
         control={control}
         name="type"
         label="Type"
         hideLabel
-        options={typeOptions.map((option) => {
-          const Icon = transactionTypeIcons[option.value];
-          return {
-            value: option.value,
-            label: option.label,
-            content: (
-              <>
-                <Icon className="size-4" />
-                {option.label}
-              </>
-            ),
-          };
-        })}
+        options={typeOptions
+          .filter((option) =>
+            isLinkedTransfer
+              ? option.value === "TRANSFER"
+              : !isEditing || transaction?.type === "TRANSFER" || option.value !== "TRANSFER",
+          )
+          .map((option) => {
+            const Icon = transactionTypeIcons[option.value];
+            return {
+              value: option.value,
+              testId: `transaction-type-${option.value}`,
+              label: option.label,
+              content: (
+                <>
+                  <Icon className="size-4" />
+                  {option.label}
+                </>
+              ),
+            };
+          })}
         className="border-border bg-surface flex gap-1 rounded-lg border p-1"
         optionClassName={(option, checked) =>
           twMerge(
@@ -187,12 +210,17 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
       {showTransferSplit ? (
         <div className="flex flex-col gap-1">
+          <p className="text-text-muted text-sm">
+            Both sides are saved and deleted together. Same-currency amounts must match; enter fees
+            as separate Expense transactions.
+          </p>
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <SelectControl
                   control={control}
                   name="accountId"
+                  data-testid="transaction-account"
                   label="From account"
                   rules={{ required: "Account is required." }}
                   options={activeAccountOptions}
@@ -204,6 +232,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               <InputControl
                 control={control}
                 name="amount"
+                data-testid="transaction-amount"
                 label="Amount"
                 rules={{ validate: validatePositiveAmount }}
                 type="text"
@@ -223,8 +252,14 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 <SelectControl
                   control={control}
                   name="toAccountId"
+                  data-testid="transaction-to-account"
                   label="To account"
-                  rules={{ required: "Account is required." }}
+                  rules={{
+                    required: "Account is required.",
+                    validate: (value) =>
+                      value !== form.getValues("accountId") ||
+                      "Choose a different destination account.",
+                  }}
                   options={activeAccountOptions}
                   placeholder="Select account"
                   className="w-full"
@@ -234,8 +269,20 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
               <InputControl
                 control={control}
                 name="toAmount"
+                data-testid="transaction-to-amount"
                 label="Amount"
-                rules={{ validate: validatePositiveAmount }}
+                rules={{
+                  validate: (value) => {
+                    const positive = validatePositiveAmount(value);
+                    if (positive !== true) return positive;
+                    return (
+                      !selectedAccount ||
+                      selectedAccount.currencyCode !== selectedToAccount?.currencyCode ||
+                      Number(value) === Number(form.getValues("amount")) ||
+                      "Amounts must match. Enter fees as a separate Expense."
+                    );
+                  },
+                }}
                 type="text"
                 inputMode="decimal"
                 enterKeyHint="next"
@@ -252,6 +299,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             <SelectControl
               control={control}
               name="accountId"
+              data-testid="transaction-account"
               label="Account"
               rules={{ required: "Account is required." }}
               options={activeAccountOptions}
@@ -263,6 +311,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
           <InputControl
             control={control}
             name="amount"
+            data-testid="transaction-amount"
             label="Amount"
             rules={{ validate: validatePositiveAmount }}
             type="text"
@@ -274,26 +323,144 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         </div>
       )}
 
+      <div className={showTransferSplit ? "grid gap-3 sm:grid-cols-2" : "flex flex-col"}>
+        {(showTransferSplit ? (["sphereId", "toSphereId"] as const) : (["sphereId"] as const)).map(
+          (name) => (
+            <label key={name} className="flex min-w-0 flex-col gap-1 text-sm">
+              {showTransferSplit ? (name === "sphereId" ? "From sphere" : "To sphere") : "Sphere"}
+              <select
+                {...form.register(name)}
+                data-testid={name === "sphereId" ? "transaction-sphere" : "transaction-to-sphere"}
+                className="border-border bg-surface text-text focus-visible:ring-accent h-11 w-full min-w-0 rounded-2xl border px-3 focus-visible:ring-2 focus-visible:outline-none sm:h-9"
+              >
+                {sphereOptions.map((option) => (
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    disabled={"disabled" in option && option.disabled}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ),
+        )}
+      </div>
+      <div aria-live="polite">
+        {!balancesComplete && (
+          <p className="text-text-muted text-sm">
+            Sphere balances are still loading. Negative-balance warnings are incomplete.
+          </p>
+        )}
+        {!attributionReady && (
+          <p className="text-warning text-sm">
+            Finish loading this transaction's sphere before editing.
+          </p>
+        )}
+        {sphereWarnings.map((warning) => (
+          <p
+            key={`${warning.label}:${warning.currencyCode}`}
+            className="text-warning text-sm"
+            data-testid="transaction-sphere-warning"
+          >
+            {warning.label} will have {formatMoney(warning.balance, warning.currencyCode)} after
+            saving. You can continue with a negative sphere balance.
+          </p>
+        ))}
+      </div>
+
       <TextareaControl
         control={control}
         name="comment"
+        data-testid="transaction-comment"
         label="Comment"
         rows={2}
         enterKeyHint="done"
         className="w-full"
       />
 
-      {rootError && <p className="text-danger text-sm">{rootError}</p>}
+      {transaction?.type === "TRANSFER" && !isLinkedTransfer && (
+        <fieldset
+          className="border-border flex min-w-0 flex-col gap-2 border-t pt-3"
+          disabled={isPending || isLinking}
+        >
+          <legend className="text-sm font-semibold">Link an existing transfer</legend>
+          <p className="text-text-muted text-sm">
+            Choose the other saved record yourself. Linking preserves both records' amounts, dates,
+            categories, and spheres. After linking, edits and deletion affect both sides.
+          </p>
+          <label className="flex flex-col gap-1 text-sm">
+            Counterpart Transfer
+            <select
+              data-testid="transfer-counterpart"
+              value={counterpartId}
+              onChange={(event) => setCounterpartId(event.target.value)}
+              className="border-border bg-surface text-text focus-visible:ring-accent h-11 w-full min-w-0 rounded-2xl border px-3 text-base focus-visible:ring-2 focus-visible:outline-none sm:h-9 sm:text-sm"
+            >
+              <option value="">Select a saved Transfer</option>
+              {counterpartOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {counterpartOptions.length === 0 && (
+            <p className="text-text-muted text-sm">
+              No other unpaired Transfer records in this profile.
+            </p>
+          )}
+          {form.formState.isDirty && (
+            <p className="text-warning text-sm">
+              Save or discard your edits before linking the saved records.
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="transfer-link"
+            onClick={linkCounterpart}
+            disabled={
+              !counterpartId ||
+              isPending ||
+              isLinking ||
+              !balancesComplete ||
+              form.formState.isDirty
+            }
+          >
+            {isLinking ? "Linking…" : "Link saved records"}
+          </Button>
+        </fieldset>
+      )}
+
+      {rootError && (
+        <p data-testid="transaction-error" className="text-danger text-sm" aria-live="polite">
+          {rootError}
+        </p>
+      )}
 
       <footer
         className={twJoin("mt-2 flex gap-2", isEditing ? "justify-between" : "justify-center")}
       >
         {isEditing && transaction && <DeleteTransactionButton id={transaction.id} />}
         <div className="flex gap-2">
-          <Button className="min-w-20" variant="secondary" type="button" onClick={onClose}>
+          <Button
+            data-testid="transaction-cancel"
+            className="min-w-20"
+            variant="secondary"
+            type="button"
+            onClick={onClose}
+          >
             Cancel
           </Button>
-          <Button className="min-w-20" type="submit" variant="primary" disabled={isPending}>
+          <Button
+            data-testid="transaction-submit"
+            className="min-w-20"
+            type="submit"
+            variant="primary"
+            disabled={isPending || isLinking || !attributionReady}
+          >
             {isEditing ? (isPending ? "Updating…" : "Update") : isPending ? "Saving…" : "Save"}
           </Button>
         </div>

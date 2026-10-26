@@ -149,7 +149,14 @@ export async function runSync(
     if (replacing) {
       const { localRevision } = await dependencies.replica.captureFullReplacement();
       replacement = {
-        rows: { profiles: [], accounts: [], categories: [], transactions: [] },
+        rows: {
+          profiles: [],
+          accounts: [],
+          categories: [],
+          transactions: [],
+          spheres: [],
+          allocations: [],
+        },
         cursors: {},
         colors: [],
         usdRates: null,

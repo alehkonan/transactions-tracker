@@ -128,6 +128,12 @@ typography:
     fontWeight: 500
     lineHeight: "1.5rem"
     fontFeature: "tabular-nums"
+  financial-compact:
+    fontFamily: "ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: "1.25rem"
+    fontFeature: "tabular-nums"
 rounded:
   md: "6px"
   lg: "8px"
@@ -142,6 +148,7 @@ spacing:
   3: "12px"
   4: "16px"
   5: "20px"
+  6: "24px"
   8: "32px"
 components:
   button-primary:
@@ -198,6 +205,10 @@ components:
     textColor: "{colors.ink}"
     rounded: "{rounded.xl}"
     padding: "16px"
+  disclosure-row:
+    textColor: "{colors.ink}"
+    rounded: "{rounded.lg}"
+    padding: "12px"
 ---
 
 # Design System: Cracker Tracker
@@ -277,6 +288,7 @@ The palette starts with the icon's cream highlight, golden crumb, orange edge, a
 - **Body** (400, `1rem`, `1.5rem`): controls, records, and general copy.
 - **Label** (700, `0.75rem`, `1rem`): compact tooltip titles and dense annotations; secondary counts may use the same size at regular weight.
 - **Financial** (500–600, context-dependent, system mono): balances, totals, changes, and chart values. Use tabular numerals when rows or comparisons benefit from alignment.
+- **Compact Financial** (400, `0.875rem`, `1.25rem`, system mono): approximate totals in disclosure rows. Exact currency balances inside the disclosure use regular-weight `1rem` mono text.
 
 ### Named Rules
 
@@ -350,6 +362,16 @@ The navigation dock is a Cream Highlight Surface capsule with Lifted Proof shado
 ### Dialogs
 
 Dialogs are mobile bottom sheets and desktop centered plates. The surface has a Baked Edge Rule, `16px` padding, and `12px` corners except the mobile sheet, whose bottom edge stays square. The cocoa overlay, backdrop fade, and popup translate/scale complete in `150ms`. Dialogs that require explicit action suppress outside press and Escape dismissal.
+
+### Disclosure Rows
+
+Purpose balances use native `details` and `summary` as flat ledger rows. Operating and named spheres share the same treatment; a system sphere does not receive a separate filled card. The sphere-specific composition and state contract are recorded in [.impeccable/surfaces/src-modules-spheres-named-spheres-tsx.md](.impeccable/surfaces/src-modules-spheres-named-spheres-tsx.md).
+
+- **Summary:** minimum height (`64px`), internal padding (`12px`), softly rounded interaction surface (`8px`), and a three-column register: wrapping name, right-aligned approximate total, and chevron. The total remains in the same column on phones and desktops. Names use medium-weight system sans; totals use Compact Financial typography.
+- **Disclosure:** rows start closed. Currency balances and actions appear on expansion; currency codes and exact amounts align in a compact definition list. Archive, allocation history, and balance help use quieter secondary summaries with a minimum touch height (`44px`).
+- **Interaction:** hover and active states use the semantic surface variants. Keyboard focus uses an accent ring (`2px`) and paper-colored offset (`2px`). Color transitions take (`150ms`) and are disabled for reduced motion. Lucide chevrons (`16px`) rotate only for their own disclosure; opening an archive must not rotate a closed child sphere's chevron.
+- **Feedback:** an incomplete total reads “Loading…” rather than zero. Empty-state copy distinguishes loading from a completed sphere with no assigned money. A warning-colored outline triangle (`14px`) and accessible explanation identify a negative currency balance, even when the combined total is positive; Operating also flags reconciliation differences.
+- **Actions:** sphere actions use regular-weight small text (`14px`), secondary button styling, phone height (`44px`), and desktop height (`36px`). Focus moves to the name or amount field after its dialog mounts and returns to the invoking control when the dialog closes.
 
 ### Charts
 

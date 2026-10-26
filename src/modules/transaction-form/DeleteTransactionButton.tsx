@@ -5,6 +5,7 @@ import { DialogContext } from "~/components/Dialog";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { deleteTransactions } from "~/modules/transactions/transaction-mutations";
 
 type Props = {
@@ -15,6 +16,9 @@ type Props = {
 export function DeleteTransactionButton({ id }: Props) {
   const { onClose } = use(DialogContext);
   const replicaContext = useReplicaBinding();
+  const isLinked = useSyncStore((state) =>
+    Boolean(state.transactions.find((row) => row.id === id)?.transferId),
+  );
   const [isDeleting, startTransition] = useTransition();
 
   const handleConfirm = () => {
@@ -28,7 +32,13 @@ export function DeleteTransactionButton({ id }: Props) {
   return (
     <Popover
       renderTrigger={({ onOpen }) => (
-        <Button variant="danger" type="button" disabled={isDeleting} onClick={onOpen}>
+        <Button
+          data-testid="transaction-delete"
+          variant="danger"
+          type="button"
+          disabled={isDeleting}
+          onClick={onOpen}
+        >
           {isDeleting ? (
             <Loader2Icon className="size-4 animate-spin" />
           ) : (
@@ -39,8 +49,9 @@ export function DeleteTransactionButton({ id }: Props) {
       )}
     >
       <PopoverConfirm
-        message="Delete this transaction?"
+        message={isLinked ? "Delete both sides of this transfer?" : "Delete this transaction?"}
         confirmLabel="Delete"
+        confirmTestId="transaction-delete-confirm"
         confirmVariant="danger"
         onConfirm={handleConfirm}
       />

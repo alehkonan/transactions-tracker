@@ -7,6 +7,7 @@ type RadioOption = {
   value: string;
   label: string;
   content?: ReactNode;
+  testId?: string;
 };
 
 type Props<
@@ -56,7 +57,11 @@ export function RadioGroupControl<
               : optionClassName;
 
           return (
-            <label key={option.value} className="flex min-w-0 flex-1 cursor-pointer">
+            <label
+              key={option.value}
+              data-testid={option.testId}
+              className="flex min-w-0 flex-1 cursor-pointer"
+            >
               <input
                 ref={index === 0 ? field.ref : undefined}
                 type="radio"

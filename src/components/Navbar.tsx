@@ -43,7 +43,12 @@ export function Navbar() {
       >
         {navItems.map((link) => (
           <li key={link.to} className="p-0.5">
-            <NavLink to={link.to} aria-label={link.label} icon={link.icon}>
+            <NavLink
+              to={link.to}
+              data-testid={`nav${link.to.replaceAll("/", "-")}`}
+              aria-label={link.label}
+              icon={link.icon}
+            >
               {link.label}
             </NavLink>
           </li>

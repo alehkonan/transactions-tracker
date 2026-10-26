@@ -16,116 +16,116 @@ slug: src-routes-accounts-tsx
 
 ## Design Health Score
 
-| #         | Эвристика                                   |    Оценка | Ключевая проблема                                                                                    |
-| --------- | ------------------------------------------- | --------: | ---------------------------------------------------------------------------------------------------- |
-| 1         | Видимость состояния системы                 |       3/4 | На mobile статус «Synced» явный, на desktop он превращается в неочевидную cloud-иконку.              |
-| 2         | Соответствие реальному миру                 |       3/4 | Current/Savings и валюты понятны, но USD-total над EUR-счётом не объяснён.                           |
-| 3         | Контроль и свобода пользователя             |       2/4 | Группы сворачиваются, но card-as-edit не обозначен, undo не виден.                                   |
-| 4         | Последовательность и стандарты              |       3/4 | Система карточек цельная, но desktop CTA выбивается непропорциональной шириной.                      |
-| 5         | Предотвращение ошибок                       |       3/4 | Offline-first защищает данные, но неясная конвертация может привести к неверной интерпретации суммы. |
-| 6         | Узнавание вместо запоминания                |       2/4 | Данные видны, но mobile nav без подписей, desktop sync без текста, edit-affordance скрыт.            |
-| 7         | Гибкость и эффективность                    |       2/4 | Страница быстро сканируется, но нет явного power-user пути или быстрых account-actions.              |
-| 8         | Эстетика и минимализм                       |       3/4 | Тихо, сфокусированно и брендово, но desktop пуст и CTA визуально доминирует.                         |
-| 9         | Распознавание и восстановление после ошибок |       3/4 | Sync errors описаны понятным языком; error-state формы не активировался.                             |
-| 10        | Помощь и документация                       |       1/4 | Нет объяснения USD-equivalent и того, что нажатие на карточку открывает редактирование.              |
-| **Итого** |                                             | **25/40** | **Хорошая основа, но доверие к цифрам и иерархия требуют работы.**                                   |
+| #         | Heuristic                               |     Score | Key issue                                                                                                         |
+| --------- | --------------------------------------- | --------: | ----------------------------------------------------------------------------------------------------------------- |
+| 1         | Visibility of system status             |       3/4 | Mobile explicitly says “Synced”; desktop reduces it to an unclear cloud icon.                                     |
+| 2         | Match between system and the real world |       3/4 | Current/Savings and currencies are understandable, but the USD total above a EUR account is unexplained.          |
+| 3         | User control and freedom                |       2/4 | Groups collapse, but cards do not clearly indicate editing, and undo is not visible.                              |
+| 4         | Consistency and standards               |       3/4 | The card system is coherent, but the desktop CTA is disproportionately wide.                                      |
+| 5         | Error prevention                        |       3/4 | Offline-first protects data, but unclear conversion can lead users to misinterpret amounts.                       |
+| 6         | Recognition rather than recall          |       2/4 | Data is visible, but mobile navigation lacks labels, desktop sync lacks text, and editing affordances are hidden. |
+| 7         | Flexibility and efficiency              |       2/4 | The page is easy to scan, but lacks a clear power-user path or quick account actions.                             |
+| 8         | Aesthetic and minimalist design         |       3/4 | Quiet, focused and distinctive, but desktop space is empty and the CTA dominates.                                 |
+| 9         | Error recognition and recovery          |       3/4 | Sync errors use plain language; the form's error state was not triggered.                                         |
+| 10        | Help and documentation                  |       1/4 | Neither the USD equivalent nor the fact that tapping a card opens editing is explained.                           |
+| **Total** |                                         | **25/40** | **A good foundation, but trust in the figures and the hierarchy need work.**                                      |
 
 ## Design Specificity Verdict
 
-Визуальный мир узнаваем: тёплая «бумага», коричневые чернила, лёгкая зернистость, cracker-like формы и моноширинные финансовые значения действительно принадлежат Cracker Tracker. Особенно убедителен light mode.
+The visual world is recognizable: warm “paper,” brown ink, subtle grain, cracker-like shapes and monospace financial values belong to Cracker Tracker. Light mode is particularly convincing.
 
-Композиция специфична слабее. По структуре это две группы карточек и большой CTA, то есть каркас легко перенести в любой account manager. Страница различает current и savings, но не доводит это до главного продуктового обещания — понимания общей финансовой ёмкости и runway.
+The composition is less specific. Two groups of cards and a large CTA could fit any account manager. The page distinguishes current funds from savings but does not deliver the main product promise: understanding overall financial capacity and runway.
 
-Deterministic scan `src/routes/accounts.tsx` завершился с 0 findings. Он не подтвердил механических anti-patterns в route-файле, но это не опровергает семантические и композиционные проблемы, расположенные также в дочерних компонентах и живом интерфейсе. Live overlay недоступен: preflight mutation прошёл, но `live-server.mjs --background` завершился таймаутом; поэтому утверждать о пользовательском overlay нельзя.
+The deterministic scan of `src/routes/accounts.tsx` returned 0 findings. It found no mechanical anti-patterns in the route file, but this does not rule out semantic and compositional issues in child components and the live interface. The live overlay was unavailable: mutation preflight passed, but `live-server.mjs --background` timed out, so a user-visible overlay cannot be claimed.
 
 ## Overall Impression
 
-Первое впечатление — спокойный, аккуратный и необычно человечный финансовый интерфейс. Слабое место не в стилистике, а в продуктовой иерархии: экран заканчивается администрированием счетов вместо ответа на вопрос «какова моя финансовая позиция?». Самая срочная проблема — необъяснённая связь между `$14,412.50` в заголовке Savings и `€12,400.00` на единственной карточке.
+The first impression is a calm, tidy and unusually human financial interface. Its weakness is product hierarchy rather than styling: the screen ends with account administration instead of answering “what is my financial position?” The most urgent issue is the unexplained relationship between `$14,412.50` in the Savings heading and `€12,400.00` on its only card.
 
-## Что работает
+## What Works
 
-1. **Собственный визуальный голос.** Тёплый stock, ink-палитра, текстура и формы дают продукту характер без декоративного шума.
-2. **Current и Savings легко различить.** Заголовки групп, отдельные totals и разные поверхности поддерживают ключевую финансовую модель.
-3. **Сильная финансовая типографика.** Monospace делает цифры стабильными и быстро сканируемыми, особенно на mobile.
+1. **A distinctive visual voice.** Warm stock, the ink palette, texture and shapes give the product character without decorative noise.
+2. **Current and Savings are easy to distinguish.** Group headings, separate totals and distinct surfaces support the core financial model.
+3. **Strong financial typography.** Monospace stabilizes figures and makes them easy to scan, especially on mobile.
 
 ## Cognitive Load
 
-Умеренная нагрузка: провалены 2 из 8 пунктов.
+Moderate load: 2 of 8 criteria failed.
 
-- Пройдены: single focus, chunking, grouping, one thing at a time, minimal choices, progressive disclosure.
-- Не пройдена visual hierarchy: главный финансовый факт не выделен, а desktop CTA становится крупнейшим элементом.
-- Не пройдена working memory: пользователь должен самостоятельно понять, почему EUR account порождает USD total, и мысленно восстановить контекст курса.
-- Decision points с более чем 4 одновременными опциями нет; четыре пункта primary navigation находятся на допустимой границе.
+- Passed: single focus, chunking, grouping, one thing at a time, minimal choices and progressive disclosure.
+- Failed visual hierarchy: the main financial fact lacks emphasis, while the desktop CTA becomes the largest element.
+- Failed working memory: users must work out why a EUR account produces a USD total and reconstruct the exchange-rate context themselves.
+- No decision point has more than 4 simultaneous options; the four primary navigation items are at the acceptable limit.
 
 ## Emotional Journey
 
-1. Вход на страницу ощущается тёплым, спокойным и личным.
-2. Current vs Savings считывается мгновенно; крупные monospace-балансы дают чувство контроля.
-3. Необъяснённая пара `$14,412.50 / €12,400.00` создаёт сомнение именно там, где доверие к цифрам критично.
-4. Mobile «Synced» возвращает уверенность в сохранности данных; desktop cloud-only состояние ослабляет этот эффект.
-5. Финальный акцент — «Create a new account», поэтому peak-end остаётся административным, а не проясняющим финансовое положение.
+1. Entering the page feels warm, calm and personal.
+2. Current versus Savings is immediately legible; large monospace balances convey control.
+3. The unexplained pair `$14,412.50 / €12,400.00` creates doubt precisely where trust in the figures matters.
+4. Mobile “Synced” reassures users that their data is safe; the desktop cloud-only state weakens this effect.
+5. The closing emphasis is “Create a new account,” so the peak-end impression remains administrative rather than clarifying the financial position.
 
 ## Priority Issues
 
-### P1 — Конвертированные totals выглядят как необъяснённые балансы
+### P1 — Converted totals look like unexplained balances
 
-**Почему важно:** Savings показывает `$14,412.50`, а единственный счёт — `€12,400.00`. Нельзя понять, это USD-equivalent, приблизительная сумма, stale rate или ошибка.
+**Why it matters:** Savings shows `$14,412.50`, while its only account shows `€12,400.00`. Users cannot tell whether this is a USD equivalent, an approximate amount, a stale rate or an error.
 
-**Что исправить:** подписать total как `Savings · ≈ $14,412.50 USD` или `USD equivalent`; по запросу раскрывать дату курса; в offline/stale состоянии явно показывать свежесть оценки.
+**Fix:** Label the total `Savings · ≈ $14,412.50 USD` or `USD equivalent`; disclose the rate date on demand; explicitly show the estimate's freshness when offline or using a stale rate.
 
-**Команда:** `$impeccable clarify`
+**Command:** `$impeccable clarify`
 
-### P1 — Sync trust явный на mobile, но криптичный на desktop
+### P1 — Sync status inspires trust on mobile but is cryptic on desktop
 
-**Почему важно:** явное состояние синхронизации — принцип продукта. На desktop оно сведено к маленькой cloud-иконке, значение которой зависит от hover или предварительного знания.
+**Why it matters:** Explicit synchronization state is a product principle. Desktop reduces it to a small cloud icon whose meaning depends on hover or prior knowledge.
 
-**Что исправить:** сохранять короткий текст `Synced`, `Offline` или `3 unsynced` на всех ширинах; после ручной проверки можно показывать `Checked just now`.
+**Fix:** Keep a short label such as `Synced`, `Offline` or `3 unsynced` at every width; after a manual check, show `Checked just now` if useful.
 
-**Команда:** `$impeccable clarify`
+**Command:** `$impeccable clarify`
 
-### P1 — Collapsible account structure семантически неполна
+### P1 — The collapsible account structure is semantically incomplete
 
-**Почему важно:** нет `<main>` и page-level `<h1>`. Кнопки Current/Savings не сообщают `aria-expanded` и `aria-controls`, поэтому screen reader не объясняет, что они управляют группами.
+**Why it matters:** There is no `<main>` or page-level `<h1>`. Current/Savings buttons do not expose `aria-expanded` or `aria-controls`, so a screen reader cannot explain that they control groups.
 
-**Что исправить:** добавить main landmark и сдержанный `<h1>Accounts</h1>`; связать group buttons и panels стабильными ID, `aria-expanded` и `aria-controls`; сохранить section headings.
+**Fix:** Add a main landmark and a restrained `<h1>Accounts</h1>`; connect group buttons and panels through stable IDs, `aria-expanded` and `aria-controls`; preserve section headings.
 
-**Команда:** `$impeccable audit`
+**Command:** `$impeccable audit`
 
-### P2 — Desktop-композиция расходует пространство и переоценивает создание счёта
+### P2 — The desktop composition wastes space and overemphasizes account creation
 
-**Почему важно:** узкие карточки прижаты слева, большая часть 1440px viewport пуста, а dashed CTA растянут почти на всю ширину и весит больше самих балансов.
+**Why it matters:** Narrow cards sit against the left edge, most of the 1440px viewport is empty, and a dashed CTA spans almost the entire width with more visual weight than the balances.
 
-**Что исправить:** сделать bounded two-column ledger для Current/Savings либо primary balance column + compact summary; привести creation action к размеру карточки; использовать пространство для Available now, Reserve и ссылки на runway.
+**Fix:** Use a bounded two-column ledger for Current/Savings or a primary balance column with a compact summary; size the creation action to match a card; use space for Available now, Reserve and a runway link.
 
-**Команда:** `$impeccable layout`
+**Command:** `$impeccable layout`
 
-### P2 — Страница остаётся инвентарём счетов вместо объяснения финансовой ёмкости
+### P2 — The page remains an account inventory instead of explaining financial capacity
 
-**Почему важно:** пользователь видит две суммы, но не получает синтеза; экран заканчивается созданием счёта, а не пониманием позиции.
+**Why it matters:** Users see two amounts without a synthesis; the screen ends with account creation rather than an understanding of their position.
 
-**Что исправить:** добавить сдержанный summary над группами: Available now, Reserve, Estimated runway или явную ссылку в Statistics; не смешивать current и savings в одну неясную сумму.
+**Fix:** Add a restrained summary above the groups: Available now, Reserve, Estimated runway or an explicit Statistics link; keep current funds and savings distinguishable rather than merging them into an unclear total.
 
-**Команда:** `$impeccable shape`
+**Command:** `$impeccable shape`
 
 ## Persona Red Flags
 
-**Sam — пользователь screen reader/keyboard:** отсутствуют main landmark и page heading; group controls не объявляют expanded state; карточка не сообщает, что открывает Edit account. Accessible names у mobile nav есть, но визуальные подписи отсутствуют.
+**Sam — screen reader/keyboard user:** The main landmark and page heading are missing; group controls do not announce expanded state; cards do not announce that they open Edit account. Mobile navigation has accessible names but no visible labels.
 
-**Jordan — новичок в personal finance:** может принять `$14,412.50` за отдельный savings balance; не узнает, что карточка редактируется нажатием; desktop sync icon требует догадки; нет contextual help по конвертации.
+**Jordan — personal finance newcomer:** May interpret `$14,412.50` as a separate savings balance; cannot discover that tapping a card edits it; must guess the desktop sync icon's meaning; lacks contextual conversion help.
 
-**Casey — distracted mobile user:** крупные targets и bottom nav удобны, но четыре иконки без текста требуют распознавания; meaningful cross-account summary отсутствует; явный mobile sync label неожиданно исчезает при переходе на desktop.
+**Casey — distracted mobile user:** Large targets and bottom navigation are convenient, but four unlabeled icons require recognition; a meaningful cross-account summary is missing; the explicit mobile sync label unexpectedly disappears on desktop.
 
 ## Minor Observations
 
-- В dark mode Current и Savings сходятся к похожим brown/amber поверхностям и различаются слабее, чем в light mode.
-- `Active` избыточен внутри уже активных групп; место полезнее отдать currency, institution или recent activity.
-- Chevron показывает collapse state визуально, но остаётся тонким interaction cue.
-- TanStack Devtools перекрывает mobile Settings только в dev-среде; это не production defect.
-- Browser console не показала warnings/errors в проверенном mobile dark state.
+- In dark mode, Current and Savings converge on similar brown/amber surfaces and are less distinct than in light mode.
+- `Active` is redundant within already-active groups; currency, institution or recent activity would use that space better.
+- The chevron shows collapse state visually but remains a subtle interaction cue.
+- TanStack Devtools overlaps mobile Settings only in development; this is not a production defect.
+- The browser console showed no warnings/errors in the inspected mobile dark state.
 
 ## Questions to Consider
 
-- Должна ли accounts page заканчиваться предложением создать ещё один счёт или ответом «сколько я могу безопасно потратить и каков мой runway?»
-- Если убрать USD total, будет ли Savings понятен — или интерфейс сейчас зависит от необъяснённой арифметики?
-- Нужен ли `Active` на каждой карточке сильнее, чем currency context и freshness?
-- Как выглядел бы desktop, если проектировать его как финансовый ledger, а не растянутый mobile card stack?
+- Should the accounts page end by suggesting another account, or by answering “how much can I safely spend, and what is my runway?”
+- Without the USD total, would Savings be understandable, or does the interface currently depend on unexplained arithmetic?
+- Is `Active` on every card more useful than currency context and freshness?
+- What would desktop look like if designed as a financial ledger rather than a stretched mobile card stack?

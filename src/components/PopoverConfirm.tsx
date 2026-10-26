@@ -6,6 +6,7 @@ type PopoverConfirmProps = {
   title?: string;
   message: string;
   confirmLabel?: string;
+  confirmTestId?: string;
   confirmVariant?: "primary" | "danger";
   onConfirm: () => void;
 };
@@ -15,6 +16,7 @@ export function PopoverConfirm({
   title,
   message,
   confirmLabel = "Confirm",
+  confirmTestId,
   confirmVariant = "primary",
   onConfirm,
 }: PopoverConfirmProps) {
@@ -29,6 +31,7 @@ export function PopoverConfirm({
           Cancel
         </Button>
         <Button
+          data-testid={confirmTestId}
           className="min-w-16 py-1 text-xs"
           variant={confirmVariant}
           onClick={() => {

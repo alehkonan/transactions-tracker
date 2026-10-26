@@ -9,7 +9,9 @@ import {
 } from "~/modules/transaction-form/transaction-form-values";
 import {
   createTransactions,
+  linkTransfers,
   updateTransaction,
+  updateTransfer,
   type TransactionInput,
 } from "~/modules/transactions/transaction-mutations";
 import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
@@ -30,28 +32,58 @@ export function useTransactionFormSubmit({ transaction }: Options) {
 
     const shared = {
       createdAt: values.createdAt,
-      categoryId: values.categoryId || null,
+      categoryId:
+        values.type === "TRANSFER" && (!transaction || transaction.transferId)
+          ? null
+          : values.categoryId || null,
       necessityLevel: values.type === "EXPENSE" ? values.necessityLevel : "MEDIUM",
       comment: values.comment || null,
     } satisfies Partial<TransactionInput>;
 
-    const signedAmount = getSignedTransactionAmount(values.amount, values.type, transaction);
+    const signedAmount = getSignedTransactionAmount(
+      values.amount,
+      values.type,
+      transaction?.transferId ? undefined : transaction,
+    );
 
     if (transaction) {
       // The form works from the derived row; the stored one is what a mutation edits.
       const stored = useSyncStore.getState().transactions.find((row) => row.id === transaction.id);
       if (!stored) return;
 
-      await updateTransaction(
-        stored,
-        {
-          ...shared,
-          type: values.type,
-          accountId: values.accountId || null,
-          amount: signedAmount,
-        },
-        replicaContext,
-      );
+      if (stored.transferId) {
+        await updateTransfer(
+          stored,
+          [
+            {
+              ...shared,
+              type: "TRANSFER",
+              accountId: values.accountId || null,
+              amount: signedAmount,
+              sphereId: values.sphereId || profileId,
+            },
+            {
+              ...shared,
+              type: "TRANSFER",
+              accountId: values.toAccountId || null,
+              amount: values.toAmount,
+              sphereId: values.toSphereId || profileId,
+            },
+          ],
+          replicaContext,
+        );
+      } else
+        await updateTransaction(
+          stored,
+          {
+            ...shared,
+            type: values.type,
+            accountId: values.accountId || null,
+            amount: signedAmount,
+            sphereId: values.sphereId || profileId,
+          },
+          replicaContext,
+        );
     } else {
       // A transfer moves money between two of the user's own accounts, so it's
       // recorded as two TRANSFER-typed rows (one per account) rather than
@@ -64,12 +96,14 @@ export function useTransactionFormSubmit({ transaction }: Options) {
                 type: "TRANSFER",
                 accountId: values.accountId || null,
                 amount: signedAmount,
+                sphereId: values.sphereId || profileId,
               },
               {
                 ...shared,
                 type: "TRANSFER",
                 accountId: values.toAccountId || null,
                 amount: values.toAmount,
+                sphereId: values.toSphereId || profileId,
               },
             ]
           : [
@@ -78,6 +112,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
                 type: values.type,
                 accountId: values.accountId || null,
                 amount: signedAmount,
+                sphereId: values.sphereId || profileId,
               },
             ];
 
@@ -87,5 +122,12 @@ export function useTransactionFormSubmit({ transaction }: Options) {
     onClose();
   };
 
-  return { submit };
+  const link = async (counterpartId: string) => {
+    if (!transaction || !profileId || !replicaContext)
+      throw new Error("Open a saved Transfer in the selected profile before linking.");
+    await linkTransfers(profileId, [transaction.id, counterpartId], replicaContext);
+    onClose();
+  };
+
+  return { submit, link };
 }

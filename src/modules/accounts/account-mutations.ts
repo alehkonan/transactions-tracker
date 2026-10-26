@@ -1,5 +1,6 @@
 import { commit, newRow } from "~/modules/sync/mutations";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
+import { expandTransferSelection } from "~/modules/transactions/linked-transfer";
 import type { LocalChange } from "~/modules/sync/mutations";
 import type { ReplicaContext } from "~/modules/sync/replica-identity";
 import type { AccountPayload, SyncedAccount } from "~/modules/sync/sync-types";
@@ -12,14 +13,15 @@ import type { AccountPayload, SyncedAccount } from "~/modules/sync/sync-types";
  */
 
 /** Everything but the profile, which the caller's selection decides rather than the form. */
-export type AccountInput = Omit<AccountPayload, "profileId">;
+export type AccountInput = Omit<AccountPayload, "profileId" | "type">;
 
 export function createAccount(
   profileId: string,
   input: AccountInput,
   replicaContext?: ReplicaContext,
 ): Promise<void> {
-  const payload: AccountPayload = { ...input, profileId };
+  // Retained only for compatibility with existing replicas and protocol-v2 clients.
+  const payload: AccountPayload = { ...input, type: "CURRENT", profileId };
 
   return commit(
     [{ op: "upsert", table: "accounts", row: newRow(payload), payload }],
@@ -33,8 +35,13 @@ export function updateAccount(
   replicaContext?: ReplicaContext,
 ): Promise<void> {
   if (account.profileId == null) return Promise.resolve();
+  if (input.currencyCode !== account.currencyCode) {
+    return Promise.reject(
+      new Error("An account's currency cannot change. Create another account instead."),
+    );
+  }
 
-  const payload: AccountPayload = { ...input, profileId: account.profileId };
+  const payload: AccountPayload = { ...input, type: account.type, profileId: account.profileId };
   // Rebuilt from the payload rather than spread over the account: callers hold the *derived*
   // account, and its `balance` is not a column any client stores.
   const row: SyncedAccount = {
@@ -58,9 +65,11 @@ export function deleteAccount(
   account: SyncedAccount,
   replicaContext?: ReplicaContext,
 ): Promise<void> {
-  const transactions = useSyncStore
-    .getState()
-    .transactions.filter((transaction) => transaction.accountId === account.id);
+  const allTransactions = useSyncStore.getState().transactions;
+  const transactions = expandTransferSelection(
+    allTransactions,
+    new Set(allTransactions.filter((row) => row.accountId === account.id).map((row) => row.id)),
+  );
 
   const changes: LocalChange[] = [{ op: "delete", table: "accounts", row: account }];
   if (transactions.length > 0) {

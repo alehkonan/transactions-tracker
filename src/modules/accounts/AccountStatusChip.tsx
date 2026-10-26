@@ -8,7 +8,7 @@ type Props = {
   status: AccountStatus;
 };
 
-export const accountStatusStyles: Record<AccountStatus, string> = {
+const accountStatusStyles: Record<AccountStatus, string> = {
   ACTIVE: "bg-accent/10 text-accent border-accent/20",
   ARCHIVED: "bg-text-muted/10 text-text-muted border-text-muted/20",
 };

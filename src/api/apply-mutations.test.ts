@@ -130,6 +130,73 @@ describe("createApplyMutations", () => {
     expect(result.profileIds).toEqual(new Set([profileId]));
   });
 
+  it("settles and replays a legacy currency edit as rejected even when its base is current", async () => {
+    const updatedAt = new Date("2026-09-18T00:00:00.000Z");
+    const canonicalAccount = {
+      id: accountId,
+      name: "Wallet",
+      initialBalance: "100.00",
+      currencyCode: "USD" as const,
+      status: "ACTIVE" as const,
+      type: "SAVING" as const,
+      profileId,
+      updatedAt,
+      deletedAt: null,
+    };
+    const mutation = {
+      mutationId: "00000000-0000-7000-8000-000000000111",
+      rowId: accountId,
+      baseUpdatedAt: updatedAt.getTime(),
+      table: "accounts",
+      op: "upsert",
+      payload: {
+        name: "Wallet",
+        initialBalance: "100.00",
+        currencyCode: "EUR",
+        status: "ACTIVE",
+        type: "SAVING",
+        profileId,
+      },
+    } satisfies Mutation;
+    const receipt = {
+      mutationId: mutation.mutationId,
+      intentFingerprint: fingerprintMutation(mutation),
+      conflictOutcome: null,
+      appliedAt: new Date("2026-09-18T00:00:01.000Z"),
+    };
+    const { runOperation } = createRecordingRunner({
+      "receipt.claim": [[{ mutationId: mutation.mutationId }]],
+      "receipt.read": [[receipt]],
+      "authorization.owned-profiles": [[{ id: profileId, name: "Main", deletedAt: null }]],
+      "conflict.read.accounts": [[canonicalAccount]],
+      "mutation.upsert.accounts": [[]],
+      "receipt.persist-outcomes": [[{ mutationId: mutation.mutationId }]],
+    });
+
+    const accepted = await createApplyMutations(runOperation)({} as Executor, userId, [mutation]);
+
+    expect(accepted.applied).toEqual([mutation.mutationId]);
+    expect(accepted.conflicts).toMatchObject([
+      {
+        classification: "canonical-diverged",
+        canonicalRow: { currencyCode: "USD", initialBalance: "100.00", type: "SAVING" },
+        presentationContext: { entityLabel: "Wallet" },
+      },
+    ]);
+
+    const replay = createRecordingRunner({
+      "receipt.claim": [[]],
+      "receipt.read": [[{ ...receipt, conflictOutcome: accepted.conflicts[0] }]],
+    });
+    const retried = await createApplyMutations(replay.runOperation)({} as Executor, userId, [
+      mutation,
+    ]);
+
+    expect(retried.conflicts).toEqual(accepted.conflicts);
+    expect(retried.applied).toEqual([mutation.mutationId]);
+    expect(replay.operations).not.toContain("mutation.upsert.accounts");
+  });
+
   it("freezes upsert, delete, and guarded-upsert outcomes from each ordered run", async () => {
     const upsertPayload = {
       name: "Changed",

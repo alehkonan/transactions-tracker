@@ -8,11 +8,13 @@ const emptyRows: SyncedRows = {
   accounts: [],
   categories: [],
   transactions: [],
+  spheres: [],
+  allocations: [],
 };
 
 function page(pending: SyncedTable[]): PullChangesResult {
   return {
-    protocolVersion: 2,
+    protocolVersion: 3,
     ownerUserId: 41,
     rows: emptyRows,
     nextCursors: {},

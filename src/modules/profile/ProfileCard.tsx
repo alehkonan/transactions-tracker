@@ -33,12 +33,8 @@ export function ProfileCard({ profile, onOpen }: Props) {
         <span className="text-text text-xl font-semibold">{profile.name}</span>
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-text-muted">Current balance</span>
-            <span className="font-mono">{formatMoney(profile.currentBalanceUsd, "USD")}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-text-muted">Savings balance</span>
-            <span className="font-mono">{formatMoney(profile.savingsBalanceUsd, "USD")}</span>
+            <span className="text-text-muted">Approx. total balance</span>
+            <span className="font-mono">≈ {formatMoney(profile.balanceUsd, "USD")}</span>
           </div>
         </div>
         <span className="text-text-muted text-xs">
@@ -47,7 +43,7 @@ export function ProfileCard({ profile, onOpen }: Props) {
         </span>
       </div>
       <div className="border-border flex flex-wrap gap-2 border-t p-3">
-        <Button variant="primary" onClick={onOpen}>
+        <Button variant="primary" onClick={onOpen} data-testid="profile-open">
           <FolderOpenIcon className="size-4" />
           Open
         </Button>

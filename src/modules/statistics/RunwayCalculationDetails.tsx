@@ -18,15 +18,18 @@ export function RunwayCalculationDetails({ averages }: Props) {
         </summary>
         <div className="max-w-prose space-y-2 pb-2">
           <p>
-            {averages.rangeLabel}: recorded spending of{" "}
+            {averages.rangeLabel}: recorded Operating Spending of{" "}
             {formatMoney(String(averages.expense.totalUsd), "USD")} ÷ {averages.days} calendar days
             = {formatMoney(String(averages.expense.perDayUsd), "USD")} per day. Income uses the same
             dates and denominator. Today counts as a full day; days without records count as zero.
           </p>
           <p>
-            Runway divides your combined active current and savings balances by average daily
-            spending, assuming no future income. Archived balances are excluded; recorded income and
-            expenses from archived accounts still count in the daily averages. Transfers do not.
+            Runway divides your combined account balances by average daily Operating Spending,
+            assuming no future income. Archived balances are included, as is money assigned to Funds
+            and Capital. Only actual Expense transactions allocated to Operating count as spending,
+            including those from archived accounts. Transfers do not count, nor do reallocations,
+            opening balances, or expenses from Funds or Capital. Refunds are Income and do not
+            reduce spending. Correcting an original expense changes its historical period.
           </p>
           <p>
             All amounts are converted to USD using the latest exchange rates available on this

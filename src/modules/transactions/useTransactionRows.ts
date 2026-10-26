@@ -17,6 +17,8 @@ export function useTransactionRows(): TransactionRow[] {
   const profileId = useSelectedProfileId();
   const transactions = useSyncStore((state) => state.transactions);
   const usdRates = useSyncStore((state) => state.usdRates);
+  const allocations = useSyncStore((state) => state.allocations);
+  const spheres = useSyncStore((state) => state.spheres);
   const accounts = useAccounts();
   const categories = useCategories();
 
@@ -28,6 +30,8 @@ export function useTransactionRows(): TransactionRow[] {
       accounts,
       categories,
       usdRates,
+      allocations: allocations.filter((row) => row.profileId === profileId),
+      spheres: spheres.filter((row) => row.profileId === profileId),
     });
-  }, [transactions, accounts, categories, usdRates, profileId]);
+  }, [transactions, accounts, categories, usdRates, profileId, allocations, spheres]);
 }

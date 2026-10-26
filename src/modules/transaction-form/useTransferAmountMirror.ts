@@ -5,6 +5,8 @@ import type { TransactionFormValues } from "~/modules/transaction-form/transacti
 type Options = {
   control: Control<TransactionFormValues>;
   setValue: UseFormSetValue<TransactionFormValues>;
+  enabled: boolean;
+  initiallyTouched?: boolean;
 };
 
 /**
@@ -12,13 +14,18 @@ type Options = {
  * the amount twice, until the user edits "toAmount" directly — after that it stops
  * being overwritten.
  */
-export function useTransferAmountMirror({ control, setValue }: Options) {
-  const touchedRef = useRef(false);
+export function useTransferAmountMirror({
+  control,
+  setValue,
+  enabled,
+  initiallyTouched = false,
+}: Options) {
+  const touchedRef = useRef(initiallyTouched);
   const amount = useWatch({ control, name: "amount" });
 
   useEffect(() => {
-    if (!touchedRef.current) setValue("toAmount", amount);
-  }, [amount, setValue]);
+    if (enabled && !touchedRef.current) setValue("toAmount", amount);
+  }, [amount, setValue, enabled]);
 
   const markToAmountTouched = () => {
     touchedRef.current = true;

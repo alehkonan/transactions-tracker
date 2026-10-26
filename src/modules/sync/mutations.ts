@@ -1,10 +1,21 @@
+import { operatingRows } from "~/modules/spheres/operating";
+import { validateReallocationMutations } from "~/modules/spheres/reallocation";
+import { validateSphereMutations } from "~/modules/spheres/sphere-lifecycle";
+import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { assertCurrentReplicaContext, captureReplicaContext, writeLocalMutations } from "./idb";
+import { assertCompleteOperations } from "./outbox-acceptance";
 import { announceLocalWrite, schedulePush } from "./sync-engine";
-import { SYNCED_TABLES } from "./sync-types";
+import { PUSH_BATCH_LIMIT, SYNCED_TABLES } from "./sync-types";
 import { applyLocalRows, refreshOutboxState, useSyncStore } from "./useSyncStore";
 import type { ReplicaContext } from "./replica-identity";
-import type { Mutation, MutationPayloads, SyncedRows, SyncedTable } from "./sync-types";
+import type {
+  Mutation,
+  MutationPayloads,
+  SyncedRows,
+  SyncedTable,
+  WritableTable,
+} from "./sync-types";
 
 /**
  * The write path: a change is applied to the store, persisted with its outbox entry, and pushed
@@ -20,18 +31,18 @@ type RowFor<Table extends SyncedTable> = SyncedRows[Table][number];
 
 /** A row created or edited here, along with the columns the server is being asked to store. */
 type UpsertChange = {
-  [Table in SyncedTable]: {
+  [Table in WritableTable]: {
     op: "upsert";
     table: Table;
     row: RowFor<Table>;
     payload: MutationPayloads[Table];
   };
-}[SyncedTable];
+}[WritableTable];
 
 /** A row deleted here. The local copy goes; the server gets a tombstone. */
 type DeleteChange = {
-  [Table in SyncedTable]: { op: "delete"; table: Table; row: RowFor<Table> };
-}[SyncedTable];
+  [Table in WritableTable]: { op: "delete"; table: Table; row: RowFor<Table> };
+}[WritableTable];
 
 /**
  * Rows the server will tombstone as a consequence of another entry in the same commit — an account's
@@ -40,15 +51,29 @@ type DeleteChange = {
  * deleting a well-used account a minutes-long push.
  */
 type CascadeChange = {
-  [Table in SyncedTable]: { op: "cascade"; table: Table; rows: RowFor<Table>[] };
-}[SyncedTable];
+  [Table in Exclude<WritableTable, "spheres">]: {
+    op: "cascade";
+    table: Table;
+    rows: RowFor<Table>[];
+  };
+}[Exclude<WritableTable, "spheres">];
 
-export type LocalChange = UpsertChange | DeleteChange | CascadeChange;
+export type LocalChange = (UpsertChange | DeleteChange | CascadeChange) & {
+  /** Optional explicit grouping for financial operations spanning several replicated rows. */
+  operationId?: string;
+};
 
-type RowsByTable = { [Table in SyncedTable]: RowFor<Table>[] };
+type RowsByTable = SyncedRows;
 
 function emptyRows(): RowsByTable {
-  return { profiles: [], accounts: [], categories: [], transactions: [] };
+  return {
+    profiles: [],
+    accounts: [],
+    categories: [],
+    transactions: [],
+    spheres: [],
+    allocations: [],
+  };
 }
 
 /**
@@ -97,9 +122,23 @@ export async function commit(
   if (changes.length === 0) return;
 
   const replicaContext = capturedContext ?? (await captureReplicaContext());
+  // Guard every local writer, including imports, against relabelling existing holdings.
+  const accountCurrencies = new Map(
+    useSyncStore.getState().accounts.map((account) => [account.id, account.currencyCode]),
+  );
+  for (const change of changes) {
+    if (change.table !== "accounts" || change.op !== "upsert") continue;
+    const currency = accountCurrencies.get(change.row.id) ?? change.row.currencyCode;
+    if (change.row.currencyCode !== currency || change.payload.currencyCode !== currency) {
+      throw new Error("An account's currency cannot change. Create another account instead.");
+    }
+    accountCurrencies.set(change.row.id, currency);
+  }
   const bases = readBaseUpdatedAt(changes);
   const rows = emptyRows();
   const mutations: Mutation[] = [];
+  const operations = new Map<string, Mutation[]>();
+  const sharedOperationMembers = new Map<string, Mutation[]>();
   const deletedAt = new Date();
 
   for (const change of changes) {
@@ -120,6 +159,18 @@ export async function commit(
       baseUpdatedAt,
     };
 
+    const operationKey =
+      change.operationId ??
+      (change.table === "transactions" && change.row.transferId
+        ? `transfer:${change.row.transferId}`
+        : undefined);
+    if (operationKey) {
+      const members = operations.get(operationKey) ?? [];
+      operations.set(operationKey, members);
+      // Filled after every member has its final immutable mutation id.
+      sharedOperationMembers.set(shared.mutationId, members);
+    }
+
     if (change.op === "delete") {
       bucket.push({ ...change.row, deletedAt, updatedAt: deletedAt });
       mutations.push({ ...shared, op: "delete" });
@@ -128,12 +179,84 @@ export async function commit(
 
     // `updatedAt` is left where the server put it. It is the client's record of what it last saw,
     // and the next push compares against it; the canonical row that comes back is what moves it on.
-    bucket.push({ ...change.row, updatedAt: change.row.updatedAt });
+    if (change.table === "spheres") {
+      bucket.push({ ...change.row, ...change.payload, deletedAt: null });
+    } else {
+      bucket.push({ ...change.row, updatedAt: change.row.updatedAt });
+    }
     mutations.push({ ...shared, op: "upsert", payload: change.payload } as Mutation);
+  }
+
+  for (const mutation of mutations) sharedOperationMembers.get(mutation.mutationId)?.push(mutation);
+  for (const members of operations.values()) {
+    const operation = { id: uuidV7(), mutationIds: members.map((mutation) => mutation.mutationId) };
+    members.forEach((mutation) => {
+      mutation.operation = operation;
+    });
+  }
+  // Never move a member ahead of an intervening parent write. Callers supply contiguous units.
+  assertCompleteOperations(mutations, PUSH_BATCH_LIMIT);
+  const state = useSyncStore.getState();
+  if (mutations.some((mutation) => mutation.table === "spheres")) {
+    validateSphereMutations(
+      mutations,
+      {
+        profiles: [...rows.profiles, ...state.profiles],
+        spheres: state.spheres,
+        allocations: state.allocations,
+      },
+      replicaContext.ownerUserId,
+      state.isHydrated &&
+        !state.pending.some((table) => ["spheres", "allocations"].includes(table)),
+    );
+  }
+  const accounts = new Map(state.accounts.map((account) => [account.id, account]));
+  for (const row of rows.accounts) accounts.set(row.id, row);
+  const transactionMutations = mutations.filter((mutation) => mutation.table === "transactions");
+  for (const mutation of transactionMutations) {
+    if (mutation.op !== "upsert" || !mutation.payload.transferId) continue;
+    const profile = [...state.profiles, ...rows.profiles].find(
+      (row) => row.id === mutation.payload.profileId && row.deletedAt == null,
+    );
+    if (!profile || (profile.userId != null && profile.userId !== replicaContext.ownerUserId)) {
+      throw new Error("The transfer profile does not belong to this local replica.");
+    }
+  }
+  validateTransferMutations(transactionMutations, state.transactions, [...accounts.values()]);
+
+  const allocationMutations = mutations.filter((mutation) => mutation.table === "allocations");
+  if (allocationMutations.length > 0) {
+    if (
+      !state.isHydrated ||
+      state.pending.some((table) => ["spheres", "allocations"].includes(table))
+    )
+      throw new Error("Finish loading sphere balances before reallocating money.");
+    for (const mutation of allocationMutations) {
+      if (mutation.op !== "upsert") continue;
+      const profile = state.profiles.find(
+        (row) => row.id === mutation.payload.profileId && row.deletedAt == null,
+      );
+      if (!profile || (profile.userId != null && profile.userId !== replicaContext.ownerUserId))
+        throw new Error("The reallocation profile does not belong to this local replica.");
+    }
+    if (
+      validateReallocationMutations(allocationMutations, state.allocations, state.spheres).size > 0
+    )
+      throw new Error(
+        "This reallocation or one of its spheres is deleted or archived. Restore archived spheres before changing their history.",
+      );
   }
 
   // Persisted before it is applied, the same way a pulled page is: a store that is ahead of
   // IndexedDB would show a change that quietly disappears on the next reload.
+  const transactionSpheres = new Map(
+    transactionMutations.flatMap((mutation) =>
+      mutation.op === "upsert" && mutation.payload.sphereId
+        ? [[mutation.rowId, mutation.payload.sphereId] as const]
+        : [],
+    ),
+  );
+  Object.assign(rows, await operatingRows(rows, state.accounts, state, transactionSpheres));
   await writeLocalMutations(replicaContext, rows, mutations);
   await assertCurrentReplicaContext(replicaContext);
   await refreshOutboxState(replicaContext);

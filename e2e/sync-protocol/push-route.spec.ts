@@ -17,7 +17,7 @@ baseTest(
 
     const [push, serverFunction, script] = await Promise.all([
       request.post("/api/push", {
-        data: { protocolVersion: 2, expectedOwnerUserId: 1, mutations: [] },
+        data: { protocolVersion: 3, expectedOwnerUserId: 1, mutations: [] },
       }),
       request.get("/_serverFn/not-a-real-function"),
       request.get("/not-a-real-asset.js"),
@@ -54,7 +54,7 @@ test("the HTTP push route returns the production protocol shape", async ({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        protocolVersion: 2,
+        protocolVersion: 3,
         expectedOwnerUserId,
         mutations: [],
       }),
@@ -75,7 +75,7 @@ test("the HTTP push route returns the production protocol shape", async ({
 
   expect(result.status).toBe(200);
   expect(result.body).toEqual({
-    protocolVersion: 2,
+    protocolVersion: 3,
     ownerUserId,
     applied: [],
     canonicalRows: {
@@ -83,6 +83,8 @@ test("the HTTP push route returns the production protocol shape", async ({
       accounts: [],
       categories: [],
       transactions: [],
+      spheres: [],
+      allocations: [],
     },
     conflicts: [],
     colors: expect.any(Array),
@@ -98,7 +100,7 @@ test("the HTTP push route rejects a replica owner mismatch", async ({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        protocolVersion: 2,
+        protocolVersion: 3,
         expectedOwnerUserId,
         mutations: [
           {
@@ -135,7 +137,7 @@ test("a legacy HTTP worker fails closed before an empty push", async ({
   expect(failure).toEqual({ status: 426, code: "SYNC_PROTOCOL_UNSUPPORTED" });
 });
 
-test("a rejected non-empty legacy push leaves no row or receipt before a v2 retry", async ({
+test("a rejected non-empty legacy push leaves no row or receipt before a current-protocol retry", async ({
   authenticatedPage: page,
 }) => {
   const ownerUserId = await readReplicaOwnerUserId(page);
@@ -168,7 +170,7 @@ test("a rejected non-empty legacy push leaves no row or receipt before a v2 retr
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          protocolVersion: 2,
+          protocolVersion: 3,
           expectedOwnerUserId,
           mutations: [
             {

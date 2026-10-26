@@ -22,7 +22,7 @@ type ListItem =
   | { kind: "row"; row: TransactionRow; isFirstOfDay: boolean };
 
 const HEADER_HEIGHT_ESTIMATE = 33;
-const ROW_HEIGHT_ESTIMATE = 61;
+const ROW_HEIGHT_ESTIMATE = 81;
 
 /** Income reads green and a transfer reads as movement; an expense is the default and stays quiet. */
 const amountToneStyles: Record<TransactionRow["type"], string> = {
@@ -138,6 +138,7 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
           return (
             <button
               key={row.id}
+              data-testid={`transaction-${row.id}`}
               ref={virtualizer.measureElement}
               data-index={virtualItem.index}
               style={{ ...style, width: "100%" }}
@@ -170,6 +171,12 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
                   {formatMoney(row.amount, row.currencyCode)}
                 </span>
               </div>
+              <p
+                className="text-text-muted mt-1 truncate text-xs"
+                data-testid="transaction-sphere-label"
+              >
+                {row.sphere}
+              </p>
             </button>
           );
         })}

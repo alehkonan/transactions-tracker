@@ -1,4 +1,6 @@
+import { pendingParentDeletes } from "~/modules/spheres/operating";
 import { dropOutboxEntries, OUTBOX_STORE, openDatabase, settleAcceptedPush } from "./idb";
+import { takeOperationBatch } from "./outbox-acceptance";
 import {
   replicaContextFromDescriptor,
   type ReplicaContext,
@@ -37,17 +39,18 @@ async function readOutboxBatch(expected: ReplicaContext, limit: number): Promise
     promisify(transaction.objectStore("meta").get("replicaDescriptor")),
   ]);
   assertContext(descriptor as ReplicaDescriptor, expected);
-  return entries as OutboxEntry[];
+  return takeOperationBatch(entries as OutboxEntry[], limit);
 }
 
 /** Identifies a row across tables, since ids are only unique within one. */
-export function rowKey(table: SyncedTable, rowId: string): string {
+function rowKey(table: SyncedTable, rowId: string): string {
   return `${table}:${rowId}`;
 }
 
 export type OutboxState = {
   count: number;
   rowKeys: Set<string>;
+  deletedParentKeys: Set<string>;
 };
 
 /** One drain keeps the same captured replica context through read, network wait, and settlement. */
@@ -75,5 +78,6 @@ export async function readOutboxState(expected?: ReplicaContext): Promise<Outbox
   return {
     count: outbox.length,
     rowKeys: new Set(outbox.map((entry) => rowKey(entry.table, entry.rowId))),
+    deletedParentKeys: pendingParentDeletes(outbox),
   };
 }

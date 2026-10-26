@@ -1,6 +1,8 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import {
   accountsTable,
+  spheresTable,
+  allocationsTable,
   categoriesTable,
   colorsTable,
   profilesTable,
@@ -64,6 +66,7 @@ export const categorySyncColumns = {
 export const transactionSyncColumns = {
   id: transactionsTable.id,
   type: transactionsTable.type,
+  transferId: transactionsTable.transferId,
   necessityLevel: transactionsTable.necessityLevel,
   amount: transactionsTable.amount,
   comment: transactionsTable.comment,
@@ -74,6 +77,17 @@ export const transactionSyncColumns = {
   updatedAt: transactionsTable.updatedAt,
   deletedAt: transactionsTable.deletedAt,
 } satisfies Record<keyof SyncedTransaction, AnyPgColumn>;
+
+export const sphereSyncColumns = {
+  id: spheresTable.id,
+  profileId: spheresTable.profileId,
+  name: spheresTable.name,
+  type: spheresTable.type,
+  archived: spheresTable.archived,
+  hasHistory: spheresTable.hasHistory,
+  updatedAt: spheresTable.updatedAt,
+  deletedAt: spheresTable.deletedAt,
+};
 
 /** Reads exactly the rows touched by a push, in the shape shared with the local stores. */
 export async function readCanonicalRows(
@@ -88,6 +102,8 @@ export async function readCanonicalRows(
     accounts: [...touched.accounts],
     categories: [...touched.categories],
     transactions: [...touched.transactions],
+    spheres: [...(touched.spheres ?? [])],
+    allocations: [...(touched.allocations ?? [])],
   };
 
   const profileIds =
@@ -151,7 +167,57 @@ export async function readCanonicalRows(
         ),
   ]);
 
-  return { profiles, accounts, categories, transactions };
+  const spheres =
+    ids.profiles.length + ids.spheres.length + ids.allocations.length === 0
+      ? []
+      : await runOperation("canonical.read.spheres", () =>
+          db
+            .select()
+            .from(spheresTable)
+            .where(
+              and(
+                inArray(spheresTable.profileId, profileIds),
+                or(
+                  inArray(spheresTable.profileId, ids.profiles),
+                  inArray(spheresTable.id, ids.spheres),
+                  inArray(
+                    spheresTable.id,
+                    db
+                      .select({ id: allocationsTable.sphereId })
+                      .from(allocationsTable)
+                      .where(inArray(allocationsTable.id, ids.allocations)),
+                  ),
+                ),
+              ),
+            ),
+        );
+  const deletedProfileIds = profiles
+    .filter((profile) => profile.deletedAt != null)
+    .map((profile) => profile.id);
+  const allocations =
+    ids.accounts.length +
+      ids.transactions.length +
+      ids.allocations.length +
+      deletedProfileIds.length ===
+    0
+      ? []
+      : await runOperation("canonical.read.allocations", () =>
+          db
+            .select()
+            .from(allocationsTable)
+            .where(
+              and(
+                inArray(allocationsTable.profileId, profileIds),
+                or(
+                  inArray(allocationsTable.openingAccountId, ids.accounts),
+                  inArray(allocationsTable.transactionId, ids.transactions),
+                  inArray(allocationsTable.id, ids.allocations),
+                  inArray(allocationsTable.profileId, deletedProfileIds),
+                ),
+              ),
+            ),
+        );
+  return { profiles, accounts, categories, transactions, spheres, allocations };
 }
 
 /** The palette refreshed after a push, including colors minted by an import. */

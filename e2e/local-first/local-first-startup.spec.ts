@@ -176,7 +176,7 @@ function expectExactPendingObligations(state: RawReplicaState, username: string)
       op: "upsert",
       rowId: transaction.id,
       baseUpdatedAt: null,
-      payload: payloadFromRow(transaction),
+      payload: { ...payloadFromRow(transaction), sphereId: profile.id },
     },
     {
       seq: accountMutation.seq,

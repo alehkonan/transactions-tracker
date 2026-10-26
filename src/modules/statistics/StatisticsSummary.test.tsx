@@ -76,14 +76,20 @@ describe("statistics summary", () => {
   it("presents runway as conditional on stopped income and unchanged spending, not a guaranteed depletion date", async () => {
     const result = averages();
     await act(async () => {
-      root.render(<MoneyRunwayCard runway={result.runway} perDayUsd={result.expense.perDayUsd} />);
+      root.render(
+        <MoneyRunwayCard
+          runway={result.runway}
+          perDayUsd={result.expense.perDayUsd}
+          historyComplete={result.historyComplete}
+        />,
+      );
     });
 
     expect(text(container)).toContain("Estimated runway");
     expect(text(container)).toMatch(/if income stopped/i);
     expect(text(container)).toMatch(/spending stayed at this rate/i);
     expect(text(container)).toContain("10 days");
-    expect(text(container)).toMatch(/active current \+ savings/i);
+    expect(text(container)).toMatch(/total account balance \(including archived\)/i);
     expect(text(container)).toContain(usd(100));
     expect(text(container)).toContain(usd(10));
     expect(text(container)).toContain("could last until Sep 20, 2026");
@@ -93,12 +99,35 @@ describe("statistics summary", () => {
   it("shows no estimate without spending, rather than an infinite runway or depletion date", async () => {
     const result = averages({ expense: "0" });
     await act(async () => {
-      root.render(<MoneyRunwayCard runway={result.runway} perDayUsd={result.expense.perDayUsd} />);
+      root.render(
+        <MoneyRunwayCard
+          runway={result.runway}
+          perDayUsd={result.expense.perDayUsd}
+          historyComplete={result.historyComplete}
+        />,
+      );
     });
 
     expect(text(container)).toContain("No estimate");
     expect(text(container.querySelector("p:last-child"))).toMatch(/expenses|spending/i);
     expect(text(container)).not.toMatch(/could last until|infinity|infinite|0 days/i);
+  });
+
+  it("withholds a finite estimate and explains incomplete history", async () => {
+    const result = averages();
+    await act(async () => {
+      root.render(
+        <MoneyRunwayCard
+          runway={result.runway}
+          perDayUsd={result.expense.perDayUsd}
+          historyComplete={false}
+        />,
+      );
+    });
+    expect(text(container)).toContain("No estimate");
+    expect(text(container.querySelector("output"))).toMatch(/history is incomplete/i);
+    expect(text(container)).not.toContain("could last until");
+    expect(text(container)).not.toContain("10 days");
   });
 
   it.each(["0", "-100"])(
@@ -107,7 +136,11 @@ describe("statistics summary", () => {
       const result = averages({ balance });
       await act(async () => {
         root.render(
-          <MoneyRunwayCard runway={result.runway} perDayUsd={result.expense.perDayUsd} />,
+          <MoneyRunwayCard
+            runway={result.runway}
+            perDayUsd={result.expense.perDayUsd}
+            historyComplete={result.historyComplete}
+          />,
         );
       });
 
@@ -120,7 +153,13 @@ describe("statistics summary", () => {
   it("distinguishes a positive balance lasting less than a day from no balance", async () => {
     const result = averages({ balance: "0.99" });
     await act(async () => {
-      root.render(<MoneyRunwayCard runway={result.runway} perDayUsd={result.expense.perDayUsd} />);
+      root.render(
+        <MoneyRunwayCard
+          runway={result.runway}
+          perDayUsd={result.expense.perDayUsd}
+          historyComplete={result.historyComplete}
+        />,
+      );
     });
 
     expect(text(container)).toContain("0 days");
@@ -131,7 +170,13 @@ describe("statistics summary", () => {
   it("keeps the finite runway when tiny spending rounds to zero in the displayed daily amount", async () => {
     const result = averages({ balance: "0.01", expense: "-0.01" });
     await act(async () => {
-      root.render(<MoneyRunwayCard runway={result.runway} perDayUsd={result.expense.perDayUsd} />);
+      root.render(
+        <MoneyRunwayCard
+          runway={result.runway}
+          perDayUsd={result.expense.perDayUsd}
+          historyComplete={result.historyComplete}
+        />,
+      );
     });
 
     expect(result.expense.perDayUsd).toBe(0);
@@ -162,11 +207,13 @@ describe("statistics summary", () => {
     expect(explanation).toMatch(/income uses the same dates and denominator/i);
     expect(explanation).toMatch(/today counts as a full day/i);
     expect(explanation).toMatch(/days without records count as zero/i);
-    expect(explanation).toMatch(/active current and savings balances.*average daily spending/i);
+    expect(explanation).toMatch(/combined account balances.*average daily Operating Spending/i);
     expect(explanation).toMatch(/no future income/i);
-    expect(explanation).toMatch(/archived balances are excluded/i);
-    expect(explanation).toMatch(/income and expenses from archived accounts still count/i);
+    expect(explanation).toMatch(/archived balances are included/i);
+    expect(explanation).toMatch(/including those from archived accounts/i);
     expect(explanation).toMatch(/transfers do not/i);
+    expect(explanation).toMatch(/refunds are Income and do not reduce spending/i);
+    expect(explanation).toMatch(/expenses from Funds or Capital/i);
     expect(explanation).toMatch(/converted to USD.*latest exchange rates.*device/i);
     expect(explanation).toMatch(/not the rates on each transaction date/i);
     expect(explanation).toMatch(/displayed amounts are rounded/i);
@@ -183,7 +230,11 @@ describe("statistics summary", () => {
   });
 
   it.each([
-    { title: "Spending per day", shortTitle: "Spent / day", tone: "expense" as const },
+    {
+      title: "Operating Spending per day",
+      shortTitle: "Operating / day",
+      tone: "expense" as const,
+    },
     { title: "Income per day", shortTitle: "Income / day", tone: "income" as const },
   ])(
     "names the $title mobile button with its current USD value and opens a named, Escape-dismissible real popover",

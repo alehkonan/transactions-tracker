@@ -1,5 +1,16 @@
+import {
+  allocationId,
+  filterPendingCascades,
+  hasPendingSource,
+  operatingRows,
+  pendingParentDeletes,
+} from "~/modules/spheres/operating";
+import { validateReallocationMutations } from "~/modules/spheres/reallocation";
+import { validateSphereMutations } from "~/modules/spheres/sphere-lifecycle";
+import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import { uuidV7 } from "~/utils/uuid-v7";
 import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "./indexed-db-contract";
+import { assertCompleteAcceptance, assertCompleteOperations } from "./outbox-acceptance";
 import {
   classifyLegacyOwnership,
   replicaContextFromDescriptor,
@@ -36,6 +47,7 @@ type OutboxSnapshot = {
   count: number;
   rowKeys: Set<string>;
   entries: SequencedMutation[];
+  deletedParentKeys: Set<string>;
 };
 
 /** Everything needed to open one internally consistent local workspace. */
@@ -160,6 +172,71 @@ function initializeV3Metadata(transaction: IDBTransaction): void {
   descriptorRequest.addEventListener("error", () => transaction.abort());
 }
 
+/** Upgrade materialized records without changing a single queued intent or receipt fingerprint.
+ * Hashing runs outside IDB transactions. A revision fence retries if another tab writes meanwhile.
+ */
+/* oxlint-disable no-await-in-loop -- each retry must re-read after the previous revision fence. */
+async function initializeOperating(database: IDBDatabase): Promise<void> {
+  const initialized = await promisify(
+    database
+      .transaction(META_STORE, "readonly")
+      .objectStore(META_STORE)
+      .get("financialModelVersion"),
+  );
+  if (initialized === 1) return;
+  for (;;) {
+    const read = database.transaction([...SYNCED_TABLES, META_STORE], "readonly");
+    const meta = read.objectStore(META_STORE);
+    const [version, revision, profiles, accounts, transactions, descriptor] = await Promise.all([
+      promisify(meta.get("financialModelVersion")),
+      promisify(meta.get(LOCAL_REVISION_KEY)),
+      promisify(read.objectStore("profiles").getAll()),
+      promisify(read.objectStore("accounts").getAll()),
+      promisify(read.objectStore("transactions").getAll()),
+      promisify(meta.get(DESCRIPTOR_KEY)),
+    ]);
+    if (version === 1) return;
+    const accountsById = new Map((accounts as SyncedRows["accounts"]).map((row) => [row.id, row]));
+    const attributable = (transactions as SyncedRows["transactions"]).filter(
+      (row) =>
+        row.accountId != null && accountsById.get(row.accountId)?.profileId === row.profileId,
+    );
+    const inconsistent = attributable.length !== transactions.length;
+    const rows = await operatingRows({ profiles, accounts, transactions: attributable }, accounts);
+    const write = database.transaction([...SYNCED_TABLES, META_STORE], "readwrite");
+    const writeMeta = write.objectStore(META_STORE);
+    let retry = false;
+    const currentRevision = writeMeta.get(LOCAL_REVISION_KEY);
+    const currentVersion = writeMeta.get("financialModelVersion");
+    let ready = 0;
+    const finish = () => {
+      if (++ready !== 2 || currentVersion.result === 1) return;
+      if (currentRevision.result !== revision) {
+        retry = true;
+        return;
+      }
+      for (const sphere of rows.spheres) write.objectStore("spheres").put(sphere);
+      for (const allocation of rows.allocations) write.objectStore("allocations").put(allocation);
+      writeMeta.put(1, "financialModelVersion");
+      if (inconsistent)
+        writeMeta.put(
+          {
+            ...descriptor,
+            legacyOwnership: { kind: "recovery-required", reasons: ["inconsistent-references"] },
+          } satisfies ReplicaDescriptor,
+          DESCRIPTOR_KEY,
+        );
+    };
+    currentRevision.addEventListener("success", finish);
+    currentVersion.addEventListener("success", finish);
+    currentRevision.addEventListener("error", () => write.abort());
+    currentVersion.addEventListener("error", () => write.abort());
+    await whenComplete(write);
+    if (!retry) return;
+  }
+}
+/* oxlint-enable no-await-in-loop */
+
 let databasePromise: Promise<IDBDatabase> | undefined;
 const invalidationListeners = new Set<() => void>();
 
@@ -194,7 +271,13 @@ export function openDatabase(): Promise<IDBDatabase> {
       }
       const database = request.result;
       database.addEventListener("versionchange", () => invalidateDatabase(database));
-      resolve(database);
+      void initializeOperating(database).then(
+        () => resolve(database),
+        (error) => {
+          database.close();
+          reject(error);
+        },
+      );
     });
     request.addEventListener("error", () => reject(request.error));
     request.addEventListener("blocked", () => {
@@ -234,7 +317,11 @@ function assertExpectedContext(
 function guardedTransaction(
   stores: readonly string[],
   expected: ReplicaContext,
-  mutate: (transaction: IDBTransaction, descriptor: ReplicaDescriptor) => void,
+  mutate: (
+    transaction: IDBTransaction,
+    descriptor: ReplicaDescriptor,
+    fail: (error: unknown) => void,
+  ) => void,
   options: { allowRecovery?: boolean } = {},
 ): Promise<void> {
   return openDatabase().then(
@@ -251,7 +338,10 @@ function guardedTransaction(
           try {
             const descriptor = descriptorRequest.result as ReplicaDescriptor | undefined;
             assertExpectedContext(descriptor, expected, options.allowRecovery);
-            mutate(transaction, descriptor);
+            mutate(transaction, descriptor, (error) => {
+              failure = error;
+              transaction.abort();
+            });
           } catch (error) {
             failure = error;
             transaction.abort();
@@ -518,6 +608,8 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
     accounts,
     categories,
     transactions,
+    spheres,
+    allocations,
     descriptor,
     cursors,
     colors,
@@ -532,6 +624,8 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
     promisify(transaction.objectStore("accounts").getAll()),
     promisify(transaction.objectStore("categories").getAll()),
     promisify(transaction.objectStore("transactions").getAll()),
+    promisify(transaction.objectStore("spheres").getAll()),
+    promisify(transaction.objectStore("allocations").getAll()),
     promisify(meta.get(DESCRIPTOR_KEY)),
     promisify(meta.get(CURSORS_KEY)),
     promisify(meta.get(COLORS_KEY)),
@@ -558,7 +652,7 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
 
   return {
     descriptor: descriptor as ReplicaDescriptor,
-    rows: { profiles, accounts, categories, transactions } as SyncedRows,
+    rows: { profiles, accounts, categories, transactions, spheres, allocations } as SyncedRows,
     cursors: cursors as SyncCursors | undefined,
     colors: (colors as Color[] | undefined) ?? [],
     usdRates: (usdRates as Record<string, number> | undefined) ?? {},
@@ -570,6 +664,7 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
       count: entries.length,
       rowKeys: new Set(entries.map((entry) => `${entry.table}:${entry.rowId}`)),
       entries,
+      deletedParentKeys: pendingParentDeletes(entries),
     },
   };
 }
@@ -598,7 +693,7 @@ export function filterQueuedServerRows(
     SYNCED_TABLES.map((table) => [
       table,
       ((rows[table] as SyncedRow[] | undefined) ?? []).filter(
-        (row) => !protectedRowKeys.has(`${table}:${row.id}`),
+        (row) => !hasPendingSource(table, row, protectedRowKeys),
       ),
     ]),
   ) as Partial<SyncedRows>;
@@ -625,15 +720,22 @@ function putServerRows(
   transaction: IDBTransaction,
   rows: Partial<SyncedRows>,
   settledSeqs = new Set<number>(),
+  pulling = false,
 ): void {
   const request = transaction.objectStore(OUTBOX_STORE).getAll();
   request.addEventListener("success", () => {
-    const protectedRowKeys = new Set(
-      (request.result as SequencedMutation[])
-        .filter((entry) => !settledSeqs.has(entry.seq))
-        .map((entry) => `${entry.table}:${entry.rowId}`),
+    const remaining = (request.result as SequencedMutation[]).filter(
+      (entry) => !settledSeqs.has(entry.seq),
     );
-    putRows(transaction, rows, protectedRowKeys);
+    const deletedParents = pendingParentDeletes(remaining);
+    // A local cascade may have removed children that this in-flight page still contains. Retry
+    // after pushing the parent deletion; aborting also preserves every cursor in this page.
+    if (pulling && deletedParents.size > 0) {
+      transaction.abort();
+      return;
+    }
+    const protectedRowKeys = new Set(remaining.map((entry) => `${entry.table}:${entry.rowId}`));
+    putRows(transaction, filterPendingCascades(rows, deletedParents), protectedRowKeys);
   });
   request.addEventListener("error", () => transaction.abort());
 }
@@ -657,7 +759,7 @@ export type FullReplicaSnapshot = {
 
 export function writeLocalPage(expected: ReplicaContext, page: PulledPage): Promise<void> {
   return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
-    putServerRows(transaction, page.rows);
+    putServerRows(transaction, page.rows, new Set(), true);
     const meta = transaction.objectStore(META_STORE);
     meta.put(page.cursors, CURSORS_KEY);
     meta.put(page.colors, COLORS_KEY);
@@ -676,18 +778,259 @@ export function writeLocalMutations(
   rows: Partial<SyncedRows>,
   mutations: Mutation[],
 ): Promise<void> {
-  return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
-    putRows(transaction, rows);
-    const outbox = transaction.objectStore(OUTBOX_STORE);
-    for (const mutation of mutations) outbox.add(mutation);
-
-    const meta = transaction.objectStore(META_STORE);
-    const revisionRequest = meta.get(LOCAL_REVISION_KEY);
-    revisionRequest.addEventListener("success", () => {
-      meta.put(((revisionRequest.result as number | undefined) ?? 0) + 1, LOCAL_REVISION_KEY);
-    });
-    revisionRequest.addEventListener("error", () => transaction.abort());
-  });
+  return guardedTransaction(
+    [...SYNCED_TABLES, OUTBOX_STORE],
+    expected,
+    (transaction, _descriptor, fail) => {
+      // Read and validate inside the same read/write transaction so another tab cannot use or
+      // archive a sphere between its lifecycle check and persistence.
+      const profiles = transaction.objectStore("profiles").getAll();
+      const spheres = transaction.objectStore("spheres").getAll();
+      const allocations = transaction.objectStore("allocations").getAll();
+      const meta = transaction.objectStore(META_STORE);
+      const complete = meta.get(COMPLETE_TABLES_KEY);
+      const revision = meta.get(LOCAL_REVISION_KEY);
+      // Check even unlinked intents: another tab may have linked their saved records meanwhile.
+      const transactionMutations = mutations.filter(
+        (mutation) => mutation.table === "transactions",
+      );
+      const savedTransactions =
+        transactionMutations.length > 0
+          ? transaction.objectStore("transactions").getAll()
+          : undefined;
+      const savedAccounts =
+        transactionMutations.length > 0 ? transaction.objectStore("accounts").getAll() : undefined;
+      const requests = [
+        profiles,
+        spheres,
+        allocations,
+        complete,
+        revision,
+        ...(savedTransactions && savedAccounts ? [savedTransactions, savedAccounts] : []),
+      ];
+      let remaining = requests.length;
+      for (const request of requests) {
+        request.addEventListener("error", () => fail(request.error));
+        request.addEventListener("success", () => {
+          if (--remaining !== 0) return;
+          try {
+            if (savedTransactions && savedAccounts) {
+              const accounts = new Map<string, SyncedRows["accounts"][number]>(
+                savedAccounts.result.map((row: SyncedRows["accounts"][number]) => [row.id, row]),
+              );
+              for (const row of rows.accounts ?? []) accounts.set(row.id, row);
+              for (const mutation of transactionMutations) {
+                if (mutation.op !== "upsert" || !mutation.payload.transferId) continue;
+                const profile = [...(rows.profiles ?? []), ...profiles.result].find(
+                  (row) => row.id === mutation.payload.profileId && row.deletedAt == null,
+                );
+                if (!profile || (profile.userId != null && profile.userId !== expected.ownerUserId))
+                  throw new Error("The transfer profile does not belong to this local replica.");
+              }
+              validateTransferMutations(transactionMutations, savedTransactions.result, [
+                ...accounts.values(),
+              ]);
+            }
+            validateSphereMutations(
+              mutations,
+              {
+                profiles: [...(rows.profiles ?? []), ...profiles.result],
+                spheres: spheres.result,
+                allocations: allocations.result,
+              },
+              expected.ownerUserId,
+              ["spheres", "allocations"].every((table) => complete.result?.includes(table)),
+            );
+            const reallocationMutations = mutations.filter(
+              (mutation) => mutation.table === "allocations",
+            );
+            if (reallocationMutations.length > 0) {
+              if (!["spheres", "allocations"].every((table) => complete.result?.includes(table)))
+                throw new Error("Finish loading sphere balances before reallocating money.");
+              for (const mutation of reallocationMutations) {
+                const current = allocations.result.find(
+                  (row: SyncedRows["allocations"][number]) => row.id === mutation.rowId,
+                );
+                const profileId =
+                  mutation.op === "upsert" ? mutation.payload.profileId : current?.profileId;
+                const profile = profiles.result.find(
+                  (row: SyncedRows["profiles"][number]) =>
+                    row.id === profileId && row.deletedAt == null,
+                );
+                if (!profile || (profile.userId != null && profile.userId !== expected.ownerUserId))
+                  throw new Error(
+                    "The reallocation profile does not belong to this local replica.",
+                  );
+              }
+              if (
+                validateReallocationMutations(
+                  reallocationMutations,
+                  allocations.result,
+                  spheres.result,
+                ).size > 0
+              )
+                throw new Error(
+                  "This reallocation or one of its spheres is deleted or archived. Restore archived spheres before changing their history.",
+                );
+              for (const mutation of reallocationMutations) {
+                const row = rows.allocations?.find((row) => row.id === mutation.rowId);
+                if (
+                  !row ||
+                  (mutation.op === "delete"
+                    ? row.deletedAt == null
+                    : row.deletedAt != null ||
+                      Object.entries(mutation.payload).some(([key, value]) => {
+                        const actual = row[key as keyof typeof row];
+                        return value instanceof Date
+                          ? !(actual instanceof Date) || value.getTime() !== actual.getTime()
+                          : actual !== value;
+                      }))
+                )
+                  throw new Error("The local reallocation must match its queued intent.");
+              }
+            }
+            const currentSpheres = new Map<string, SyncedRows["spheres"][number]>(
+              spheres.result.map((row) => [row.id, row]),
+            );
+            const previousAllocations = new Map<string, SyncedRows["allocations"][number]>(
+              allocations.result.map((row) => [row.id, row]),
+            );
+            const sourceRowKeys = new Set([
+              ...(rows.accounts ?? []).map((row) => `accounts:${row.id}`),
+              ...(rows.transactions ?? []).map((row) => `transactions:${row.id}`),
+            ]);
+            const changedSphereIds = new Set(rows.spheres?.map((row) => row.id));
+            const sphereMutations = new Map(
+              mutations
+                .filter((mutation) => mutation.table === "spheres")
+                .map((mutation) => [mutation.rowId, mutation]),
+            );
+            for (const row of rows.spheres ?? []) {
+              const mutation = sphereMutations.get(row.id);
+              if (mutation?.op === "upsert") {
+                if (
+                  row.name !== mutation.payload.name ||
+                  row.type !== mutation.payload.type ||
+                  row.profileId !== mutation.payload.profileId ||
+                  row.archived !== mutation.payload.archived ||
+                  row.deletedAt != null
+                )
+                  throw new Error("The local sphere must match its queued intent.");
+              } else if (mutation?.op === "delete") {
+                if (row.deletedAt == null) throw new Error("A deleted sphere must be tombstoned.");
+              } else {
+                const profile = rows.profiles?.find((profile) => profile.id === row.profileId);
+                const current = currentSpheres.get(row.id);
+                const isOperating =
+                  row.id === row.profileId &&
+                  row.type === "OPERATING" &&
+                  row.name === "Operating" &&
+                  !row.archived;
+                const isCascade =
+                  current &&
+                  profile?.deletedAt != null &&
+                  row.deletedAt != null &&
+                  current.profileId === row.profileId &&
+                  current.type === row.type &&
+                  current.name === row.name &&
+                  current.archived === row.archived;
+                if (!profile || (!isOperating && !isCascade))
+                  throw new Error(
+                    "Sphere changes require a sphere mutation or their profile companion.",
+                  );
+              }
+            }
+            for (const row of rows.spheres ?? [])
+              currentSpheres.set(row.id, {
+                ...row,
+                hasHistory: currentSpheres.get(row.id)?.hasHistory || row.hasHistory,
+              });
+            const transactionIntents = new Map(
+              mutations
+                .filter((mutation) => mutation.table === "transactions")
+                .map((mutation) => [mutation.rowId, mutation]),
+            );
+            for (const row of rows.allocations ?? []) {
+              const previous = previousAllocations.get(row.id);
+              if (
+                (row.reallocationId || previous?.reallocationId) &&
+                !reallocationMutations.some((mutation) => mutation.rowId === row.id) &&
+                !rows.profiles?.some(
+                  (profile) =>
+                    profile.id === row.profileId &&
+                    profile.deletedAt != null &&
+                    row.deletedAt != null,
+                )
+              )
+                throw new Error("Reallocation changes require both queued sides.");
+              const sourceIntent = row.transactionId
+                ? transactionIntents.get(row.transactionId)
+                : undefined;
+              const selectedSphere =
+                sourceIntent?.table === "transactions" && sourceIntent.op === "upsert"
+                  ? sourceIntent.payload.sphereId
+                  : undefined;
+              if (selectedSphere && selectedSphere !== row.sphereId)
+                throw new Error("The allocation must match its transaction's sphere intent.");
+              // Legacy intents preserve the latest attribution from the serialized snapshot.
+              if (
+                previous &&
+                !selectedSphere &&
+                sourceRowKeys.has(
+                  row.transactionId != null
+                    ? `transactions:${row.transactionId}`
+                    : `accounts:${row.openingAccountId}`,
+                )
+              ) {
+                row.sphereId = previous.sphereId;
+              }
+              const sphere = currentSpheres.get(row.sphereId);
+              if (!sphere || sphere.profileId !== row.profileId)
+                throw new Error("An allocation requires a sphere in its profile.");
+              const parentDeleted = rows.profiles?.some(
+                (profile) => profile.id === row.profileId && profile.deletedAt != null,
+              );
+              if (parentDeleted && row.deletedAt == null)
+                throw new Error("A deleted profile cannot receive allocations.");
+              const sourceSphere = previous ? currentSpheres.get(previous.sphereId) : undefined;
+              if (
+                !parentDeleted &&
+                previous?.deletedAt == null &&
+                previous?.sphereId !== row.sphereId &&
+                sourceSphere?.archived
+              )
+                throw new Error("Archived sphere history cannot change.");
+              if (
+                !parentDeleted &&
+                (sphere.deletedAt != null || sphere.archived) &&
+                (!previous ||
+                  previous.amount !== row.amount ||
+                  previous.currencyCode !== row.currencyCode ||
+                  previous.sphereId !== row.sphereId ||
+                  previous.deletedAt?.getTime() !== row.deletedAt?.getTime())
+              )
+                throw new Error("An archived sphere cannot receive allocations.");
+              // Operating's history is implicit in its permanent system identity.
+              if (sphere.type !== "OPERATING" && !sphere.hasHistory) {
+                sphere.hasHistory = true;
+                currentSpheres.set(sphere.id, sphere);
+                changedSphereIds.add(sphere.id);
+              }
+            }
+            rows.spheres = [...currentSpheres.values()].filter((sphere) =>
+              changedSphereIds.has(sphere.id),
+            );
+            putRows(transaction, rows);
+            const outbox = transaction.objectStore(OUTBOX_STORE);
+            for (const mutation of mutations) outbox.add(mutation);
+            meta.put(((revision.result as number | undefined) ?? 0) + 1, LOCAL_REVISION_KEY);
+          } catch (error) {
+            fail(error);
+          }
+        });
+      }
+    },
+  );
 }
 
 export function dropOutboxEntries(
@@ -701,16 +1044,70 @@ export function dropOutboxEntries(
 }
 
 /** Settles only the original seq/mutation-id pairs under the context that sent them. */
-export function settleAcceptedPush(
+export async function settleAcceptedPush(
   expected: ReplicaContext,
   seqs: readonly number[],
   acceptedMutationIds: readonly string[],
   rows: Partial<SyncedRows>,
   colors: Color[],
 ): Promise<void> {
+  // A source may only leave the queue with its materialized canonical allocation. This covers
+  // legacy single-row intents as well as grouped transfers, including lost-response replays.
+  const required = await Promise.all([
+    ...(rows.transactions ?? []).map(async (row) => ({
+      row,
+      id: await allocationId("transaction", row.id),
+    })),
+    ...(rows.accounts ?? [])
+      .filter((row) => row.profileId != null)
+      .map(async (row) => ({ row, id: await allocationId("opening", row.id) })),
+  ]);
+  const canonicalAllocations = new Set(rows.allocations?.map((row) => row.id));
+  if (required.some(({ id }) => !canonicalAllocations.has(id))) {
+    throw new Error("The canonical allocation is missing. Pending work was retained.");
+  }
+  if ((rows.profiles ?? []).some((row) => !rows.spheres?.some((sphere) => sphere.id === row.id))) {
+    throw new Error("The canonical Operating sphere is missing. Pending work was retained.");
+  }
   return guardedTransaction([...SYNCED_TABLES, OUTBOX_STORE], expected, (transaction) => {
     const accepted = new Set(acceptedMutationIds);
     const outbox = transaction.objectStore(OUTBOX_STORE);
+    const membersRequest = outbox.getAll();
+    membersRequest.addEventListener("success", () => {
+      try {
+        const selected = (membersRequest.result as SequencedMutation[]).filter((entry) =>
+          seqs.includes(entry.seq),
+        );
+        if (selected.length !== seqs.length)
+          throw new Error("The accepted outbox entries changed.");
+        assertCompleteOperations(selected);
+        assertCompleteAcceptance(selected, accepted);
+        const canonicalKeys = new Set(
+          Object.entries(rows).flatMap(([table, canonical]) =>
+            canonical.map((row) => `${table}:${row.id}`),
+          ),
+        );
+        const checked = new Set<string>();
+        for (const entry of selected) {
+          if (!entry.operation || checked.has(entry.operation.id)) continue;
+          checked.add(entry.operation.id);
+          const members = selected.filter((member) => member.operation?.id === entry.operation?.id);
+          const canonicalCount = members.filter((member) =>
+            canonicalKeys.has(`${member.table}:${member.rowId}`),
+          ).length;
+          // An aged-out delete may have no remaining tombstones. An upsert or a partial pair
+          // must keep its complete pending intent until all canonical members can settle.
+          if (
+            canonicalCount !== members.length &&
+            (canonicalCount > 0 || members.some((member) => member.op === "upsert"))
+          )
+            throw new Error("The canonical financial operation is incomplete.");
+        }
+      } catch {
+        transaction.abort();
+      }
+    });
+    membersRequest.addEventListener("error", () => transaction.abort());
     for (const seq of seqs) {
       const request = outbox.get(seq);
       request.addEventListener("success", () => {

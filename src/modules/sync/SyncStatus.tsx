@@ -65,6 +65,7 @@ export function SyncStatus() {
       className="z-navbar fixed inset-x-0 top-0 md:inset-x-auto md:inset-s-0 md:p-3"
     >
       <button
+        data-testid="sync-status"
         type="button"
         // Draining the outbox is the more urgent half, and it pulls once it is done anyway.
         onClick={() => {

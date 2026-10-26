@@ -14,8 +14,3 @@ domains = { "registry.npmjs.org" = "allow" }
 
 [agents]
 enabled = true
-
-[mcp_servers.safari-mcp]
-enabled = true
-command = "/usr/bin/safaridriver"
-args = ["--mcp"]

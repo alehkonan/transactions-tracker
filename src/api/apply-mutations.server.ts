@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   accountsTable,
   categoriesTable,
@@ -6,7 +6,12 @@ import {
   mutationReceiptsTable,
   profilesTable,
   transactionsTable,
+  spheresTable,
+  allocationsTable,
 } from "~/database/tables";
+import { validateReallocationMutations } from "~/modules/spheres/reallocation";
+import { assertCompleteOperations } from "~/modules/sync/outbox-acceptance";
+import { validateTransferMutations } from "~/modules/transactions/linked-transfer";
 import {
   createBatchAuthorization,
   type BatchAuthorizationOperation,
@@ -17,6 +22,7 @@ import {
   categorySyncColumns,
   profileSyncColumns,
   transactionSyncColumns,
+  sphereSyncColumns,
 } from "./push.server";
 import { withSyncPhase } from "./sync-observability.server";
 import type { SQL } from "drizzle-orm";
@@ -29,6 +35,10 @@ import type {
   PushConflict,
   SyncedRows,
   SyncedTable,
+  WritableTable,
+  SyncedTransaction,
+  SyncedSphere,
+  SyncedAllocation,
 } from "~/modules/sync/sync-types";
 
 export type ApplyMutationOperation =
@@ -41,6 +51,13 @@ export type ApplyMutationOperation =
   | "color.insert"
   | "color.read"
   | "receipt.persist-outcomes"
+  | "transfer.read"
+  | "sphere.balances"
+  | "reallocation.read"
+  | "reallocation.spheres"
+  | "transaction.allocations"
+  | "transaction.spheres"
+  | "transaction.attribution"
   | "balance.recompute";
 
 export type ApplyMutationOperationRunner = <Result>(
@@ -80,10 +97,10 @@ const now = (): SQL => sql`now()`;
  * Keyed by table so a check on `run.table` narrows `run.mutations` to that table's payload shape.
  */
 type Run = {
-  [Table in SyncedTable]:
+  [Table in WritableTable]:
     | { table: Table; op: "upsert"; mutations: Extract<MutationFor<Table>, { op: "upsert" }>[] }
     | { table: Table; op: "delete"; mutations: Extract<MutationFor<Table>, { op: "delete" }>[] };
-}[SyncedTable];
+}[WritableTable];
 
 /**
  * Groups the batch into runs without reordering it.
@@ -121,10 +138,12 @@ const syncedTables = {
   accounts: accountsTable,
   categories: categoriesTable,
   transactions: transactionsTable,
+  spheres: spheresTable,
+  allocations: allocationsTable,
 };
 
 /** The ids this batch touched, per table — what the caller reads canonical rows back for. */
-export type TouchedIds = Record<SyncedTable, Set<string>>;
+export type TouchedIds = Record<WritableTable, Set<string>>;
 
 /**
  * Reports rows this run is about to write over that have moved on since the client last saw them.
@@ -145,8 +164,8 @@ type StaleBase = {
 };
 
 type SnapshotState = {
-  rows: Record<SyncedTable, Map<string, CanonicalRow>>;
-  loadedIds: Record<SyncedTable, Set<string>>;
+  rows: Record<WritableTable, Map<string, CanonicalRow>>;
+  loadedIds: Record<WritableTable, Set<string>>;
 };
 
 function createSnapshotState(): SnapshotState {
@@ -156,12 +175,16 @@ function createSnapshotState(): SnapshotState {
       accounts: new Map(),
       categories: new Map(),
       transactions: new Map(),
+      spheres: new Map(),
+      allocations: new Map(),
     },
     loadedIds: {
       profiles: new Set(),
       accounts: new Set(),
       categories: new Set(),
       transactions: new Set(),
+      spheres: new Set(),
+      allocations: new Set(),
     },
   };
 }
@@ -202,6 +225,18 @@ async function readCanonicalSnapshots(
               .from(transactionsTable)
               .where(and(inArray(transactionsTable.id, ids), scope))
               .for("update");
+          case "spheres":
+            return db
+              .select(sphereSyncColumns)
+              .from(spheresTable)
+              .where(and(inArray(spheresTable.id, ids), scope))
+              .for("update");
+          case "allocations":
+            return db
+              .select()
+              .from(allocationsTable)
+              .where(and(inArray(allocationsTable.id, ids), scope))
+              .for("update");
         }
       },
       { table: run.table, operation: run.op, mutationCount: run.mutations.length },
@@ -228,7 +263,26 @@ async function findStaleBases(
 
   return run.mutations.flatMap((mutation) => {
     const canonicalRow = snapshots.rows[run.table].get(mutation.rowId);
-    if (!canonicalRow || canonicalRow.updatedAt.getTime() === mutation.baseUpdatedAt) return [];
+    if (!canonicalRow) return [];
+    // Legacy queued edits can try changing currency even with a current base. Settle the rejected
+    // intent with a durable canonical outcome instead of blocking or silently draining the outbox.
+    const changesAccountCurrency =
+      mutation.table === "accounts" &&
+      mutation.op === "upsert" &&
+      "currencyCode" in canonicalRow &&
+      canonicalRow.currencyCode !== mutation.payload.currencyCode;
+    const changesSphereIdentity =
+      mutation.table === "spheres" &&
+      mutation.op === "upsert" &&
+      "archived" in canonicalRow &&
+      (canonicalRow.type !== mutation.payload.type ||
+        canonicalRow.profileId !== mutation.payload.profileId);
+    if (
+      canonicalRow.updatedAt.getTime() === mutation.baseUpdatedAt &&
+      !changesAccountCurrency &&
+      !changesSphereIdentity
+    )
+      return [];
 
     return [
       {
@@ -253,7 +307,7 @@ async function findStaleBases(
  */
 async function tombstone(
   db: Executor,
-  tableName: SyncedTable,
+  tableName: WritableTable,
   where: SQL | undefined,
   runOperation: ApplyMutationOperationRunner,
 ): Promise<CanonicalRow[]> {
@@ -283,6 +337,18 @@ async function tombstone(
           .set({ deletedAt: now(), updatedAt: now() })
           .where(and(where, isNull(transactionsTable.deletedAt)))
           .returning(transactionSyncColumns);
+      case "spheres":
+        return db
+          .update(spheresTable)
+          .set({ deletedAt: now(), updatedAt: now() })
+          .where(and(where, isNull(spheresTable.deletedAt)))
+          .returning(sphereSyncColumns);
+      case "allocations":
+        return db
+          .update(allocationsTable)
+          .set({ deletedAt: now(), updatedAt: now() })
+          .where(and(where, isNull(allocationsTable.deletedAt)))
+          .returning();
     }
   });
 }
@@ -398,9 +464,10 @@ function acceptanceEntityLabel(
 ): string {
   if (canonicalRow && "name" in canonicalRow) return canonicalRow.name;
   if (mutation.op === "upsert" && "name" in mutation.payload) return mutation.payload.name;
-  if (canonicalRow && "amount" in canonicalRow) {
+  if (canonicalRow && "comment" in canonicalRow) {
     return canonicalRow.comment?.trim() || `${canonicalRow.type.toLowerCase()} transaction`;
   }
+  if (mutation.table === "allocations") return "Reallocation";
   return "Transaction";
 }
 
@@ -425,11 +492,14 @@ async function executeApplyMutations(
   mutations: Mutation[],
   runOperation: ApplyMutationOperationRunner,
 ): Promise<AppliedBatch> {
+  assertCompleteOperations(mutations);
   const touched: TouchedIds = {
     profiles: new Set(),
     accounts: new Set(),
     categories: new Set(),
     transactions: new Set(),
+    spheres: new Set(),
+    allocations: new Set(),
   };
   const profileIds = new Set<string>();
   const appliedMutationIds = new Set<string>();
@@ -444,7 +514,15 @@ async function executeApplyMutations(
     fingerprintedMutations.map(({ mutation, fingerprint }) => [mutation.mutationId, fingerprint]),
   );
 
-  for (const mutation of mutations) touched[mutation.table].add(mutation.rowId);
+  for (const mutation of mutations) {
+    touched[mutation.table].add(mutation.rowId);
+    // Also return attempted destinations on rejection/replay so optimistic history evidence
+    // on a never-used sphere is replaced by its canonical value.
+    if (mutation.table === "allocations" && mutation.op === "upsert")
+      touched.spheres.add(mutation.payload.sphereId);
+    if (mutation.table === "transactions" && mutation.op === "upsert" && mutation.payload.sphereId)
+      touched.spheres.add(mutation.payload.sphereId);
+  }
 
   // Claim before applying. The unique key serializes concurrent delivery of the same mutation, while
   // the surrounding transaction ensures a claim disappears if any later authorization or write fails.
@@ -505,6 +583,14 @@ async function executeApplyMutations(
     }
   }
 
+  for (const mutation of mutations) {
+    if (!mutation.operation) continue;
+    const claims = mutation.operation.mutationIds.filter((id) => claimedMutationIds.has(id));
+    if (claims.length > 0 && claims.length !== mutation.operation.mutationIds.length) {
+      throw new Error("A financial operation has incomplete acceptance receipts.");
+    }
+  }
+
   const unreceiptedMutations = mutations.filter((mutation) =>
     claimedMutationIds.has(mutation.mutationId),
   );
@@ -548,8 +634,9 @@ async function executeApplyMutations(
     }
   };
 
-  const rememberReturnedRows = (table: SyncedTable, rows: CanonicalRow[]): void => {
+  const rememberReturnedRows = (table: WritableTable, rows: CanonicalRow[]): void => {
     for (const row of rows) {
+      touched[table].add(row.id);
       snapshots.loadedIds[table].add(row.id);
       snapshots.rows[table].set(row.id, row);
     }
@@ -598,7 +685,11 @@ async function executeApplyMutations(
   for (const run of toRuns(unreceiptedMutations)) {
     if (!authorization) throw new Error("Batch authorization was not initialized.");
     const ids = run.mutations.map((mutation) => mutation.rowId);
-    const authorized = authorization.authorize(run.mutations);
+    // A stale edit of an already deleted pair settles from its canonical tombstones even when
+    // the account/profile cascade also removed the references in its pending intent.
+    const authorized = authorization.authorize(
+      run.table === "transactions" || run.table === "allocations" ? [] : run.mutations,
+    );
 
     if (run.table === "profiles") {
       // A profile's own scope is its owner. Nothing is asserted up front: an insert stamps `userId`
@@ -617,6 +708,14 @@ async function executeApplyMutations(
         const affectedRowIds = await withSyncPhase(
           "push.mutation_application",
           async () => {
+            // Mark the parent first so allocation guards can distinguish this intentional
+            // profile cascade from edits to archived sphere history in a live profile.
+            const profiles = await tombstone(
+              db,
+              "profiles",
+              and(inArray(profilesTable.id, ids), scope),
+              runOperation,
+            );
             if (ownedLiveProfileIds.length > 0) {
               const accounts = await tombstone(
                 db,
@@ -641,12 +740,7 @@ async function executeApplyMutations(
               rememberReturnedRows("transactions", transactions);
             }
 
-            return tombstone(
-              db,
-              "profiles",
-              and(inArray(profilesTable.id, ids), scope),
-              runOperation,
-            );
+            return profiles;
           },
           { table: run.table, operation: run.op, mutationCount: run.mutations.length },
         );
@@ -695,6 +789,428 @@ async function executeApplyMutations(
     const scope = inArray(table.profileId, owned);
 
     const runStaleBases = await findStaleBases(db, run, scope, snapshots, runOperation);
+    if (run.table === "allocations") {
+      const targets = run.mutations.flatMap((mutation) => {
+        const row = snapshots.rows.allocations.get(mutation.rowId);
+        return row ? [row as SyncedAllocation] : [];
+      });
+      const reallocationIds = [
+        ...new Set([
+          ...targets.flatMap((row) => row.reallocationId ?? []),
+          ...run.mutations.flatMap((mutation) =>
+            mutation.op === "upsert" ? [mutation.payload.reallocationId] : [],
+          ),
+        ]),
+      ];
+      const paired =
+        reallocationIds.length === 0
+          ? []
+          : await runOperation("reallocation.read", () =>
+              db
+                .select()
+                .from(allocationsTable)
+                .where(and(inArray(allocationsTable.reallocationId, reallocationIds), scope))
+                .orderBy(allocationsTable.id)
+                .for("update"),
+            );
+      const existing = [...new Map([...targets, ...paired].map((row) => [row.id, row])).values()];
+      const sphereIds = [
+        ...new Set([
+          ...existing.map((row) => row.sphereId),
+          ...run.mutations.flatMap((mutation) =>
+            mutation.op === "upsert" ? [mutation.payload.sphereId] : [],
+          ),
+        ]),
+      ];
+      const spheres =
+        sphereIds.length === 0
+          ? []
+          : await runOperation("reallocation.spheres", () =>
+              db
+                .select()
+                .from(spheresTable)
+                .where(
+                  and(inArray(spheresTable.id, sphereIds), inArray(spheresTable.profileId, owned)),
+                )
+                .orderBy(spheresTable.id)
+                .for("update"),
+            );
+      const blocked = validateReallocationMutations(run.mutations, existing, spheres);
+      const allowed = run.mutations.filter((mutation) => !blocked.has(mutation.mutationId));
+      authorization.authorize(allowed);
+      // A never-accepted offline reservation may target a sphere another device archived/deleted.
+      // Persist a complete, financially inert tombstone pair so its rejection can settle/replay
+      // through the same canonical-row contract as any other operation, rather than blocking sync.
+      const rejectedNew = run.mutations.filter(
+        (mutation) =>
+          mutation.op === "upsert" &&
+          blocked.has(mutation.mutationId) &&
+          !targets.some((row) => row.id === mutation.rowId),
+      );
+      const rejectedRows =
+        rejectedNew.length === 0
+          ? []
+          : await runOperation("mutation.upsert.allocations", () =>
+              db
+                .insert(allocationsTable)
+                .values(
+                  rejectedNew.map((mutation) => {
+                    if (mutation.op !== "upsert")
+                      throw new Error("Invalid reallocation operation.");
+                    return {
+                      id: mutation.rowId,
+                      ...mutation.payload,
+                      deletedAt: now(),
+                      updatedAt: now(),
+                    };
+                  }),
+                )
+                .onConflictDoNothing()
+                .returning(),
+            );
+      if (rejectedRows.length !== rejectedNew.length)
+        throw new Response("The complete reallocation could not be changed.", { status: 403 });
+      for (const mutation of run.mutations) {
+        if (
+          !blocked.has(mutation.mutationId) ||
+          runStaleBases.some((base) => base.mutationId === mutation.mutationId)
+        )
+          continue;
+        const current =
+          targets.find((row) => row.id === mutation.rowId) ??
+          rejectedRows.find((row) => row.id === mutation.rowId);
+        if (current)
+          runStaleBases.push({
+            mutationId: mutation.mutationId,
+            table: "allocations",
+            rowId: mutation.rowId,
+            baseUpdatedAt: mutation.baseUpdatedAt,
+            conflictingServerUpdatedAt:
+              spheres
+                .find(
+                  (sphere) =>
+                    sphere.id === current.sphereId && (sphere.archived || sphere.deletedAt != null),
+                )
+                ?.updatedAt.getTime() ?? current.updatedAt.getTime(),
+            preWriteCanonicalRow: current,
+          });
+      }
+      const affectedRows =
+        allowed.length === 0
+          ? []
+          : run.op === "delete"
+            ? await tombstone(
+                db,
+                "allocations",
+                and(
+                  inArray(
+                    allocationsTable.id,
+                    allowed.map((mutation) => mutation.rowId),
+                  ),
+                  scope,
+                ),
+                runOperation,
+              )
+            : await runOperation("mutation.upsert.allocations", () =>
+                db
+                  .insert(allocationsTable)
+                  .values(
+                    allowed.map((mutation) => {
+                      if (mutation.op !== "upsert")
+                        throw new Error("Invalid reallocation operation.");
+                      return { id: mutation.rowId, ...mutation.payload, updatedAt: now() };
+                    }),
+                  )
+                  .onConflictDoUpdate({
+                    target: allocationsTable.id,
+                    set: {
+                      sphereId: excluded(allocationsTable.sphereId),
+                      amount: excluded(allocationsTable.amount),
+                      currencyCode: excluded(allocationsTable.currencyCode),
+                      createdAt: excluded(allocationsTable.createdAt),
+                      updatedAt: now(),
+                    },
+                    setWhere: and(
+                      scope,
+                      isNull(allocationsTable.deletedAt),
+                      eq(allocationsTable.profileId, excluded(allocationsTable.profileId)),
+                      eq(
+                        allocationsTable.reallocationId,
+                        excluded(allocationsTable.reallocationId),
+                      ),
+                    ),
+                  })
+                  .returning(),
+              );
+      if (run.op === "upsert" && affectedRows.length !== allowed.length)
+        throw new Response("The complete reallocation could not be changed.", { status: 403 });
+      recordAppliedMutations(run, affectedRows, appliedMutationIds);
+      captureAcceptanceOutcomes(runStaleBases, [...affectedRows, ...rejectedRows]);
+      rememberReturnedRows(run.table, [...affectedRows, ...rejectedRows]);
+      continue;
+    }
+    if (run.table === "spheres") {
+      const archiveIds =
+        run.op === "upsert"
+          ? run.mutations
+              .filter((mutation) => mutation.payload.archived)
+              .map((mutation) => mutation.rowId)
+          : [];
+      const nonzero =
+        archiveIds.length === 0
+          ? []
+          : await runOperation("sphere.balances", () =>
+              db
+                .select({
+                  sphereId: allocationsTable.sphereId,
+                  balance: sql<string>`sum(${allocationsTable.amount})`,
+                })
+                .from(allocationsTable)
+                .where(
+                  and(
+                    inArray(allocationsTable.sphereId, archiveIds),
+                    inArray(allocationsTable.profileId, owned),
+                    isNull(allocationsTable.deletedAt),
+                  ),
+                )
+                .groupBy(allocationsTable.sphereId, allocationsTable.currencyCode)
+                .having(sql`sum(${allocationsTable.amount}) <> 0`),
+            );
+      const funded = new Set(nonzero.map((row) => row.sphereId));
+      const allowed = run.mutations.filter((mutation) => {
+        const current = snapshots.rows.spheres.get(mutation.rowId) as SyncedSphere | undefined;
+        const blocked =
+          current?.type === "OPERATING" ||
+          current?.deletedAt != null ||
+          (mutation.op === "delete"
+            ? current?.hasHistory
+            : (current &&
+                (current.type !== mutation.payload.type ||
+                  current.profileId !== mutation.payload.profileId)) ||
+              (mutation.payload.archived && funded.has(mutation.rowId)));
+        if (
+          blocked &&
+          current &&
+          !runStaleBases.some((base) => base.mutationId === mutation.mutationId)
+        )
+          runStaleBases.push({
+            mutationId: mutation.mutationId,
+            table: "spheres",
+            rowId: mutation.rowId,
+            baseUpdatedAt: mutation.baseUpdatedAt,
+            conflictingServerUpdatedAt: current.updatedAt.getTime(),
+            preWriteCanonicalRow: current,
+          });
+        return !blocked;
+      });
+      const affectedRows =
+        allowed.length === 0
+          ? []
+          : run.op === "delete"
+            ? await tombstone(
+                db,
+                "spheres",
+                and(
+                  inArray(
+                    spheresTable.id,
+                    allowed.map((mutation) => mutation.rowId),
+                  ),
+                  scope,
+                ),
+                runOperation,
+              )
+            : await runOperation("mutation.upsert.spheres", () =>
+                db
+                  .insert(spheresTable)
+                  .values(
+                    allowed.map((mutation) => {
+                      if (mutation.op !== "upsert") throw new Error("Invalid sphere operation.");
+                      return { id: mutation.rowId, ...mutation.payload, updatedAt: now() };
+                    }),
+                  )
+                  .onConflictDoUpdate({
+                    target: spheresTable.id,
+                    set: {
+                      name: excluded(spheresTable.name),
+                      archived: excluded(spheresTable.archived),
+                      updatedAt: now(),
+                    },
+                    setWhere: and(
+                      scope,
+                      isNull(spheresTable.deletedAt),
+                      eq(spheresTable.profileId, excluded(spheresTable.profileId)),
+                      eq(spheresTable.type, excluded(spheresTable.type)),
+                    ),
+                  })
+                  .returning(sphereSyncColumns),
+              );
+      recordAppliedMutations(run, affectedRows, appliedMutationIds);
+      captureAcceptanceOutcomes(runStaleBases, affectedRows);
+      rememberReturnedRows(run.table, affectedRows);
+      continue;
+    }
+    const blockedTransactions = new Set<string>();
+    const rejectedNewTransactions = new Set<string>();
+    const linkingTransactionIds: string[] = [];
+    if (run.table === "transactions") {
+      const targetRows = run.mutations.flatMap((mutation) => {
+        const row = snapshots.rows.transactions.get(mutation.rowId);
+        return row ? [row as SyncedTransaction] : [];
+      });
+      const transferIds = [
+        ...new Set([
+          ...targetRows.flatMap((row) => row.transferId ?? []),
+          ...run.mutations.flatMap((mutation) =>
+            mutation.op === "upsert" ? (mutation.payload.transferId ?? []) : [],
+          ),
+        ]),
+      ];
+      let pairedRows: SyncedTransaction[] = [];
+      if (transferIds.length > 0) {
+        pairedRows = await runOperation("transfer.read", () =>
+          db
+            .select(transactionSyncColumns)
+            .from(transactionsTable)
+            .where(and(inArray(transactionsTable.transferId, transferIds), scope))
+            .for("update"),
+        );
+        // Reuse rows already written earlier in this batch as well as the locked partner snapshots.
+        for (const row of pairedRows) snapshots.rows.transactions.set(row.id, row);
+      }
+      const current = [...snapshots.rows.transactions.values()] as SyncedTransaction[];
+      const deletedTransferIds = new Set(
+        current
+          .filter((row) => row.deletedAt != null && row.transferId)
+          .map((row) => row.transferId),
+      );
+      authorization.authorize(
+        run.mutations.filter((mutation) => {
+          const canonical = snapshots.rows.transactions.get(mutation.rowId) as
+            | SyncedTransaction
+            | undefined;
+          return !(
+            mutation.op === "upsert" &&
+            canonical?.transferId &&
+            mutation.payload.transferId === canonical.transferId &&
+            mutation.payload.profileId === canonical.profileId &&
+            deletedTransferIds.has(canonical.transferId)
+          );
+        }),
+      );
+      try {
+        for (const id of validateTransferMutations(
+          run.mutations,
+          current,
+          authorization.transferAccounts(),
+        ))
+          blockedTransactions.add(id);
+      } catch (error) {
+        throw new Response(error instanceof Error ? error.message : "Invalid linked transfer.", {
+          status: 400,
+        });
+      }
+      linkingTransactionIds.push(
+        ...run.mutations.flatMap((mutation) => {
+          const row = snapshots.rows.transactions.get(mutation.rowId) as
+            | SyncedTransaction
+            | undefined;
+          return mutation.op === "upsert" && mutation.payload.transferId && row && !row.transferId
+            ? [row.id]
+            : [];
+        }),
+      );
+      for (const mutation of run.mutations) {
+        if (
+          !blockedTransactions.has(mutation.mutationId) ||
+          runStaleBases.some((base) => base.mutationId === mutation.mutationId)
+        )
+          continue;
+        const row = snapshots.rows.transactions.get(mutation.rowId);
+        if (row)
+          runStaleBases.push({
+            mutationId: mutation.mutationId,
+            table: "transactions",
+            rowId: mutation.rowId,
+            baseUpdatedAt: mutation.baseUpdatedAt,
+            conflictingServerUpdatedAt: row.updatedAt.getTime(),
+            preWriteCanonicalRow: row,
+          });
+      }
+      // The attribution is part of the immutable source intent. Its companion remains the only
+      // stored purpose record, and is changed inside the same receipt transaction as the source.
+      if (
+        run.op === "delete" ||
+        targetRows.length > 0 ||
+        run.mutations.some((mutation) => mutation.op === "upsert" && mutation.payload.sphereId)
+      ) {
+        const companions = await runOperation("transaction.allocations", () =>
+          db
+            .select()
+            .from(allocationsTable)
+            .where(
+              and(
+                inArray(allocationsTable.transactionId, ids),
+                inArray(allocationsTable.profileId, owned),
+              ),
+            )
+            .orderBy(allocationsTable.id)
+            .for("update"),
+        );
+        const sphereIds = [
+          ...new Set([
+            ...companions.map((row) => row.sphereId),
+            ...run.mutations.flatMap((mutation) =>
+              mutation.op === "upsert" ? (mutation.payload.sphereId ?? []) : [],
+            ),
+          ]),
+        ];
+        const purposes = await runOperation("transaction.spheres", () =>
+          db
+            .select()
+            .from(spheresTable)
+            .where(and(inArray(spheresTable.id, sphereIds), inArray(spheresTable.profileId, owned)))
+            .orderBy(spheresTable.id)
+            .for("update"),
+        );
+        for (const mutation of run.mutations) {
+          const selectedSphereId = mutation.op === "upsert" ? mutation.payload.sphereId : undefined;
+          const purpose = purposes.find((row) => row.id === selectedSphereId);
+          if (
+            selectedSphereId &&
+            (!purpose ||
+              (mutation.op === "upsert" && purpose.profileId !== mutation.payload.profileId))
+          )
+            throw new Response("That record does not belong to the selected profile.", {
+              status: 403,
+            });
+          const previous = companions.find((row) => row.transactionId === mutation.rowId);
+          const source = purposes.find((row) => row.id === previous?.sphereId);
+          if (
+            purpose?.archived ||
+            purpose?.deletedAt != null ||
+            (source?.archived && !linkingTransactionIds.includes(mutation.rowId)) ||
+            source?.deletedAt != null
+          ) {
+            const members = mutation.operation?.mutationIds ?? [mutation.mutationId];
+            members.forEach((id) => blockedTransactions.add(id));
+          }
+        }
+        for (const mutation of run.mutations) {
+          if (!blockedTransactions.has(mutation.mutationId)) continue;
+          const row = snapshots.rows.transactions.get(mutation.rowId);
+          if (!row && mutation.op === "upsert") rejectedNewTransactions.add(mutation.mutationId);
+          else if (row && !runStaleBases.some((base) => base.mutationId === mutation.mutationId))
+            runStaleBases.push({
+              mutationId: mutation.mutationId,
+              table: "transactions",
+              rowId: mutation.rowId,
+              baseUpdatedAt: mutation.baseUpdatedAt,
+              conflictingServerUpdatedAt: row.updatedAt.getTime(),
+              preWriteCanonicalRow: row,
+            });
+        }
+      }
+    }
 
     if (run.op === "delete") {
       const affectedRowIds = await withSyncPhase(
@@ -703,7 +1219,17 @@ async function executeApplyMutations(
           const affected = await tombstone(
             db,
             run.table,
-            and(inArray(table.id, ids), scope),
+            and(
+              inArray(
+                table.id,
+                run.table === "transactions"
+                  ? run.mutations
+                      .filter((mutation) => !blockedTransactions.has(mutation.mutationId))
+                      .map((mutation) => mutation.rowId)
+                  : ids,
+              ),
+              scope,
+            ),
             runOperation,
           );
 
@@ -716,7 +1242,13 @@ async function executeApplyMutations(
               db,
               "transactions",
               and(
-                inArray(transactionsTable.accountId, ids),
+                or(
+                  inArray(transactionsTable.accountId, ids),
+                  inArray(
+                    transactionsTable.transferId,
+                    sql`(select ${transactionsTable.transferId} from ${transactionsTable} where ${inArray(transactionsTable.accountId, ids)} and ${inArray(transactionsTable.profileId, owned)})`,
+                  ),
+                ),
                 inArray(transactionsTable.profileId, owned),
               ),
               runOperation,
@@ -757,7 +1289,6 @@ async function executeApplyMutations(
                 set: {
                   name: excluded(accountsTable.name),
                   initialBalance: excluded(accountsTable.initialBalance),
-                  currencyCode: excluded(accountsTable.currencyCode),
                   status: excluded(accountsTable.status),
                   type: excluded(accountsTable.type),
                   updatedAt: now(),
@@ -768,6 +1299,7 @@ async function executeApplyMutations(
                 // wins over a concurrent edit, and the client hears about it in `conflicts`.
                 setWhere: and(
                   sql`${accountsTable.profileId} = excluded.profile_id`,
+                  sql`${accountsTable.currencyCode} = excluded.currency_code`,
                   isNull(accountsTable.deletedAt),
                 ),
               })
@@ -843,51 +1375,126 @@ async function executeApplyMutations(
       continue;
     }
 
-    const affectedRowIds = await runOperation("mutation.upsert.transactions", () =>
-      withSyncPhase(
-        "push.mutation_application",
-        () =>
-          db
-            .insert(transactionsTable)
-            .values(
-              // Spelled out rather than spread, mirroring the `set` below: these are the columns a push
-              // writes, and the two lists have to agree or an insert and an update of the same row would
-              // not produce the same row.
-              run.mutations.map(({ rowId, payload }) => ({
-                id: rowId,
-                type: payload.type,
-                necessityLevel: payload.necessityLevel,
-                amount: payload.amount,
-                comment: payload.comment,
-                createdAt: payload.createdAt,
-                accountId: payload.accountId,
-                categoryId: payload.categoryId,
-                profileId: payload.profileId,
-                updatedAt: now(),
-              })),
-            )
-            .onConflictDoUpdate({
-              target: transactionsTable.id,
-              set: {
-                type: excluded(transactionsTable.type),
-                necessityLevel: excluded(transactionsTable.necessityLevel),
-                amount: excluded(transactionsTable.amount),
-                comment: excluded(transactionsTable.comment),
-                createdAt: excluded(transactionsTable.createdAt),
-                accountId: excluded(transactionsTable.accountId),
-                categoryId: excluded(transactionsTable.categoryId),
-                updatedAt: now(),
-              },
-              setWhere: and(
-                sql`${transactionsTable.profileId} = excluded.profile_id`,
-                isNull(transactionsTable.deletedAt),
-              ),
-            })
-            .returning(transactionSyncColumns),
-        { table: run.table, operation: run.op, mutationCount: run.mutations.length },
-      ),
+    const writableMutations = run.mutations.filter(
+      (mutation) =>
+        !blockedTransactions.has(mutation.mutationId) ||
+        rejectedNewTransactions.has(mutation.mutationId),
     );
-    recordAppliedMutations(run, affectedRowIds, appliedMutationIds);
+    const affectedRowIds =
+      writableMutations.length === 0
+        ? []
+        : await runOperation("mutation.upsert.transactions", () =>
+            withSyncPhase(
+              "push.mutation_application",
+              () =>
+                db
+                  .insert(transactionsTable)
+                  .values(
+                    // Spelled out rather than spread, mirroring the `set` below: these are the columns a push
+                    // writes, and the two lists have to agree or an insert and an update of the same row would
+                    // not produce the same row.
+                    writableMutations.map(({ rowId, payload, mutationId }) => ({
+                      id: rowId,
+                      type: payload.type,
+                      transferId: payload.transferId ?? null,
+                      necessityLevel: payload.necessityLevel,
+                      amount: payload.amount,
+                      comment: payload.comment,
+                      createdAt: payload.createdAt,
+                      accountId: payload.accountId,
+                      categoryId: payload.categoryId,
+                      profileId: payload.profileId,
+                      updatedAt: now(),
+                      deletedAt: rejectedNewTransactions.has(mutationId) ? now() : null,
+                    })),
+                  )
+                  .onConflictDoUpdate({
+                    target: transactionsTable.id,
+                    set: {
+                      type: excluded(transactionsTable.type),
+                      transferId: excluded(transactionsTable.transferId),
+                      necessityLevel: excluded(transactionsTable.necessityLevel),
+                      amount: excluded(transactionsTable.amount),
+                      comment: excluded(transactionsTable.comment),
+                      createdAt: excluded(transactionsTable.createdAt),
+                      accountId: excluded(transactionsTable.accountId),
+                      categoryId: excluded(transactionsTable.categoryId),
+                      updatedAt: now(),
+                    },
+                    setWhere: and(
+                      sql`${transactionsTable.profileId} = excluded.profile_id`,
+                      or(
+                        sql`${transactionsTable.transferId} is not distinct from excluded.transfer_id`,
+                        and(
+                          inArray(transactionsTable.id, linkingTransactionIds),
+                          isNull(transactionsTable.transferId),
+                        ),
+                      ),
+                      isNull(transactionsTable.deletedAt),
+                    ),
+                  })
+                  .returning(transactionSyncColumns),
+              { table: run.table, operation: run.op, mutationCount: run.mutations.length },
+            ),
+          );
+    if (run.table === "transactions") {
+      const selected = writableMutations.filter(
+        (mutation) => mutation.payload.sphereId && !blockedTransactions.has(mutation.mutationId),
+      );
+      if (selected.length > 0) {
+        const cases = selected.map(
+          (mutation) => sql`when ${mutation.rowId}::uuid then ${mutation.payload.sphereId}::uuid`,
+        );
+        await runOperation("transaction.attribution", () =>
+          db
+            .update(allocationsTable)
+            .set({
+              sphereId: sql`case ${allocationsTable.transactionId} ${sql.join(cases, sql` `)} else ${allocationsTable.sphereId} end`,
+              updatedAt: now(),
+            })
+            .where(
+              and(
+                inArray(
+                  allocationsTable.transactionId,
+                  affectedRowIds.filter((row) => row.deletedAt == null).map((row) => row.id),
+                ),
+                inArray(allocationsTable.profileId, owned),
+              ),
+            )
+            .returning({ id: allocationsTable.id }),
+        );
+      }
+      for (const row of affectedRowIds) {
+        const mutation = writableMutations.find((mutation) => mutation.rowId === row.id);
+        if (mutation && rejectedNewTransactions.has(mutation.mutationId))
+          runStaleBases.push({
+            mutationId: mutation.mutationId,
+            table: "transactions",
+            rowId: row.id,
+            baseUpdatedAt: mutation.baseUpdatedAt,
+            conflictingServerUpdatedAt: row.updatedAt.getTime(),
+            preWriteCanonicalRow: row,
+          });
+      }
+    }
+    const returnedIds = new Set(affectedRowIds.map((row) => row.id));
+    if (
+      writableMutations.some(
+        (mutation) => mutation.payload.transferId && !returnedIds.has(mutation.rowId),
+      )
+    ) {
+      throw new Response("That record does not belong to the selected profile.", { status: 403 });
+    }
+    const rejectedRowIds = new Set(
+      writableMutations
+        .filter((mutation) => rejectedNewTransactions.has(mutation.mutationId))
+        .map((mutation) => mutation.rowId),
+    );
+    recordAppliedMutations(
+      run,
+      affectedRowIds.filter((row) => !rejectedRowIds.has(row.id)),
+      appliedMutationIds,
+    );
     captureAcceptanceOutcomes(runStaleBases, affectedRowIds);
     rememberReturnedRows(run.table, affectedRowIds);
     authorization.observe(run.mutations, affectedRowIds);

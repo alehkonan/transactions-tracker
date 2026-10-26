@@ -9,7 +9,7 @@ const mutation = {
   op: "delete",
 } as const;
 
-const context = { protocolVersion: 2, expectedOwnerUserId: 41 } as const;
+const context = { protocolVersion: 3, expectedOwnerUserId: 41 } as const;
 
 describe("sync request schemas", () => {
   it("requires the versioned replica owner context on every entry point", () => {
@@ -22,12 +22,24 @@ describe("sync request schemas", () => {
     expect(pushChangesSchema.safeParse({ mutations: [] }).success).toBe(false);
   });
 
-  it("rejects unsupported protocol versions", () => {
-    const unsupported = { protocolVersion: 1, expectedOwnerUserId: 41 };
+  it.each([1, 2])("rejects unsupported protocol version %s", (protocolVersion) => {
+    const unsupported = { protocolVersion, expectedOwnerUserId: 41 };
 
     expect(pullChangesSchema.safeParse(unsupported).success).toBe(false);
     expect(checkIntegritySchema.safeParse(unsupported).success).toBe(false);
     expect(pushChangesSchema.safeParse({ ...unsupported, mutations: [] }).success).toBe(false);
+  });
+
+  it.each(["allocations"])("rejects independent writes and deletes of system %s", (table) => {
+    expect(
+      pushChangesSchema.safeParse({ ...context, mutations: [{ ...mutation, table }] }).success,
+    ).toBe(false);
+    expect(
+      pushChangesSchema.safeParse({
+        ...context,
+        mutations: [{ ...mutation, table, op: "upsert", payload: { name: "Archived" } }],
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects duplicate mutation ids within one batch", () => {

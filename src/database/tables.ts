@@ -1,7 +1,9 @@
+import { sql } from "drizzle-orm";
 import {
   bigserial,
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -11,6 +13,7 @@ import {
   text,
   timestamp,
   uuid,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
 import { money } from "./custom-types";
@@ -269,6 +272,8 @@ export const transactionsTable = pgTable(
   {
     id: syncedId(),
     type: transactionTypeEnum("type").notNull(),
+    /** New transfers and manually linked historical pairs carry this id; never inferred. */
+    transferId: uuid("transfer_id"),
     necessityLevel: necessityLevelEnum("necessity_level").notNull().default("MEDIUM"),
     amount: money("amount").notNull(),
     comment: text("comment"),
@@ -298,7 +303,81 @@ export const transactionsTable = pgTable(
     // Composite rather than two indexes: the join to `accounts` and the date-range filter always
     // arrive together (see `getTransactions`), and this ordering also serves the `desc` sort.
     index("transactions_account_id_created_at_idx").on(table.accountId, table.createdAt),
+    index("transactions_transfer_id_idx").on(table.transferId),
+    uniqueIndex("transactions_transfer_direction_idx").on(
+      table.transferId,
+      sql`(${table.amount} > 0)`,
+    ),
+    check(
+      "transactions_linked_transfer_check",
+      sql`${table.transferId} is null or (${table.type} = 'TRANSFER' and ${table.amount} <> 0 and ${table.accountId} is not null)`,
+    ),
     index("transactions_profile_id_updated_at_id_idx").on(
+      table.profileId,
+      table.updatedAt,
+      table.id,
+    ),
+  ],
+);
+
+/** Financial purpose; the system Operating sphere uses its profile's id. */
+export const spheresTable = pgTable(
+  "spheres",
+  {
+    id: uuid("id").primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profilesTable.id, {
+        onUpdate: "cascade",
+        onDelete: "cascade",
+      }),
+    name: text("name").notNull().default("Operating"),
+    type: text("type").$type<"OPERATING" | "FUNDS" | "CAPITAL">().notNull().default("OPERATING"),
+    archived: boolean("archived").notNull().default(false),
+    /** Monotonic evidence of use, retained after allocation tombstones are collected. */
+    hasHistory: boolean("has_history").notNull().default(false),
+    ...syncColumns,
+  },
+  (table) => [
+    check(
+      "spheres_system_check",
+      sql`(${table.type} = 'OPERATING' and ${table.id} = ${table.profileId} and ${table.name} = 'Operating' and not ${table.archived}) or (${table.type} in ('FUNDS', 'CAPITAL') and ${table.id} <> ${table.profileId})`,
+    ),
+    check("spheres_name_check", sql`length(trim(${table.name})) > 0`),
+    index("spheres_profile_id_updated_at_id_idx").on(table.profileId, table.updatedAt, table.id),
+  ],
+);
+
+/** Transaction/opening attribution, or one of a reallocation's two balanced sides. */
+export const allocationsTable = pgTable(
+  "allocations",
+  {
+    id: uuid("id").primaryKey(),
+    profileId: uuid("profile_id")
+      .notNull()
+      .references(() => profilesTable.id, { onDelete: "cascade" }),
+    sphereId: uuid("sphere_id")
+      .notNull()
+      .references(() => spheresTable.id, { onDelete: "cascade" }),
+    transactionId: uuid("transaction_id")
+      .unique()
+      .references(() => transactionsTable.id, { onDelete: "cascade" }),
+    openingAccountId: uuid("opening_account_id")
+      .unique()
+      .references(() => accountsTable.id, { onDelete: "cascade" }),
+    reallocationId: uuid("reallocation_id"),
+    amount: money("amount").notNull(),
+    currencyCode: currencyCodeEnum("currency_code").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    ...syncColumns,
+  },
+  (table) => [
+    check(
+      "allocations_source_check",
+      sql`num_nonnulls(${table.transactionId}, ${table.openingAccountId}, ${table.reallocationId}) = 1`,
+    ),
+    index("allocations_reallocation_id_idx").on(table.reallocationId),
+    index("allocations_profile_id_updated_at_id_idx").on(
       table.profileId,
       table.updatedAt,
       table.id,

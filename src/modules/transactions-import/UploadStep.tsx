@@ -11,6 +11,7 @@ export function UploadStep() {
   return (
     <div className="flex flex-col gap-4">
       <FileInput
+        inputTestId="import-file"
         file={file}
         accept=".csv,text/csv"
         onFileChange={(nextFile) => {
@@ -23,7 +24,12 @@ export function UploadStep() {
       </p>
       {uploadError && <p className="text-danger text-sm">{uploadError}</p>}
       <footer className="flex justify-center">
-        <Button variant="primary" disabled={!rows} onClick={actions.startImport}>
+        <Button
+          data-testid="import-next"
+          variant="primary"
+          disabled={!rows}
+          onClick={actions.startImport}
+        >
           Next
         </Button>
       </footer>
