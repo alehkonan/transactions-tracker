@@ -1,3 +1,4 @@
+import { ChevronDownIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
@@ -5,7 +6,7 @@ import { currencyCodeEnum } from "~/database/enums";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
-import { isMoneyInput, negateMoney, sumMoney } from "~/utils/money";
+import { isMoneyInput, negateMoney, sumMoney, toUsd } from "~/utils/money";
 import { findReallocation } from "./reallocation";
 import { deleteReallocation, saveReallocation } from "./reallocation-mutations";
 import { sphereBalances, sphereHasHistory } from "./sphere-lifecycle";
@@ -15,6 +16,13 @@ import type { ReallocationPayload, SyncedSphere } from "~/modules/sync/sync-type
 
 const fieldClass =
   "border-border bg-surface text-text focus-visible:ring-accent h-11 min-w-0 rounded-2xl border px-3 focus-visible:ring-2 focus-visible:outline-none sm:h-9";
+const sphereSummaryClass =
+  "text-text hover:bg-surface-hover active:bg-surface-active focus-visible:ring-accent focus-visible:ring-offset-background grid min-h-16 cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto_1rem] items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none [&::-webkit-details-marker]:hidden";
+const supportingSummaryClass =
+  "text-text-muted hover:bg-surface-hover hover:text-text active:bg-surface-active focus-visible:ring-accent focus-visible:ring-offset-background flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none [&::-webkit-details-marker]:hidden";
+const sphereActionClass = "px-2 text-sm sm:px-3";
+const sphereBalancesClass = "max-w-sm space-y-2";
+const currencyBalanceClass = "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1";
 
 function SphereItem({
   sphere,
@@ -30,6 +38,7 @@ function SphereItem({
   onRemoved: (message: string) => void;
 }) {
   const allocations = useSyncStore((state) => state.allocations);
+  const usdRates = useSyncStore((state) => state.usdRates);
   const context = useReplicaBinding();
   const nameId = useId();
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +48,19 @@ function SphereItem({
   const backRef = useRef<HTMLButtonElement>(null);
   const [pending, startTransition] = useTransition();
   const balances = sphereBalances(sphere.profileId, sphere.id, allocations);
+  const balanceUsd = balances.reduce(
+    (total, row) => total + toUsd(row.balance, row.currencyCode, usdRates),
+    0,
+  );
   const used = sphereHasHistory(sphere, allocations);
   const nonzero = balances.some((row) => row.balance !== "0.00");
+  const belowZero = balances.some((row) => Number(row.balance) < 0);
   useEffect(() => {
-    if (manageOpen)
-      (confirmDelete ? backRef.current : nameRef.current)?.focus({ preventScroll: true });
+    if (!manageOpen) return;
+    const frame = requestAnimationFrame(() =>
+      (confirmDelete ? backRef.current : nameRef.current)?.focus({ preventScroll: true }),
+    );
+    return () => cancelAnimationFrame(frame);
   }, [manageOpen, confirmDelete]);
   function run(action: () => Promise<void>, removalNotice?: string) {
     setError(null);
@@ -59,65 +76,91 @@ function SphereItem({
     });
   }
   return (
-    <li className="border-border border-t py-3" data-testid={`sphere-${sphere.id}`}>
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-        <div className="min-w-0 flex-1 basis-40">
-          <h4 className="text-text font-semibold wrap-anywhere">{sphere.name}</h4>
-          {sphere.archived && <span className="text-text-muted text-xs">Archived</span>}
+    <li className="border-border border-t" data-testid={`sphere-${sphere.id}`}>
+      <details className="group/sphere">
+        <summary className={sphereSummaryClass}>
+          <h4 className="min-w-0 font-medium wrap-anywhere">{sphere.name}</h4>
+          <span
+            className={`inline-flex items-center justify-end gap-1 text-right font-mono text-sm whitespace-nowrap tabular-nums ${belowZero ? "text-warning" : "text-text"}`}
+            data-testid="sphere-total"
+            title={belowZero ? "At least one currency balance is below zero." : undefined}
+          >
+            {belowZero && <TriangleAlertIcon aria-hidden="true" className="size-3.5 shrink-0" />}
+            <span className="sr-only">Approximate balance in USD: </span>
+            {complete ? `≈ ${formatMoney(balanceUsd.toFixed(2), "USD")}` : "Loading…"}
+            {belowZero && (
+              <span className="sr-only">. At least one currency balance is below zero.</span>
+            )}
+          </span>
+          <ChevronDownIcon
+            aria-hidden="true"
+            className="text-text-muted size-4 shrink-0 group-open/sphere:rotate-180"
+          />
+        </summary>
+        <div className="space-y-4 px-3 pt-1 pb-4">
+          {sphere.archived && <p className="text-text-muted text-xs">Archived</p>}
           {balances.length === 0 && (
-            <p className="text-text-muted text-sm">No money assigned yet.</p>
+            <p className="text-text-muted text-sm">
+              {complete ? "No money assigned yet." : "Balances are still loading."}
+            </p>
           )}
-        </div>
-        <dl className="flex flex-wrap gap-x-5 gap-y-2" data-testid="sphere-balances">
-          {balances.map((row) => (
-            <div key={row.currencyCode}>
-              <dt className="text-text-muted text-xs">{row.currencyCode}</dt>
-              <dd
-                className={`font-mono tabular-nums ${Number(row.balance) < 0 ? "text-warning" : "text-text"}`}
-              >
-                {formatMoney(row.balance, row.currencyCode)}
-                {Number(row.balance) < 0 && (
-                  <span className="block font-sans text-xs">Below zero</span>
+          {balances.length > 0 && (
+            <dl className={sphereBalancesClass} data-testid="sphere-balances">
+              {balances.map((row) => (
+                <div key={row.currencyCode} className={currencyBalanceClass}>
+                  <dt className="text-text-muted text-xs">{row.currencyCode}</dt>
+                  <dd
+                    className={`text-right font-mono tabular-nums ${Number(row.balance) < 0 ? "text-warning" : "text-text"}`}
+                  >
+                    {formatMoney(row.balance, row.currencyCode)}
+                    {Number(row.balance) < 0 && (
+                      <span className="block font-sans text-xs">Below zero</span>
+                    )}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {!sphere.archived && (
+              <div className={nonzero ? "grid grid-cols-2 gap-2 sm:flex" : "flex"}>
+                <Button
+                  variant="secondary"
+                  className={sphereActionClass}
+                  disabled={pending || !context || !complete}
+                  onClick={(event) => onAssign(event.currentTarget)}
+                >
+                  Assign money<span className="sr-only"> to {sphere.name}</span>
+                </Button>
+                {nonzero && (
+                  <Button
+                    variant="secondary"
+                    className={sphereActionClass}
+                    disabled={pending || !context || !complete}
+                    onClick={(event) => onMove(event.currentTarget)}
+                  >
+                    Move money<span className="sr-only"> from {sphere.name}</span>
+                  </Button>
                 )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        {!sphere.archived && (
-          <div className="flex flex-wrap gap-2">
+              </div>
+            )}
             <Button
               variant="secondary"
-              disabled={pending || !context || !complete}
-              onClick={(event) => onAssign(event.currentTarget)}
+              className={`${sphereActionClass} self-start sm:ml-auto`}
+              data-testid="sphere-manage"
+              aria-haspopup="dialog"
+              onClick={(event) => {
+                event.currentTarget.focus({ preventScroll: true });
+                setError(null);
+                setConfirmDelete(false);
+                setManageOpen(true);
+              }}
             >
-              Assign money<span className="sr-only"> to {sphere.name}</span>
+              Manage<span className="sr-only"> {sphere.name}</span>
             </Button>
-            {nonzero && (
-              <Button
-                variant="secondary"
-                disabled={pending || !context || !complete}
-                onClick={(event) => onMove(event.currentTarget)}
-              >
-                Move money<span className="sr-only"> from {sphere.name}</span>
-              </Button>
-            )}
           </div>
-        )}
-      </div>
-      <Button
-        variant="secondary"
-        className="mt-2"
-        data-testid="sphere-manage"
-        aria-haspopup="dialog"
-        onClick={(event) => {
-          event.currentTarget.focus({ preventScroll: true });
-          setError(null);
-          setConfirmDelete(false);
-          setManageOpen(true);
-        }}
-      >
-        Manage<span className="sr-only"> {sphere.name}</span>
-      </Button>
+        </div>
+      </details>
       <Dialog
         title={confirmDelete ? `Delete ${sphere.name}?` : `Manage ${sphere.name}`}
         open={manageOpen}
@@ -260,7 +303,7 @@ export function NamedSpheres({
   complete: boolean;
   operating: ReturnType<typeof operatingBalances>;
 }) {
-  const { spheres, allocations, selectedProfileId } = useSyncStore();
+  const { spheres, allocations, selectedProfileId, usdRates } = useSyncStore();
   const context = useReplicaBinding();
   const nameId = useId();
   const typeId = useId();
@@ -290,6 +333,12 @@ export function NamedSpheres({
     .filter((sphere) => sphere.archived)
     .toSorted((a, b) => a.name.localeCompare(b.name));
   const operatingId = active.find((sphere) => sphere.type === "OPERATING")?.id ?? "";
+  const operatingUsd = operating.reduce(
+    (total, row) => total + toUsd(row.sphereBalance, row.currencyCode, usdRates),
+    0,
+  );
+  const operatingBelowZero = operating.some((row) => Number(row.sphereBalance) < 0);
+  const operatingDiverged = operating.some((row) => row.status === "diverged");
   const reallocations = [
     ...new Set(
       allocations
@@ -347,7 +396,9 @@ export function NamedSpheres({
     setError(null);
   }, [selectedProfileId]);
   useEffect(() => {
-    if (editorOpen) amountRef.current?.focus({ preventScroll: true });
+    if (!editorOpen) return;
+    const frame = requestAnimationFrame(() => amountRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
   }, [editorOpen]);
 
   function preferredCurrency(sourceId: string): ReallocationPayload["currencyCode"] {
@@ -407,7 +458,7 @@ export function NamedSpheres({
     <section
       aria-labelledby="named-spheres-heading"
       data-testid="named-spheres"
-      className="space-y-6"
+      className="flex max-w-4xl flex-col gap-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-prose">
@@ -437,55 +488,89 @@ export function NamedSpheres({
 
       <section
         aria-labelledby="operating-heading"
-        className="border-border bg-surface-muted rounded-xl border p-4"
+        className="border-border border-y"
         data-testid="operating-sphere"
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 id="operating-heading" className="text-text font-semibold">
+        <details className="group/sphere">
+          <summary className={sphereSummaryClass}>
+            <h3 id="operating-heading" className="min-w-0 font-medium wrap-anywhere">
               Operating
             </h3>
-            <p className="text-text-muted mt-1 text-sm">Everyday money</p>
-          </div>
-          {named.length > 0 && (
-            <Button
-              variant="secondary"
-              disabled={pending || !context || !complete}
-              onClick={(event) => openAllocation(operatingId, "", event.currentTarget)}
+            <span
+              className={`inline-flex items-center justify-end gap-1 text-right font-mono text-sm whitespace-nowrap tabular-nums ${operatingBelowZero || operatingDiverged ? "text-warning" : "text-text"}`}
+              data-testid="operating-total"
+              title={
+                operatingDiverged
+                  ? "Purpose totals differ from account balances."
+                  : operatingBelowZero
+                    ? "At least one currency balance is below zero."
+                    : undefined
+              }
             >
-              Assign money
-            </Button>
-          )}
-        </div>
-        <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3" data-testid="operating-balances">
-          {operating.map((balance) => (
-            <div key={balance.currencyCode}>
-              <dt className="text-text-muted text-xs">{balance.currencyCode}</dt>
-              <dd
-                className={`font-mono tabular-nums ${Number(balance.sphereBalance) < 0 ? "text-warning" : "text-text"}`}
-              >
-                {formatMoney(balance.sphereBalance, balance.currencyCode)}
-              </dd>
-              {Number(balance.sphereBalance) < 0 && (
-                <p className="text-warning mt-1 max-w-52 text-xs">
-                  {Number(balance.accountBalance) < 0
-                    ? "Your accounts total is also below zero in this currency."
-                    : "More assigned to purposes than held in this currency."}
-                </p>
+              {(operatingBelowZero || operatingDiverged) && (
+                <TriangleAlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
               )}
-            </div>
-          ))}
-        </dl>
-        {operating.length === 0 && (
-          <p className="text-text-muted mt-3 text-sm">
-            Create an account in Accounts to start tracking and assigning money.
-          </p>
-        )}
-        {operating.some((row) => row.status === "diverged") && (
-          <p role="alert" className="text-warning mt-3 text-sm">
-            Purpose totals differ from account balances. Check synchronization in Settings.
-          </p>
-        )}
+              <span className="sr-only">Approximate balance in USD: </span>
+              {complete ? `≈ ${formatMoney(operatingUsd.toFixed(2), "USD")}` : "Loading…"}
+              {operatingBelowZero && (
+                <span className="sr-only">. At least one currency balance is below zero.</span>
+              )}
+              {operatingDiverged && (
+                <span className="sr-only">. Purpose totals differ from account balances.</span>
+              )}
+            </span>
+            <ChevronDownIcon
+              aria-hidden="true"
+              className="text-text-muted size-4 shrink-0 group-open/sphere:rotate-180"
+            />
+          </summary>
+          <div className="space-y-4 px-3 pt-1 pb-4">
+            <p className="text-text-muted text-sm">Everyday money</p>
+            {operating.length > 0 && (
+              <dl className={sphereBalancesClass} data-testid="operating-balances">
+                {operating.map((balance) => (
+                  <div key={balance.currencyCode} className={currencyBalanceClass}>
+                    <dt className="text-text-muted text-xs">{balance.currencyCode}</dt>
+                    <dd
+                      className={`text-right font-mono tabular-nums ${Number(balance.sphereBalance) < 0 ? "text-warning" : "text-text"}`}
+                    >
+                      {formatMoney(balance.sphereBalance, balance.currencyCode)}
+                    </dd>
+                    {Number(balance.sphereBalance) < 0 && (
+                      <dd className="text-warning col-span-2 max-w-prose text-xs">
+                        {Number(balance.accountBalance) < 0
+                          ? "Your accounts total is also below zero in this currency."
+                          : "More assigned to purposes than held in this currency."}
+                      </dd>
+                    )}
+                  </div>
+                ))}
+              </dl>
+            )}
+            {operating.length === 0 && (
+              <p className="text-text-muted text-sm">
+                {complete
+                  ? "Create an account in Accounts to start tracking and assigning money."
+                  : "Balances are still loading."}
+              </p>
+            )}
+            {operatingDiverged && (
+              <p role="alert" className="text-warning text-sm">
+                Purpose totals differ from account balances. Check synchronization in Settings.
+              </p>
+            )}
+            {named.length > 0 && (
+              <Button
+                variant="secondary"
+                className={sphereActionClass}
+                disabled={pending || !context || !complete}
+                onClick={(event) => openAllocation(operatingId, "", event.currentTarget)}
+              >
+                Assign money
+              </Button>
+            )}
+          </div>
+        </details>
       </section>
 
       {named.length === 0 && (
@@ -830,7 +915,7 @@ export function NamedSpheres({
                 ? "Goals and reserves for future spending."
                 : "Savings and investments tracked as money."}
             </p>
-            <ul>
+            <ul className="border-border border-b">
               {rows.map((sphere) => (
                 <SphereItem
                   key={sphere.id}
@@ -845,185 +930,199 @@ export function NamedSpheres({
           </section>
         );
       })}
-      {archived.length > 0 && (
-        <details className="border-border border-t pt-2" data-testid="archived-spheres">
-          <summary className="text-text-muted focus-visible:ring-accent w-fit cursor-pointer rounded-lg py-3 text-sm focus-visible:ring-2 focus-visible:outline-none">
-            Archived ({archived.length})
-          </summary>
-          <ul>
-            {archived.map((sphere) => (
-              <SphereItem
-                key={sphere.id}
-                sphere={sphere}
-                complete={complete}
-                onAssign={(trigger) => openAllocation(operatingId, sphere.id, trigger)}
-                onMove={(trigger) => openAllocation(sphere.id, "", trigger)}
-                onRemoved={handleRemovedSphere}
+      <div className="flex flex-col gap-1">
+        {archived.length > 0 && (
+          <details className="group/disclosure" data-testid="archived-spheres">
+            <summary className={supportingSummaryClass}>
+              <span>Archived ({archived.length})</span>
+              <ChevronDownIcon
+                aria-hidden="true"
+                className="size-4 shrink-0 group-open/disclosure:rotate-180"
               />
-            ))}
-          </ul>
-        </details>
-      )}
-      {reallocations.length > 0 && (
-        <details className="border-border border-t pt-2" data-testid="reallocations">
-          <summary
-            ref={historyRef}
-            className="text-text focus-visible:ring-accent w-fit cursor-pointer rounded-lg py-3 font-semibold focus-visible:ring-2 focus-visible:outline-none"
-          >
-            Allocation history ({reallocations.length})
-          </summary>
-          <p className="text-text-muted mb-3 max-w-prose text-sm">
-            Changes of purpose only. These do not change account balances.
-          </p>
-          <ul>
-            {reallocations.map(([from, to]) => {
-              const fromSphere = owned.find((sphere) => sphere.id === from.sphereId);
-              const toSphere = owned.find((sphere) => sphere.id === to.sphereId);
-              const editable =
-                complete && fromSphere && toSphere && !fromSphere.archived && !toSphere.archived;
-              return (
-                <li
-                  key={from.reallocationId}
-                  className="border-border flex flex-wrap items-center justify-between gap-3 border-t py-3"
-                  data-testid={`reallocation-${from.reallocationId}`}
-                >
-                  <div className="min-w-0 flex-1 basis-48">
-                    <p className="text-text wrap-anywhere">
-                      {fromSphere?.name ?? "Loading sphere…"} →{" "}
-                      {toSphere?.name ?? "Loading sphere…"}
-                    </p>
-                    <p className="text-text-muted mt-1 text-xs">
-                      {from.createdAt.toLocaleString()}
-                    </p>
-                    {!editable && complete && (
-                      <p className="text-text-muted mt-1 text-sm">
-                        Restore archived spheres before editing or deleting this allocation.
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-text font-mono tabular-nums" data-testid="reallocation-value">
-                    {formatMoney(to.amount, to.currencyCode)}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="secondary"
-                      disabled={pending || !context || !editable}
-                      data-testid="reallocation-edit"
-                      onClick={(event) => {
-                        event.currentTarget.focus({ preventScroll: true });
-                        setEditingId(from.reallocationId!);
-                        setFromSphereId(from.sphereId);
-                        setToSphereId(to.sphereId);
-                        setCurrencyCode(to.currencyCode);
-                        setAmount(to.amount);
-                        setDeletingId(null);
-                        setReallocationError(null);
-                        setEditorOpen(true);
-                      }}
-                    >
-                      Edit
-                      <span className="sr-only">
-                        {" "}
-                        allocation from {fromSphere?.name} to {toSphere?.name}
-                      </span>
-                    </Button>
-                    <Button
-                      variant="danger"
-                      disabled={pending || !context || !editable}
-                      data-testid="reallocation-delete"
-                      onClick={(event) => {
-                        event.currentTarget.focus({ preventScroll: true });
-                        setReallocationError(null);
-                        setDeletingId(from.reallocationId!);
-                      }}
-                    >
-                      Delete
-                      <span className="sr-only">
-                        {" "}
-                        allocation from {fromSphere?.name} to {toSphere?.name}
-                      </span>
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      )}
-      <Dialog
-        title="Delete allocation?"
-        open={deletingId !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeletingId(null);
-            setReallocationError(null);
-          }
-        }}
-        requireAction={pending}
-        closeButtonLabel={pending ? undefined : "Close deletion confirmation"}
-      >
-        {deletingPair && (
-          <div className="mt-3 space-y-4" data-testid="reallocation-delete-confirmation">
-            <p className="text-text text-sm">
-              {formatMoney(deletingPair[1].amount, deletingPair[1].currencyCode)} returns from{" "}
-              {owned.find((sphere) => sphere.id === deletingPair[1].sphereId)?.name} to{" "}
-              {owned.find((sphere) => sphere.id === deletingPair[0].sphereId)?.name}. Account
-              balances stay unchanged.
-            </p>
-            {reallocationError && (
-              <p role="alert" className="text-danger text-sm">
-                {reallocationError}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="danger"
-                disabled={pending || !context || !complete}
-                data-testid="reallocation-delete-confirm"
-                onClick={() =>
-                  context &&
-                  runReallocation(
-                    () => deleteReallocation(deletingPair[0].reallocationId!, context),
-                    "Allocation deleted. Its effect on both spheres has been reversed.",
-                  )
-                }
-              >
-                Delete allocation
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={pending}
-                onClick={() => {
-                  setDeletingId(null);
-                  setReallocationError(null);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
+            </summary>
+            <ul className="border-border border-b">
+              {archived.map((sphere) => (
+                <SphereItem
+                  key={sphere.id}
+                  sphere={sphere}
+                  complete={complete}
+                  onAssign={(trigger) => openAllocation(operatingId, sphere.id, trigger)}
+                  onMove={(trigger) => openAllocation(sphere.id, "", trigger)}
+                  onRemoved={handleRemovedSphere}
+                />
+              ))}
+            </ul>
+          </details>
         )}
-      </Dialog>
-      <details className="border-border border-t pt-2">
-        <summary className="text-text-muted focus-visible:ring-accent w-fit cursor-pointer rounded-lg py-3 text-sm focus-visible:ring-2 focus-visible:outline-none">
-          How purpose balances work
-        </summary>
-        <p className="text-text-muted max-w-prose text-sm">
-          In each currency, Operating + Funds + Capital equals your account total, including
-          archived accounts. These are the same money viewed by purpose, not extra balances to add
-          to your accounts.
-        </p>
-        <output
-          className="text-text-muted mt-2 block text-xs"
-          data-testid="operating-reconciliation"
+        {reallocations.length > 0 && (
+          <details className="group/disclosure" data-testid="reallocations">
+            <summary ref={historyRef} className={supportingSummaryClass}>
+              <span>Allocation history ({reallocations.length})</span>
+              <ChevronDownIcon
+                aria-hidden="true"
+                className="size-4 shrink-0 group-open/disclosure:rotate-180"
+              />
+            </summary>
+            <p className="text-text-muted mb-3 max-w-prose text-sm">
+              Changes of purpose only. These do not change account balances.
+            </p>
+            <ul>
+              {reallocations.map(([from, to]) => {
+                const fromSphere = owned.find((sphere) => sphere.id === from.sphereId);
+                const toSphere = owned.find((sphere) => sphere.id === to.sphereId);
+                const editable =
+                  complete && fromSphere && toSphere && !fromSphere.archived && !toSphere.archived;
+                return (
+                  <li
+                    key={from.reallocationId}
+                    className="border-border flex flex-wrap items-center justify-between gap-3 border-t py-3"
+                    data-testid={`reallocation-${from.reallocationId}`}
+                  >
+                    <div className="min-w-0 flex-1 basis-48">
+                      <p className="text-text wrap-anywhere">
+                        {fromSphere?.name ?? "Loading sphere…"} →{" "}
+                        {toSphere?.name ?? "Loading sphere…"}
+                      </p>
+                      <p className="text-text-muted mt-1 text-xs">
+                        {from.createdAt.toLocaleString()}
+                      </p>
+                      {!editable && complete && (
+                        <p className="text-text-muted mt-1 text-sm">
+                          Restore archived spheres before editing or deleting this allocation.
+                        </p>
+                      )}
+                    </div>
+                    <p
+                      className="text-text font-mono tabular-nums"
+                      data-testid="reallocation-value"
+                    >
+                      {formatMoney(to.amount, to.currencyCode)}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        disabled={pending || !context || !editable}
+                        data-testid="reallocation-edit"
+                        onClick={(event) => {
+                          event.currentTarget.focus({ preventScroll: true });
+                          setEditingId(from.reallocationId!);
+                          setFromSphereId(from.sphereId);
+                          setToSphereId(to.sphereId);
+                          setCurrencyCode(to.currencyCode);
+                          setAmount(to.amount);
+                          setDeletingId(null);
+                          setReallocationError(null);
+                          setEditorOpen(true);
+                        }}
+                      >
+                        Edit
+                        <span className="sr-only">
+                          {" "}
+                          allocation from {fromSphere?.name} to {toSphere?.name}
+                        </span>
+                      </Button>
+                      <Button
+                        variant="danger"
+                        disabled={pending || !context || !editable}
+                        data-testid="reallocation-delete"
+                        onClick={(event) => {
+                          event.currentTarget.focus({ preventScroll: true });
+                          setReallocationError(null);
+                          setDeletingId(from.reallocationId!);
+                        }}
+                      >
+                        Delete
+                        <span className="sr-only">
+                          {" "}
+                          allocation from {fromSphere?.name} to {toSphere?.name}
+                        </span>
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        )}
+        <Dialog
+          title="Delete allocation?"
+          open={deletingId !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeletingId(null);
+              setReallocationError(null);
+            }
+          }}
+          requireAction={pending}
+          closeButtonLabel={pending ? undefined : "Close deletion confirmation"}
         >
-          {!complete
-            ? "Balances are incomplete — synchronize to finish loading."
-            : operating.some((row) => row.status === "diverged")
-              ? "Balances differ — check synchronization in Settings."
-              : "Purpose totals match account totals in every currency."}
-        </output>
-      </details>
+          {deletingPair && (
+            <div className="mt-3 space-y-4" data-testid="reallocation-delete-confirmation">
+              <p className="text-text text-sm">
+                {formatMoney(deletingPair[1].amount, deletingPair[1].currencyCode)} returns from{" "}
+                {owned.find((sphere) => sphere.id === deletingPair[1].sphereId)?.name} to{" "}
+                {owned.find((sphere) => sphere.id === deletingPair[0].sphereId)?.name}. Account
+                balances stay unchanged.
+              </p>
+              {reallocationError && (
+                <p role="alert" className="text-danger text-sm">
+                  {reallocationError}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="danger"
+                  disabled={pending || !context || !complete}
+                  data-testid="reallocation-delete-confirm"
+                  onClick={() =>
+                    context &&
+                    runReallocation(
+                      () => deleteReallocation(deletingPair[0].reallocationId!, context),
+                      "Allocation deleted. Its effect on both spheres has been reversed.",
+                    )
+                  }
+                >
+                  Delete allocation
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => {
+                    setDeletingId(null);
+                    setReallocationError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </Dialog>
+        <details className="group/disclosure">
+          <summary className={supportingSummaryClass}>
+            <span>How purpose balances work</span>
+            <ChevronDownIcon
+              aria-hidden="true"
+              className="size-4 shrink-0 group-open/disclosure:rotate-180"
+            />
+          </summary>
+          <p className="text-text-muted max-w-prose text-sm">
+            In each currency, Operating + Funds + Capital equals your account total, including
+            archived accounts. These are the same money viewed by purpose, not extra balances to add
+            to your accounts.
+          </p>
+          <output
+            className="text-text-muted mt-2 block text-xs"
+            data-testid="operating-reconciliation"
+          >
+            {!complete
+              ? "Balances are incomplete — synchronize to finish loading."
+              : operatingDiverged
+                ? "Balances differ — check synchronization in Settings."
+                : "Purpose totals match account totals in every currency."}
+          </output>
+        </details>
+      </div>
     </section>
   );
 }
