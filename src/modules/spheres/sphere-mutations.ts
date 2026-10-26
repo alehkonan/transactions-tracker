@@ -7,12 +7,11 @@ export async function createSphere(
   name: string,
   type: "FUNDS" | "CAPITAL",
   context: ReplicaContext,
-): Promise<void> {
+): Promise<string> {
   const payload: SpherePayload = { profileId, name: name.trim(), type, archived: false };
-  await commit(
-    [{ op: "upsert", table: "spheres", row: newRow({ ...payload, hasHistory: false }), payload }],
-    context,
-  );
+  const row = newRow({ ...payload, hasHistory: false });
+  await commit([{ op: "upsert", table: "spheres", row, payload }], context);
+  return row.id;
 }
 
 export function updateSphere(
