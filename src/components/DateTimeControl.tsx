@@ -15,8 +15,10 @@ type Props<TFieldValues extends FieldValues, TName extends FieldPathByValue<TFie
   max?: Date;
 };
 
+// Reset native appearance to work around iOS date/time input sizing:
+// https://bugs.webkit.org/show_bug.cgi?id=301648
 const inputClassName =
-  "border-border bg-surface text-text focus-visible:ring-accent h-11 min-w-0 w-full rounded-2xl border px-3 transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:bg-surface-muted disabled:cursor-not-allowed sm:h-9";
+  "border-border bg-surface text-text focus-visible:ring-accent h-11 min-w-0 w-full appearance-none rounded-2xl border px-3 transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:bg-surface-muted disabled:cursor-not-allowed sm:h-9";
 
 /** Native date and time inputs that edit one local Date value. */
 export function DateTimeControl<
