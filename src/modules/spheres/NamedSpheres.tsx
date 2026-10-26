@@ -78,7 +78,7 @@ function SphereItem({
   return (
     <li className="border-border border-t" data-testid={`sphere-${sphere.id}`}>
       <details className="group/sphere">
-        <summary className={sphereSummaryClass}>
+        <summary className={sphereSummaryClass} data-testid="sphere-expand">
           <h4 className="min-w-0 font-medium wrap-anywhere">{sphere.name}</h4>
           <span
             className={`inline-flex items-center justify-end gap-1 text-right font-mono text-sm whitespace-nowrap tabular-nums ${belowZero ? "text-warning" : "text-text"}`}
@@ -471,6 +471,7 @@ export function NamedSpheres({
         </div>
         <Button
           ref={createButtonRef}
+          data-testid="sphere-create-open"
           variant="secondary"
           onClick={(event) => openCreator(event.currentTarget)}
           aria-haspopup="dialog"
@@ -492,7 +493,7 @@ export function NamedSpheres({
         data-testid="operating-sphere"
       >
         <details className="group/sphere">
-          <summary className={sphereSummaryClass}>
+          <summary className={sphereSummaryClass} data-testid="operating-expand">
             <h3 id="operating-heading" className="min-w-0 font-medium wrap-anywhere">
               Operating
             </h3>
@@ -1099,7 +1100,7 @@ export function NamedSpheres({
           )}
         </Dialog>
         <details className="group/disclosure">
-          <summary className={supportingSummaryClass}>
+          <summary className={supportingSummaryClass} data-testid="purpose-balances-help">
             <span>How purpose balances work</span>
             <ChevronDownIcon
               aria-hidden="true"
