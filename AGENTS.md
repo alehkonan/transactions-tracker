@@ -5,6 +5,8 @@
 - Respond as briefly as possible. Include only the result, essential caveats, and validation; omit filler, routine narration, and repeated tool output.
 - Run exactly one executable command per `terminal` invocation. Send sequential commands in separate calls rather than chaining them with `&&`, `;`, pipes, or command substitution, so allowlisted operations run immediately and permission prompts describe one auditable action whose risks can be understood before allowlisting.
 - Do not read or commit `.env*` files. Use `.env.example` for variable names.
+- Write all repository documentation in English, including design reports and generated documents.
+- Store temporary screenshots and other verification images in the ignored `.temp/` directory, delete them when finished, and never add them to Git.
 
 ## Stack and commands
 
