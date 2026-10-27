@@ -25,16 +25,27 @@ describe("validateSyncRequest", () => {
     );
   });
 
+  it("rejects the old dataset even when its numeric owner ID matches the new user", async () => {
+    await expectProtocolError(
+      {
+        protocolVersion: 3,
+        expectedOwnerUserId: 41,
+        mutations: [{ table: "profiles", op: "upsert", payload: { name: "Old dataset" } }],
+      },
+      { status: 426, code: "SYNC_PROTOCOL_UNSUPPORTED" },
+    );
+  });
+
   it("rejects malformed owner context distinctly from an unsupported protocol", async () => {
     await expectProtocolError(
-      { protocolVersion: 3, expectedOwnerUserId: 0, mutations: [] },
+      { protocolVersion: 4, expectedOwnerUserId: 0, mutations: [] },
       { status: 400, code: "INVALID_SYNC_REQUEST" },
     );
   });
 
   it("rejects a different authenticated owner without exposing their identity", async () => {
     await expectProtocolError(
-      { protocolVersion: 3, expectedOwnerUserId: 42, mutations: [] },
+      { protocolVersion: 4, expectedOwnerUserId: 42, mutations: [] },
       { status: 409, code: "REPLICA_OWNER_MISMATCH" },
     );
   });
@@ -43,9 +54,9 @@ describe("validateSyncRequest", () => {
     expect(
       validateSyncRequest(
         pushChangesSchema,
-        { protocolVersion: 3, expectedOwnerUserId: 41, mutations: [] },
+        { protocolVersion: 4, expectedOwnerUserId: 41, mutations: [] },
         41,
       ),
-    ).toEqual({ protocolVersion: 3, expectedOwnerUserId: 41, mutations: [] });
+    ).toEqual({ protocolVersion: 4, expectedOwnerUserId: 41, mutations: [] });
   });
 });

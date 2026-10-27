@@ -11,7 +11,7 @@ import type { Page } from "@playwright/test";
 const PREVIEW_ORIGIN = "http://localhost:5455";
 const PROXY_PORT = 5456;
 const PROXY_ORIGIN = `http://localhost:${PROXY_PORT}`;
-const DATABASE_NAME = "transactions-tracker";
+const DATABASE_NAME = "transactions-tracker-netlify-v1";
 const STALE_CURSOR = "2000-01-01T00:00:00.000Z";
 const SERVER_FUNCTION = { pathname: /^\/_serverFn\// } as const;
 

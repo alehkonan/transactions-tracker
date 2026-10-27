@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import postgres from "postgres";
+import { createPostgresClient } from "../../src/database/connection.server.ts";
 import { RETENTION_DAYS, SWEPT_TABLES } from "../../src/modules/sync/synced-tables.ts";
 
 /**
@@ -29,43 +29,6 @@ export const config = { schedule: "@daily" };
 
 type SweepResult = Record<string, number>;
 
-function getSslConfig() {
-  const encodedCertificate = process.env.POSTGRES_CA_CERT_BASE64;
-  // A local production-mode invocation may target the local database; Netlify deployments may not.
-  const deployed = process.env.NETLIFY === "true";
-
-  if (!encodedCertificate) {
-    if (deployed) throw new Error("POSTGRES_CA_CERT_BASE64 is required in deployed environments");
-    return false;
-  }
-
-  const ca = Buffer.from(encodedCertificate, "base64").toString("utf8");
-  if (!ca.includes("-----BEGIN CERTIFICATE-----") || !ca.includes("-----END CERTIFICATE-----")) {
-    throw new Error("POSTGRES_CA_CERT_BASE64 does not contain a valid PEM certificate");
-  }
-
-  return { ca, rejectUnauthorized: true };
-}
-
-function connect() {
-  const host = process.env.POSTGRES_HOST;
-  if (!host) throw new Error("POSTGRES_HOST is not set — no database to sweep.");
-
-  return postgres({
-    user: process.env.POSTGRES_USER,
-    password: process.env.POSTGRES_PASSWORD,
-    host,
-    port: Number(process.env.POSTGRES_PORT),
-    database: process.env.POSTGRES_DB,
-    ssl: getSslConfig(),
-    max: 1,
-    prepare: false,
-    idle_timeout: 20,
-    connect_timeout: 3,
-    connection: { application_name: "transactions-tracker-tombstone-gc" },
-  });
-}
-
 /**
  * Hard-deletes every tombstone past the retention window, and reports how many per table.
  *
@@ -74,7 +37,7 @@ function connect() {
  * housekeeping that runs off the request path has no reason to be clever about round trips.
  */
 export async function sweepTombstones(): Promise<SweepResult> {
-  const sql = connect();
+  const sql = createPostgresClient("transactions-tracker-tombstone-gc");
 
   try {
     const removed: SweepResult = {};

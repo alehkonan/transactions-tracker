@@ -2,16 +2,19 @@
 command = "vite build"
 publish = "dist/client"
 
-# Production deploys (pushes to main) run pending SQL migrations against the
-# prod DB before building, so the new schema is live before the new code is.
+[build.environment]
+NODE_VERSION = "24"
+
+# The custom Drizzle runner uses Netlify's branch-specific NETLIFY_DB_URL.
+# Keep migrations outside netlify/database/migrations to avoid a second runner.
+# Migrations run before publication; a later build failure does not undo them.
 [context.production]
 command = "pnpm db:migrate && vite build"
 
-# Deploy previews (PRs) need pending migrations applied too, so the preview
-# build runs against the current schema. drizzle-kit migrate tracks applied
-# migrations and no-ops when there's nothing pending, so this is safe to run
-# on every preview build.
 [context.deploy-preview]
+command = "pnpm db:migrate && vite build"
+
+[context.branch-deploy]
 command = "pnpm db:migrate && vite build"
 
 [[headers]]

@@ -12,7 +12,7 @@ const TRANSACTION_TIMEOUT = "20s";
  * Runs request-path database work with PostgreSQL-enforced deadlines.
  *
  * The settings are local to this transaction, which is safe for transaction pooling: no session state
- * can leak to the next client that Supavisor assigns to the backend. PostgreSQL remains responsible for
+ * can leak to the next client assigned to the backend. PostgreSQL remains responsible for
  * stopping the work if the HTTP request disappears before application code can observe the failure.
  * PostgreSQL 17+ also receives a twenty-second whole-transaction timeout; older versions retain the
  * statement/lock/idle protections and expose the remaining total duration through phase logs.

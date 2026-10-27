@@ -163,7 +163,7 @@ test("an interrupted allocation pull remains incomplete after an offline reload"
   if (!(await page.evaluate(() => navigator.serviceWorker.controller != null))) await page.reload();
   await context.setOffline(true);
   await page.evaluate(async () => {
-    const request = indexedDB.open("transactions-tracker");
+    const request = indexedDB.open("transactions-tracker-netlify-v1");
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);

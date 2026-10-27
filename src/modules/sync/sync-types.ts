@@ -80,7 +80,7 @@ export type SyncCursor = {
 export type SyncCursors = Partial<Record<SyncedTable, SyncCursor>>;
 
 /** Version of the owner-aware wire protocol. This is independent of the IndexedDB schema version. */
-export const SYNC_PROTOCOL_VERSION = 3 as const;
+export const SYNC_PROTOCOL_VERSION = 4 as const;
 
 export type ReplicaSyncContext = {
   protocolVersion: typeof SYNC_PROTOCOL_VERSION;

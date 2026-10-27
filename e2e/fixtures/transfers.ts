@@ -58,7 +58,7 @@ export async function pushMutations(page: Page, mutations: Mutation[]) {
       const response = await fetch("/api/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ protocolVersion: 3, expectedOwnerUserId, mutations }),
+        body: JSON.stringify({ protocolVersion: 4, expectedOwnerUserId, mutations }),
       });
       const text = await response.text();
       let body: PushResult;
@@ -217,7 +217,7 @@ export async function readFinancialReplica(page: Page): Promise<{
   outbox: Array<Mutation & { seq: number }>;
 }> {
   return page.evaluate(async () => {
-    const open = indexedDB.open("transactions-tracker");
+    const open = indexedDB.open("transactions-tracker-netlify-v1");
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       open.onsuccess = () => resolve(open.result);
       open.onerror = () => reject(open.error);

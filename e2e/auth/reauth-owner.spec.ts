@@ -26,7 +26,7 @@ async function signUpThroughUi(page: Page, username: string, password: string): 
 
 async function readDurableReplicaSnapshot(page: Page): Promise<DurableReplicaSnapshot> {
   return page.evaluate(async () => {
-    const request = indexedDB.open("transactions-tracker");
+    const request = indexedDB.open("transactions-tracker-netlify-v1");
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener("success", () => resolve(request.result));
       request.addEventListener("error", () => reject(request.error));

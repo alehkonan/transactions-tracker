@@ -9,7 +9,7 @@ const mutation = {
   op: "delete",
 } as const;
 
-const context = { protocolVersion: 3, expectedOwnerUserId: 41 } as const;
+const context = { protocolVersion: 4, expectedOwnerUserId: 41 } as const;
 
 describe("sync request schemas", () => {
   it("requires the versioned replica owner context on every entry point", () => {
@@ -22,7 +22,7 @@ describe("sync request schemas", () => {
     expect(pushChangesSchema.safeParse({ mutations: [] }).success).toBe(false);
   });
 
-  it.each([1, 2])("rejects unsupported protocol version %s", (protocolVersion) => {
+  it.each([1, 2, 3])("rejects unsupported protocol version %s", (protocolVersion) => {
     const unsupported = { protocolVersion, expectedOwnerUserId: 41 };
 
     expect(pullChangesSchema.safeParse(unsupported).success).toBe(false);

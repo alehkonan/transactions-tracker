@@ -33,7 +33,7 @@ transaction-context, and database-role prerequisites are complete.
   in the browser.
 - **CSV import/export** — the import matches accounts, categories and colors against the working set
   in memory, so it is instant and works offline.
-- **Passkey sign-in** — WebAuthn only, no passwords.
+- **Sign-in** — passkeys and password credentials.
 
 ## Getting started
 
@@ -52,15 +52,42 @@ also serves on cannot complete a passkey ceremony.
 
 Read from `.env` locally and from the real environment in deployments.
 
-| Variable                                                                              | Notes                                                                                                                 |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` | Discrete variables, not a `DATABASE_URL`.                                                                             |
-| `POSTGRES_CA_CERT_BASE64`                                                             | Base64-encoded PostgreSQL CA PEM; required in deployments.                                                            |
-| `AUTH_SECRET`                                                                         | HMAC key for the signed access and profile cookies. Required.                                                         |
-| `AUTH_RP_ID`, `AUTH_ORIGIN`                                                           | WebAuthn relying party. Fall back to the request URL locally.                                                         |
-| `E2E_TEST_USERNAME`, `E2E_TEST_PASSWORD`                                              | Existing password credential used by Playwright's configured-user sign-in check. Both are required for every e2e run. |
+| Variable                                                                              | Notes                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` | Local application and Docker Compose credentials. Username and password are plain strings, without URL encoding. Hosted processes never fall back to these variables. |
+| `NETLIFY_DB_URL`                                                                      | Netlify-provided URL for the current deployed branch. Only used in hosted environments; connections verify certificates. Do not set it locally.                       |
+| `AUTH_SECRET`                                                                         | HMAC key for dataset-bound signed cookies. Required; rotate when switching to a fresh hosted database.                                                                |
+| `AUTH_RP_ID`, `AUTH_ORIGIN`                                                           | WebAuthn relying party. Fall back to the request URL locally.                                                                                                         |
+| `E2E_TEST_USERNAME`, `E2E_TEST_PASSWORD`                                              | Existing password credential used by Playwright's configured-user sign-in check. Both are required for every e2e run.                                                 |
 
 `E2E_TEST_USERNAME` must refer to a password-authenticated user already provisioned in the target database. The app deliberately returns the same response for an unknown username and a wrong password; the e2e result therefore identifies this as a configured-user authentication failure and directs you to verify both the user and password.
+
+### Netlify Database
+
+Install dependencies with Node 22.12 or newer; hosted builds use Node 24. Enable Database for the
+existing Netlify project on the credit-based Free plan. The platform injects the matching
+`NETLIFY_DB_URL` for production and preview branches. Do not copy a production URL into preview
+environment variables. Free-tier exhaustion may temporarily stop the backend; local reads and edits
+remain available and pending writes remain queued.
+
+Drizzle owns migrations in `src/database/migrations/`. Production, Deploy Preview, and branch builds
+run `db:migrate` before the application build. A failed migration blocks the release; migrations are
+not rolled back if a later build step fails. Keep future schema changes backward compatible. Do not
+create a second migration history under `netlify/database/migrations/` or use schema push.
+
+The provider switch starts with an empty database and the browser namespace
+`transactions-tracker-netlify-v1`. Existing users, passkeys, financial history, and pending old-device
+writes are not imported. Register again after deployment, then create a new profile. Close old tabs
+and installed-PWA windows and reopen to activate the complete new build. Old protocol-v3 clients
+cannot sync to the new dataset; signed cookies from the old dataset are invalid even if the secret
+has not yet been rotated. The old IndexedDB database is left unused and can be removed separately.
+
+Local development uses the existing PostgreSQL database through separate `POSTGRES_*` variables.
+The app, Drizzle Kit, tombstone maintenance, and Docker Compose use those local settings directly;
+passwords do not need URL encoding. Hosted connections are selected by `NETLIFY=true`, excluding
+`NETLIFY_DEV=true`, rather than by the presence of a URL. Automatic local Netlify Database startup
+is disabled in the existing Vite adapter. The complete rollout gates are recorded in
+[`docs/plans/netlify-database.md`](docs/plans/netlify-database.md).
 
 ## Commands
 

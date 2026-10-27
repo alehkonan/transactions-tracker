@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-export const DATABASE_NAME = "transactions-tracker";
+export const DATABASE_NAME = "transactions-tracker-netlify-v1";
 export const DATABASE_VERSION = 4;
 
 export type ReplicaDescriptor = {

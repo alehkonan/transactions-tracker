@@ -36,6 +36,9 @@ export default defineConfig({
     }),
     netlify({
       dev: {
+        // Keep local requests and Drizzle Kit on the same Docker database. Installing the hosted
+        // SDK must not silently start a second, unmigrated local Netlify database.
+        database: { enabled: false },
         // Vite owns dev routing and public files. Reading generated `dist/client/_redirects` here
         // mixes a previous production shell with unhashed dev modules and leaves every asset at 404.
         redirects: { enabled: false },

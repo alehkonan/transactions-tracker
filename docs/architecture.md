@@ -4,9 +4,9 @@ How this app is built, and why. The short version: **it is offline-first — eve
 memory, every write lands locally first, and PostgreSQL is a sync backend rather than a database the
 UI talks to.**
 
-The constraint behind that shape is the database: a shared-CPU / 500MB-RAM PostgreSQL instance behind
-serverless functions, too slow to sit on the render path and unreachable altogether when the user is
-on a train. The working set is small — roughly 2MB for 10,000 transactions — so the whole of it is
+The constraint behind that shape is the database: PostgreSQL behind serverless functions adds network
+latency and is unreachable when the user is on a train. The working set is small — roughly 2MB for
+10,000 transactions — so the whole of it is
 replicated to the client and held in memory, and the database never appears in a render.
 
 ```
@@ -310,7 +310,7 @@ every outbox entry, sequence and payload. Inconsistent account references retain
 exportable recovery. Pending source intents also protect their companions from server backfill.
 Canonical settlement requires companions before releasing source intents. Pull pagination, integrity,
 full refresh, recovery export, replica replacement and child-first tombstone collection include both
-new tables. Protocol v3 rejects incompatible clients before reading or sending queued financial data.
+new tables. Protocol v4 rejects incompatible clients before reading or sending queued financial data.
 
 A canonical response from an earlier push must also yield to a newer queued account/profile deletion.
 Settlement suppresses those descendants, including both linked transfer legs and their allocations,
@@ -507,7 +507,7 @@ otherwise.
 The authenticated server user and the local replica owner are deliberately separate state. IDB v3's
 `replicaDescriptor` records a fresh `replicaId`, optional server-confirmed `{ ownerUserId, username }`,
 lifecycle/transition fencing, legacy ownership classification, and durable sync admission. Every sync
-envelope carries protocol version 3 plus `expectedOwnerUserId`; every successful result echoes the
+envelope carries protocol version 4 plus `expectedOwnerUserId`; every successful result echoes the
 actual `ownerUserId`. The server rejects an owner mismatch before domain reads or writes.
 
 Sign-in finalization runs under the same browser-wide operation lock as sync. Reauthentication supplies
@@ -537,6 +537,15 @@ remain non-authoritative liveness hints for deciding whether background sync can
 settings username and selected profile come from durable replica metadata. Every server function still
 re-proves the caller.
 
+The Netlify Database switch deliberately starts a new dataset, `netlify-v1`, without importing old
+users or financial history. Its IndexedDB namespace is `transactions-tracker-netlify-v1` (schema v4),
+and its broadcast channel uses that namespace. The browser operation lock remains shared across
+generations because authentication cookies share an origin. Signed cookie HMACs include the dataset
+as a domain separator: an old access cookie cannot authenticate a reused serial user ID even before
+`AUTH_SECRET` is rotated. Protocol v3 is rejected before domain work, so cached old clients cannot
+replay their outboxes into the new backend. Old browser storage remains unused; new users register
+again. PWA updates still follow the passive close-and-reopen policy.
+
 WebAuthn's secure-context rule means dev only works over `localhost`, not the LAN host Vite also
 serves on.
 
@@ -545,8 +554,14 @@ serves on.
 ## Data layer
 
 `src/database/schema.ts` is the single source of truth for tables and enums; migrations are generated
-into `src/database/migrations/` by drizzle-kit. `drizzle.config.ts` and `get-db.server.ts` both read
-discrete `POSTGRES_USER` / `PASSWORD` / `HOST` / `PORT` / `DB` variables (not a `DATABASE_URL`).
+into `src/database/migrations/` by drizzle-kit. `src/database/connection.server.ts` resolves the
+Netlify-provided `NETLIFY_DB_URL` for the current deployment branch. Runtime, Drizzle Kit, and
+tombstone maintenance share that boundary and verified TLS with the system trust store. A deployed
+process without a Netlify URL fails instead of using the previous provider's credentials. Local
+Docker development uses discrete `POSTGRES_USER` / `PASSWORD` / `HOST` / `PORT` / `DB` variables,
+passing passwords directly without URL encoding. The hosted branch is selected by `NETLIFY=true`
+with `NETLIFY_DEV` unset or false, rather than by the presence of `NETLIFY_DB_URL`;
+automatic local Netlify Database startup is disabled in the Vite adapter.
 
 `get-db.server.ts` exposes `getDb()`, a lazily-initialized Drizzle singleton with **no top-level side
 effects**, so the TanStack Start compiler can tree-shake the postgres driver out of the client
@@ -571,9 +586,14 @@ the schema diff without recording anything in `drizzle.__drizzle_migrations`, so
 unmigrated to `db:migrate`, which then replays old migrations and fails on the first already-applied
 statement — with the error swallowed by drizzle-kit, leaving only a bare exit code 1.
 
-Production runs Postgres 17 and local dev runs 18, so the id default is `gen_random_uuid()`:
-`uuidv7()` is an 18-only builtin. Ordering only matters for rows clients create, and those carry a
-client-minted v7.
+Production, Deploy Preview, and branch builds apply Drizzle migrations before building and publishing.
+The migration directory deliberately stays outside `netlify/database/migrations/`, so Netlify does
+not run a second migration engine. Migration failure blocks the release; later build failure does not
+undo schema changes, so future migrations must remain backward compatible with the deployed code.
+
+The id default is `gen_random_uuid()` for compatibility across PostgreSQL versions; local Docker
+development runs PostgreSQL 18. Ordering only matters for rows clients create, and those carry a
+client-minted v7. Verify the hosted server version during provisioning.
 
 Input validation lives next to the server function, as a Zod schema passed to `.validator(...)` in
 the same `src/api/*.functions.ts` file. The push mutation schema is the exception: it lives in
