@@ -53,7 +53,7 @@ async function queueAccountEditThroughUi(page: Page): Promise<void> {
 
 async function readRawReplicaState(page: Page): Promise<RawReplicaState> {
   return page.evaluate(async () => {
-    const openRequest = indexedDB.open("transactions-tracker");
+    const openRequest = indexedDB.open("transactions-tracker-netlify-v1");
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       openRequest.addEventListener("success", () => resolve(openRequest.result));
       openRequest.addEventListener("error", () => reject(openRequest.error));

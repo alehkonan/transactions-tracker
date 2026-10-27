@@ -3,7 +3,7 @@ import { completeOnboarding } from "../fixtures/auth";
 import { LOCAL_TRANSACTION_COMMENT, test } from "../fixtures/local-replica";
 import type { BrowserContext, Page, Route } from "@playwright/test";
 
-const DATABASE_NAME = "transactions-tracker";
+const DATABASE_NAME = "transactions-tracker-netlify-v1";
 const DRAFT_FILE_NAME = "pending-import-draft.csv";
 const SERVER_FUNCTION_PATTERN = "**/_serverFn/**";
 const FINANCIAL_STORES = ["profiles", "accounts", "categories", "transactions"] as const;

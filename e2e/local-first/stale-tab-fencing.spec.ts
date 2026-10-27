@@ -3,7 +3,7 @@ import { completeOnboarding, test as authTest, waitForSynced } from "../fixtures
 import { LOCAL_TRANSACTION_COMMENT, test } from "../fixtures/local-replica";
 import type { BrowserContext, Page, Request, Route } from "@playwright/test";
 
-const DATABASE_NAME = "transactions-tracker";
+const DATABASE_NAME = "transactions-tracker-netlify-v1";
 const SERVER_FUNCTION_PATTERN = "**/_serverFn/**";
 const AUTH_COOKIE_NAMES = new Set([
   "access_token",
@@ -178,7 +178,7 @@ async function installDroppedSyncBroadcasts(page: Page): Promise<void> {
         listener: EventListenerOrEventListenerObject,
         options?: boolean | AddEventListenerOptions,
       ) {
-        if (this.name === "transactions-tracker:sync" && type === "message") return;
+        if (this.name === "transactions-tracker-netlify-v1:sync" && type === "message") return;
         Reflect.apply(originalAddEventListener, this, [type, listener, options]);
       },
     });

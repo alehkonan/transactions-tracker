@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { REPLICA_DATASET } from "../modules/sync/indexed-db-contract";
 
 /**
  * Tamper-proof cookie payloads: `base64url(json).base64url(hmac)`.
@@ -26,7 +27,12 @@ function getSecret(): string {
 }
 
 function computeSignature(body: string): string {
-  return createHmac("sha256", getSecret()).update(body).digest("base64url");
+  // Old signed access cookies must not authenticate a reused serial user ID in the empty dataset,
+  // even if an operator has not yet rotated AUTH_SECRET during the provider switch.
+  return createHmac("sha256", getSecret())
+    .update(`${REPLICA_DATASET}\0`)
+    .update(body)
+    .digest("base64url");
 }
 
 /** Serializes `payload` and appends its signature. */

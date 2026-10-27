@@ -7,7 +7,7 @@ import {
 } from "../fixtures/local-replica";
 import type { BrowserContext, CDPSession, Page, Request, Route } from "@playwright/test";
 
-const DATABASE_NAME = "transactions-tracker";
+const DATABASE_NAME = "transactions-tracker-netlify-v1";
 const SERVER_FUNCTION_PATH = "/_serverFn/";
 const AUTH_COOKIE_NAMES = new Set(["access_token", "refresh_token", "session_hint"]);
 const FINANCIAL_STORES = ["profiles", "accounts", "categories", "transactions"] as const;

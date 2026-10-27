@@ -30,3 +30,4 @@ todos.json
 # Local agent issue tracker
 /.scratch/
 .playwright-mcp/
+.pnpm-store/

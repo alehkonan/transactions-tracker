@@ -4,10 +4,13 @@ Known production and design constraints that are not immediate incidents but sho
 
 ## Database deployment
 
-- Netlify Functions currently run in `CMH` (Ohio), while Supabase PostgreSQL runs in `ap-northeast-1` (Tokyo). The distance adds latency to every database round trip and makes chatty sync queries more expensive.
-- Production runtime traffic uses the Supabase transaction pooler on port `6543`. Runtime, Drizzle Kit, and tombstone maintenance explicitly use the CA from `POSTGRES_CA_CERT_BASE64` with certificate verification. Supabase SSL enforcement must only be enabled after those clients are deployed and tested; the dashboard setting remains a separate operational control.
-- Runtime, migration, and tombstone-maintenance workloads still use the same `POSTGRES_*` variable group. They cannot yet be assigned independently scoped endpoints, credentials, or deployment contexts.
+- The previous deployment placed Netlify Functions in `CMH` (Ohio) and Supabase PostgreSQL in `ap-northeast-1` (Tokyo). The Netlify Database implementation removes the provider-specific connection setup, but actual database/function co-location and latency still require hosted rollout evidence.
+- Runtime, Drizzle Kit, and tombstone maintenance resolve the branch-specific `NETLIFY_DB_URL` through one server-only boundary. Hosted TLS uses the system trust store with explicit certificate verification. The previous `POSTGRES_CA_CERT_BASE64` requirement is removed.
+- Netlify deployments fail without their database URL; local Docker retains `POSTGRES_*`. Never pin a production URL into preview configuration. Migration, runtime, and maintenance still share the credentials supplied for that branch rather than independently scoped database roles.
 - `max: 1` limits each warm Netlify isolate, not the aggregate number of connections across isolates. Correct server-side pooling remains necessary.
+- The credit-based Free plan is the intended deployment tier. Exhausting its allowance and losing backend availability is accepted. Cached local work remains available, but registration, session renewal, and synchronization depend on the backend returning.
+- The fresh dataset intentionally does not preserve old users, credentials, financial records, or old-device outboxes. Namespace isolation, protocol v4, and dataset-bound cookie signatures are required together. Closing old PWA windows is still necessary to activate the new complete build.
+- Custom Drizzle migrations run before publication, not atomically with it. A later build failure leaves already-applied schema changes in place; future migrations must be backward compatible. Hosted migration replay, passkey registration, maintenance routing, and latency measurements remain rollout gates.
 
 ## Request and transaction budgets
 

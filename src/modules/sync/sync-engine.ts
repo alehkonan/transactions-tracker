@@ -17,6 +17,7 @@ import {
   subscribeToReplicaInvalidation,
   writeLocalPage,
 } from "./idb";
+import { INDEXED_DB_NAME } from "./indexed-db-contract";
 import { compareIntegrity, localIntegrity } from "./integrity";
 import { createOutboxStorage, readOutboxState } from "./outbox";
 import {
@@ -76,7 +77,7 @@ import type {
  */
 
 /** Cross-tab invalidation channel. Mutual exclusion is shared with auth in browser-operation-lock. */
-const SYNC_CHANNEL = "transactions-tracker:sync";
+const SYNC_CHANNEL = `${INDEXED_DB_NAME}:sync`;
 
 /** How old the working set may get before an idle, visible tab refreshes it. */
 const STALE_AFTER_MS = 5 * 60_000;

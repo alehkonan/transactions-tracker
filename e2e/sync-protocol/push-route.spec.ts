@@ -17,7 +17,7 @@ baseTest(
 
     const [push, serverFunction, script] = await Promise.all([
       request.post("/api/push", {
-        data: { protocolVersion: 3, expectedOwnerUserId: 1, mutations: [] },
+        data: { protocolVersion: 4, expectedOwnerUserId: 1, mutations: [] },
       }),
       request.get("/_serverFn/not-a-real-function"),
       request.get("/not-a-real-asset.js"),
@@ -54,7 +54,7 @@ test("the HTTP push route returns the production protocol shape", async ({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        protocolVersion: 3,
+        protocolVersion: 4,
         expectedOwnerUserId,
         mutations: [],
       }),
@@ -75,7 +75,7 @@ test("the HTTP push route returns the production protocol shape", async ({
 
   expect(result.status).toBe(200);
   expect(result.body).toEqual({
-    protocolVersion: 3,
+    protocolVersion: 4,
     ownerUserId,
     applied: [],
     canonicalRows: {
@@ -100,7 +100,7 @@ test("the HTTP push route rejects a replica owner mismatch", async ({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        protocolVersion: 3,
+        protocolVersion: 4,
         expectedOwnerUserId,
         mutations: [
           {
@@ -152,15 +152,18 @@ test("a rejected non-empty legacy push leaves no row or receipt before a current
     payload: { name: "Legacy intent must not be written" },
   } as const;
 
-  const legacyFailure = await page.evaluate(async (mutation) => {
-    const response = await fetch("/api/push", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mutations: [mutation] }),
-    });
-    const body = (await response.json()) as { code?: string };
-    return { status: response.status, code: body.code };
-  }, legacyMutation);
+  const legacyFailure = await page.evaluate(
+    async ({ mutation, expectedOwnerUserId }) => {
+      const response = await fetch("/api/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ protocolVersion: 3, expectedOwnerUserId, mutations: [mutation] }),
+      });
+      const body = (await response.json()) as { code?: string };
+      return { status: response.status, code: body.code };
+    },
+    { mutation: legacyMutation, expectedOwnerUserId: ownerUserId },
+  );
 
   expect(legacyFailure).toEqual({ status: 426, code: "SYNC_PROTOCOL_UNSUPPORTED" });
 
@@ -170,12 +173,12 @@ test("a rejected non-empty legacy push leaves no row or receipt before a current
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          protocolVersion: 3,
+          protocolVersion: 4,
           expectedOwnerUserId,
           mutations: [
             {
               ...rejectedMutation,
-              payload: { name: "Accepted v2 intent" },
+              payload: { name: "Accepted current intent" },
             },
           ],
         }),
@@ -194,6 +197,6 @@ test("a rejected non-empty legacy push leaves no row or receipt before a current
   expect(accepted.body.applied).toEqual([mutationId]);
   expect(accepted.body.conflicts).toEqual([]);
   expect(accepted.body.canonicalRows.profiles).toEqual([
-    expect.objectContaining({ id: rowId, name: "Accepted v2 intent", deletedAt: null }),
+    expect.objectContaining({ id: rowId, name: "Accepted current intent", deletedAt: null }),
   ]);
 });

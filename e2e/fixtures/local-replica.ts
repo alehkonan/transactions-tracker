@@ -43,7 +43,7 @@ export async function clearAuthCookies(page: Page): Promise<void> {
 
 async function readReplicaCounts(page: Page): Promise<Record<string, number>> {
   return page.evaluate(async () => {
-    const request = indexedDB.open("transactions-tracker");
+    const request = indexedDB.open("transactions-tracker-netlify-v1");
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener("success", () => resolve(request.result));
       request.addEventListener("error", () => reject(request.error));

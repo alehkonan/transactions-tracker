@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 const APP_CACHE_PREFIX = "transactions-tracker-";
-const DATABASE_NAME = "transactions-tracker";
+const DATABASE_NAME = "transactions-tracker-netlify-v1";
 const SENTINEL_KEY = "e2e-storage-failure-sentinel";
 const SENTINEL_VALUE = { purpose: "prove storage failures do not reset IndexedDB" };
 const IDB_FAILURE_FLAG = "e2e-force-idb-unavailable";

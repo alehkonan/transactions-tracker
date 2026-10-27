@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 import { test } from "../fixtures/auth";
 import type { Page } from "@playwright/test";
 
-const DATABASE_NAME = "transactions-tracker";
+const DATABASE_NAME = "transactions-tracker-netlify-v1";
 const PROFILE_NAME = "P16 Offline Profile";
 const ACCOUNT_NAME = "P16 Offline Account";
 

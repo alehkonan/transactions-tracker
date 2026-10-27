@@ -14,7 +14,7 @@ const emptyRows: SyncedRows = {
 
 function page(pending: SyncedTable[]): PullChangesResult {
   return {
-    protocolVersion: 3,
+    protocolVersion: 4,
     ownerUserId: 41,
     rows: emptyRows,
     nextCursors: {},
