@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   describeSyncError,
   retryableSyncResponse,
+  withSyncPhase,
   withSyncRequest,
 } from "./sync-observability.server";
 
@@ -69,6 +70,52 @@ describe("server console logs", () => {
       durationMs: expect.any(Number),
     });
   });
+
+  it("logs the database cause for phase and request failures without query data", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const cause = Object.assign(
+      new Error('internal database error: "private-input"\nprivate-context'),
+      {
+        code: "XX000",
+        severity: "ERROR",
+        detail: "Failing row contains private-row-value",
+        hint: "private-hint",
+        query: "private-query",
+        parameters: ["private-password"],
+      },
+    );
+    const error = new DrizzleQueryError("private-query", ["private-password"], cause);
+
+    await expect(
+      withSyncRequest(
+        new Request("https://example.com/_serverFn/signup"),
+        "passwordSignUp",
+        () =>
+          withSyncPhase("auth.password_sign_up.transaction", async () => {
+            throw error;
+          }),
+        () => 200,
+      ),
+    ).rejects.toBe(error);
+
+    const records = log.mock.calls.map(([line]) => JSON.parse(String(line)));
+    expect(records.map((record) => record.event)).toEqual([
+      "sync.phase.failed",
+      "sync.request.failed",
+    ]);
+    for (const record of records) {
+      expect(record).toMatchObject({
+        errorName: "DrizzleQueryError",
+        errorCode: "XX000",
+        errorMessage: "internal database error: <REDACTED>",
+        errorClassification: "unexpected",
+        retryable: false,
+      });
+    }
+    expect(JSON.stringify(records)).not.toContain("private-");
+  });
 });
 
 describe("describeSyncError", () => {
@@ -104,9 +151,46 @@ describe("describeSyncError", () => {
       errorName: "DrizzleQueryError",
       errorCode: "57014",
       errorSeverity: "ERROR",
+      errorMessage: "canceling statement",
       errorClassification: "database_statement_timeout",
       retryable: true,
     });
+  });
+
+  it.each([
+    ['invalid input syntax: "private-value"', "invalid input syntax: <REDACTED>"],
+    ["invalid input: 'private''value'", "invalid input: <REDACTED>"],
+    ["invalid input: 'private\\'value'", "invalid input: <REDACTED>"],
+    ['invalid input: "private-value', "invalid input: <REDACTED>"],
+    ["connection failed: postgres://user:password@db.example/app", "connection failed: <REDACTED>"],
+    [
+      "authentication failed: password=private-value token:private-token",
+      "authentication failed: password=<REDACTED> token=<REDACTED>",
+    ],
+    ["authorization: Bearer private-token", "authorization=<REDACTED>"],
+    ["internal error\nCONTEXT: private-query", "internal error"],
+    ["internal\u0000error", "internal error"],
+  ])("redacts database message %s", (message, expected) => {
+    const cause = Object.assign(new Error(message), { code: "XX000" });
+    const error = new DrizzleQueryError("private-query", ["private-password"], cause);
+    expect(describeSyncError(error).errorMessage).toBe(expected);
+  });
+
+  it("bounds database messages", () => {
+    const cause = Object.assign(new Error("x".repeat(1000)), { code: "XX000" });
+    expect(describeSyncError(cause).errorMessage).toHaveLength(512);
+  });
+
+  it("finds database messages through nested wrappers without falling back to wrapper messages", () => {
+    const cause = Object.assign(new Error("internal database error"), { code: "XX000" });
+    const error = new Error("private-wrapper", {
+      cause: new DrizzleQueryError("private-query", ["private-password"], cause),
+    });
+    expect(describeSyncError(error).errorMessage).toBe("internal database error");
+    expect(
+      describeSyncError(new DrizzleQueryError("private-query", ["private-password"])).errorMessage,
+    ).toBeUndefined();
+    expect(describeSyncError(new Error("private-message")).errorMessage).toBeUndefined();
   });
 
   it("does not mark an authorization or constraint error as retryable", () => {

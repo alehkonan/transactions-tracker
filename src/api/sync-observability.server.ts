@@ -6,6 +6,7 @@ import type { Mutation } from "~/modules/sync/sync-types";
 
 const MAX_PHASE_RECORDS = 100;
 const MAX_ERROR_CAUSE_DEPTH = 5;
+const MAX_ERROR_MESSAGE_LENGTH = 512;
 const isolateId = randomUUID();
 let requestCount = 0;
 
@@ -28,6 +29,7 @@ type ErrorDetails = {
   errorName: string;
   errorCode?: string;
   errorSeverity?: string;
+  errorMessage?: string;
   errorClassification: string;
   retryable: boolean;
 };
@@ -155,6 +157,32 @@ function errorName(error: unknown): string {
   return error.constructor.name || error.name;
 }
 
+function databaseErrorMessage(chain: unknown[]): string | undefined {
+  // Only the SQLSTATE-bearing cause is eligible. Drizzle's wrapper message contains SQL and params.
+  const cause = chain.find(
+    (candidate) =>
+      /^[0-9A-Z]{5}$/.test(stringProperty(candidate, "code") ?? "") &&
+      errorName(candidate) !== "DrizzleQueryError",
+  );
+  const message = stringProperty(cause, "message");
+  if (message == null) return undefined;
+
+  // Keep the primary message, excluding multiline SQL/context. PostgreSQL can echo input values
+  // even in its primary message, so redact quoted values and connection/credential material too.
+  const primaryMessage = message.split(/[\r\n]/, 1)[0] ?? "";
+  // oxlint-disable-next-line no-control-regex
+  const controlCharacters = /[\u0000-\u001f\u007f-\u009f]/g;
+  return primaryMessage
+    .replace(controlCharacters, " ")
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi, "<REDACTED>")
+    .replace(/'(?:''|\\.|[^'\\])*(?:'|$)|"(?:""|\\.|[^"\\])*(?:"|$)/g, "<REDACTED>")
+    .replace(
+      /\b(password|passwd|token|secret|authorization|api[_-]?key)\s*[:=]\s*(?:(?:bearer|basic)\s+)?[^\s,;]+/gi,
+      "$1=<REDACTED>",
+    )
+    .slice(0, MAX_ERROR_MESSAGE_LENGTH);
+}
+
 export function describeSyncError(error: unknown): ErrorDetails {
   if (error instanceof Response) {
     return {
@@ -169,6 +197,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
   const name = errorName(error);
   const code = chain.map((candidate) => stringProperty(candidate, "code")).find(Boolean);
   const severity = chain.map((candidate) => stringProperty(candidate, "severity")).find(Boolean);
+  const message = databaseErrorMessage(chain);
   const timeoutName = chain
     .map((candidate) => (candidate instanceof Error ? candidate.name : undefined))
     .find((candidate) => candidate === "AbortError" || candidate === "TimeoutError");
@@ -178,6 +207,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
       errorName: name,
       errorCode: code,
       errorSeverity: severity,
+      errorMessage: message,
       errorClassification: "database_lock_timeout",
       retryable: true,
     };
@@ -187,6 +217,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
       errorName: name,
       errorCode: code,
       errorSeverity: severity,
+      errorMessage: message,
       errorClassification: "database_statement_timeout",
       retryable: true,
     };
@@ -196,6 +227,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
       errorName: name,
       errorCode: code,
       errorSeverity: severity,
+      errorMessage: message,
       errorClassification: "database_idle_transaction_timeout",
       retryable: true,
     };
@@ -205,6 +237,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
       errorName: name,
       errorCode: code,
       errorSeverity: severity,
+      errorMessage: message,
       errorClassification: "database_transaction_timeout",
       retryable: true,
     };
@@ -214,6 +247,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
       errorName: name,
       errorCode: code,
       errorSeverity: severity,
+      errorMessage: message,
       errorClassification: "database_transaction_retry",
       retryable: true,
     };
@@ -229,6 +263,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
       errorName: name,
       errorCode: code,
       errorSeverity: severity,
+      errorMessage: message,
       errorClassification: "database_connection",
       retryable: true,
     };
@@ -264,6 +299,7 @@ export function describeSyncError(error: unknown): ErrorDetails {
     errorName: name,
     errorCode: code,
     errorSeverity: severity,
+    errorMessage: message,
     errorClassification: "unexpected",
     retryable: false,
   };
