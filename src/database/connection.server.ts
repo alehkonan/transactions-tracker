@@ -7,7 +7,9 @@ type DatabaseCredentials =
 
 /** Shared by the request client, Drizzle Kit, and the standalone tombstone function. */
 export function getDatabaseCredentials(): DatabaseCredentials {
-  if (process.env.NETLIFY === "true" && process.env.NETLIFY_DEV !== "true") {
+  // NETLIFY is build-only; SITE_ID is also provided to hosted Functions at runtime.
+  const hosted = process.env.NETLIFY === "true" || Boolean(process.env.SITE_ID);
+  if (hosted && process.env.NETLIFY_DEV !== "true") {
     // Select by deployment environment, not by whether a URL happens to be set locally.
     // A missing hosted URL must fail instead of falling back to POSTGRES_* credentials.
     return {

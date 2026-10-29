@@ -560,7 +560,9 @@ tombstone maintenance share that boundary and verified TLS with the system trust
 process without a Netlify URL fails instead of using the previous provider's credentials. Local
 Docker development uses discrete `POSTGRES_USER` / `PASSWORD` / `HOST` / `PORT` / `DB` variables,
 passing passwords directly without URL encoding. The hosted branch is selected by `NETLIFY=true`
-with `NETLIFY_DEV` unset or false, rather than by the presence of `NETLIFY_DB_URL`;
+during builds or by `SITE_ID` in hosted Functions, with `NETLIFY_DEV` unset or false.
+`NETLIFY` alone is insufficient because it is not provided to Functions at runtime. Selection does
+not depend on the presence of `NETLIFY_DB_URL`;
 automatic local Netlify Database startup is disabled in the Vite adapter.
 
 `get-db.server.ts` exposes `getDb()`, a lazily-initialized Drizzle singleton with **no top-level side
