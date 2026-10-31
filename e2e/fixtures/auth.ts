@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test as base } from "@playwright/test";
-import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
+import type { BrowserContext, Page, TestInfo } from "@playwright/test";
 
 const SYNCED_TITLE = /Everything on this device is on the server/;
 const E2E_PROFILE_NAME = "E2E Profile";
@@ -66,7 +66,7 @@ export async function completeOnboarding(page: Page): Promise<string> {
   await expect(page).toHaveURL(/\/transactions$/, { timeout: 30_000 });
   await page.waitForLoadState("networkidle");
 
-  await page.getByRole("link", { name: "Accounts" }).click();
+  await page.getByTestId("nav-accounts").click();
   await expect(page).toHaveURL(/\/accounts$/);
   await waitForSynced(page);
   await page.getByRole("button", { name: "Add account", exact: true }).click();
@@ -112,13 +112,15 @@ export async function openSecondDevice(page: Page, credentials: AuthCredentials)
 export async function createTransaction(page: Page, comment: string): Promise<void> {
   await page.getByRole("button", { name: "Add transaction", exact: true }).first().click();
 
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-  await chooseOption(dialog, "Account", `${E2E_ACCOUNT_NAME} (USD)`);
-  await dialog.getByLabel("Amount").fill("12.34");
-  await dialog.getByLabel("Comment").fill(comment);
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(dialog).not.toBeVisible();
+  const form = page.getByTestId("transaction-form");
+  await expect(form).toBeVisible();
+  await form
+    .getByTestId("transaction-account")
+    .selectOption({ label: `${E2E_ACCOUNT_NAME} (USD)` });
+  await form.getByTestId("transaction-amount").fill("12.34");
+  await form.getByTestId("transaction-comment").fill(comment);
+  await form.getByTestId("transaction-submit").click();
+  await expect(form).not.toBeVisible();
   await expect(page.getByText(comment, { exact: false })).toBeVisible();
 }
 
@@ -133,10 +135,6 @@ export async function contextWithStaleHints(page: Page): Promise<BrowserContext>
   const context = await browser.newContext({ baseURL: new URL(page.url()).origin });
   await context.addCookies(hints);
   return context;
-}
-
-async function chooseOption(dialog: Locator, label: string, option: string): Promise<void> {
-  await dialog.getByLabel(label).selectOption({ label: option });
 }
 
 export function uniqueUsername(testInfo: TestInfo): string {

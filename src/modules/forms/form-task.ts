@@ -1,11 +1,12 @@
 import { createContext, useContext, useLayoutEffect, useId } from "react";
 
 export type FormTaskState = { isDirty: boolean; isPending: boolean };
+export type FormTaskResult = "saved" | "deleted" | "linked";
 
 /** A task's host owns navigation; forms only report edits and distinguish cancel from completion. */
 export const FormTaskContext = createContext({
   onCancel: () => {},
-  onComplete: () => {},
+  onComplete: (_result?: FormTaskResult) => {},
   register: (_id: string, _state: FormTaskState) => () => {},
 });
 

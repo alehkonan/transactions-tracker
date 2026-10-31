@@ -1,13 +1,13 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch, useRouter } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
 import { ListFilterIcon, PlusIcon, XIcon } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { PageContainer } from "~/components/PageContainer";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useCategories } from "~/modules/categories/useCategories";
-import { TransactionForm } from "~/modules/transaction-form/TransactionForm";
+import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { filterTransactions } from "~/modules/transactions/filter-transactions";
 import { groupTransactionsByDay } from "~/modules/transactions/group-transactions-by-day";
 import { TransactionsAccountFilter } from "~/modules/transactions/TransactionsAccountFilter";
@@ -20,7 +20,7 @@ import { TransactionsEmptyState } from "~/modules/transactions/TransactionsEmpty
 import { TransactionsList } from "~/modules/transactions/TransactionsList";
 import { TransactionsSearchInput } from "~/modules/transactions/TransactionsSearchInput";
 import { useTransactionRows } from "~/modules/transactions/useTransactionRows";
-import type { TransactionRow } from "~/modules/transactions/to-transaction-rows";
+import type { TransactionListOrigin } from "~/modules/transactions/transaction-navigation";
 
 export function TransactionsScreen() {
   const {
@@ -31,6 +31,7 @@ export function TransactionsScreen() {
     q,
   } = useSearch({ from: "/_client/transactions" });
   const navigate = useNavigate({ from: "/transactions" });
+  const router = useRouter();
   const accounts = useAccounts();
   const categories = useCategories();
   const allTransactions = useTransactionRows();
@@ -44,7 +45,21 @@ export function TransactionsScreen() {
     });
   };
   const deferredSearch = useDeferredValue(search);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const openTransaction = (transactionId?: string) => {
+    const { selectedProfileId, replicaContext } = useSyncStore.getState();
+    if (!selectedProfileId || !replicaContext) return;
+    const state = {
+      transactionListOrigin: {
+        profileId: selectedProfileId,
+        replicaId: replicaContext.replicaId,
+        // oxlint-disable-next-line eslint/no-underscore-dangle -- TanStack Router's history state key.
+        historyIndex: router.state.location.state.__TSR_index,
+      } satisfies TransactionListOrigin,
+    };
+    if (transactionId)
+      void navigate({ to: "/transactions/$transactionId", params: { transactionId }, state });
+    else void navigate({ to: "/transactions/new", state });
+  };
 
   useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
@@ -78,7 +93,6 @@ export function TransactionsScreen() {
     [allTransactions, from, to, accountFilter, categoryFilter, deferredSearch],
   );
 
-  const [editingTransaction, setEditingTransaction] = useState<TransactionRow | null>(null);
   const transactionsByDay = useMemo(() => groupTransactionsByDay(transactions), [transactions]);
   const isSearching = search !== deferredSearch;
   const activeFilterCount = [from || to, accountFilter, categoryFilter].filter(Boolean).length;
@@ -135,10 +149,7 @@ export function TransactionsScreen() {
     activeAccounts.length === 0 && allTransactions.length === 0 ? (
       <TransactionsEmptyState kind="no-accounts" />
     ) : allTransactions.length === 0 ? (
-      <TransactionsEmptyState
-        kind="no-transactions"
-        onAddTransaction={() => setAddDialogOpen(true)}
-      />
+      <TransactionsEmptyState kind="no-transactions" onAddTransaction={() => openTransaction()} />
     ) : search.trim() ? (
       <TransactionsEmptyState kind="search" query={search} onClearSearch={() => setSearch("")} />
     ) : (
@@ -206,7 +217,7 @@ export function TransactionsScreen() {
               aria-label="Add transaction"
               data-testid="transaction-create"
               className="size-11 p-0 md:h-9 md:w-auto md:px-3"
-              onClick={() => setAddDialogOpen(true)}
+              onClick={() => openTransaction()}
               disabled={activeAccounts.length === 0}
               title={activeAccounts.length === 0 ? "Create an active account first" : undefined}
             >
@@ -217,6 +228,15 @@ export function TransactionsScreen() {
         </div>
 
         <div className="flex min-h-0 flex-col gap-4">
+          {activeAccounts.length === 0 && allTransactions.length > 0 && (
+            <p className="text-text-muted text-sm">
+              To add a transaction, create or reactivate an account in{" "}
+              <Link className="text-accent underline" to="/accounts">
+                Money
+              </Link>
+              .
+            </p>
+          )}
           {activeFilters.length > 0 && (
             <div
               aria-label="Active transaction filters"
@@ -245,29 +265,14 @@ export function TransactionsScreen() {
           )}
 
           {transactions.length > 0 ? (
-            <TransactionsList rowsByDay={transactionsByDay} onRowClick={setEditingTransaction} />
+            <TransactionsList
+              rowsByDay={transactionsByDay}
+              onRowClick={(row) => openTransaction(row.id)}
+            />
           ) : (
             emptyState
           )}
         </div>
-
-        <Dialog title="Add transaction" open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-          <TransactionForm accounts={accounts} categories={categories} />
-        </Dialog>
-
-        <Dialog
-          title="Update transaction"
-          open={editingTransaction !== null}
-          onOpenChange={(open) => !open && setEditingTransaction(null)}
-        >
-          {editingTransaction && (
-            <TransactionForm
-              accounts={accounts}
-              categories={categories}
-              transaction={editingTransaction}
-            />
-          )}
-        </Dialog>
       </main>
     </PageContainer>
   );

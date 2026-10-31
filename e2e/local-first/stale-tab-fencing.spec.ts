@@ -231,14 +231,14 @@ async function submitStaleForms(options: {
 }): Promise<void> {
   const { accountPage, transactionPage, importPage } = options;
   const accountDialog = accountPage.getByRole("dialog", { name: "Add account" });
-  const transactionDialog = transactionPage.getByRole("dialog", { name: "Add transaction" });
+  const transactionForm = transactionPage.getByTestId("transaction-form");
 
   await accountDialog.getByRole("button", { name: "Create", exact: true }).click();
   await expect(accountDialog).toBeVisible();
   await expect(accountDialog.getByRole("button", { name: "Create", exact: true })).toBeEnabled();
 
-  await transactionDialog.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(transactionDialog.getByTestId("transaction-error")).toHaveText(
+  await transactionForm.getByTestId("transaction-submit").click();
+  await expect(transactionForm.getByTestId("transaction-error")).toHaveText(
     "The local replica changed while the operation was in progress.",
   );
 
@@ -382,10 +382,12 @@ authTest(
       .getByRole("button", { name: "Add transaction", exact: true })
       .first()
       .click();
-    const transactionDialog = transactionPage.getByRole("dialog", { name: "Add transaction" });
-    await transactionDialog.getByLabel("Account").selectOption({ label: "E2E Account (USD)" });
-    await transactionDialog.getByLabel("Amount").fill("4.56");
-    await transactionDialog.getByLabel("Comment").fill(STALE_TRANSACTION_COMMENT);
+    const transactionForm = transactionPage.getByTestId("transaction-form");
+    await transactionForm
+      .getByTestId("transaction-account")
+      .selectOption({ label: "E2E Account (USD)" });
+    await transactionForm.getByTestId("transaction-amount").fill("4.56");
+    await transactionForm.getByTestId("transaction-comment").fill(STALE_TRANSACTION_COMMENT);
 
     const importPage = await newStalePage(context, "/transactions-import");
     await importPage.locator('input[type="file"]').setInputFiles({
@@ -457,7 +459,7 @@ authTest(
 
     await transactionPage.bringToFront();
     await transactionPage.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-    await expect(transactionDialog).not.toBeVisible();
+    await expect(transactionForm).not.toBeVisible();
     await expect(
       transactionPage.getByText(STALE_TRANSACTION_COMMENT, { exact: false }),
     ).toHaveCount(0);

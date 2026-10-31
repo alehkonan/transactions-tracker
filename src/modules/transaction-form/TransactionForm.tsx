@@ -118,7 +118,11 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
   }));
 
   return (
-    <form onSubmit={onSubmit} data-testid="transaction-form" className="flex flex-col gap-3 pt-2">
+    <form
+      onSubmit={onSubmit}
+      data-testid="transaction-form"
+      className="flex flex-col gap-4 [&_input]:rounded-lg [&_select]:rounded-lg [&_textarea]:rounded-lg"
+    >
       <RadioGroupControl
         control={control}
         name="type"
@@ -155,26 +159,48 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         }
       />
 
-      {type !== "TRANSFER" ? (
-        <>
-          {type === "EXPENSE" && (
-            <RadioGroupControl
-              control={control}
-              name="necessityLevel"
-              label="Necessity"
-              options={necessityOptions}
-              className="border-border bg-surface flex items-center gap-1 rounded-lg border p-1"
-              optionClassName={(option, checked) =>
-                twMerge(
-                  "min-h-11 rounded-md border border-transparent text-sm capitalize transition-colors md:min-h-9",
-                  checked
-                    ? necessityLevelStyles[option.value as keyof typeof necessityLevelStyles]
-                    : "text-text-muted hover:bg-surface-muted",
-                )
-              }
-            />
-          )}
+      <div className="divide-border bg-surface divide-y rounded-lg [&>div]:p-4 [&>fieldset]:p-4">
+        {type !== "TRANSFER" ? (
+          <>
+            {type === "EXPENSE" && (
+              <RadioGroupControl
+                control={control}
+                name="necessityLevel"
+                label="Necessity"
+                options={necessityOptions}
+                className="border-border bg-surface flex items-center gap-1 rounded-lg border p-1"
+                optionClassName={(option, checked) =>
+                  twMerge(
+                    "min-h-11 rounded-md border border-transparent text-sm capitalize transition-colors md:min-h-9",
+                    checked
+                      ? necessityLevelStyles[option.value as keyof typeof necessityLevelStyles]
+                      : "text-text-muted hover:bg-surface-muted",
+                  )
+                }
+              />
+            )}
 
+            <DateTimeControl
+              control={control}
+              name="createdAt"
+              label="Date & time"
+              max={new Date()}
+              rules={{
+                validate: (value) =>
+                  value.getTime() <= Date.now() || "Date and time cannot be in the future.",
+              }}
+            />
+
+            <SelectControl
+              control={control}
+              name="categoryId"
+              label="Category"
+              options={categoryOptions}
+              placeholder="None"
+              className="w-full"
+            />
+          </>
+        ) : (
           <DateTimeControl
             control={control}
             name="createdAt"
@@ -185,31 +211,11 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
                 value.getTime() <= Date.now() || "Date and time cannot be in the future.",
             }}
           />
-
-          <SelectControl
-            control={control}
-            name="categoryId"
-            label="Category"
-            options={categoryOptions}
-            placeholder="None"
-            className="w-full"
-          />
-        </>
-      ) : (
-        <DateTimeControl
-          control={control}
-          name="createdAt"
-          label="Date & time"
-          max={new Date()}
-          rules={{
-            validate: (value) =>
-              value.getTime() <= Date.now() || "Date and time cannot be in the future.",
-          }}
-        />
-      )}
+        )}
+      </div>
 
       {showTransferSplit ? (
-        <div className="flex flex-col gap-1">
+        <div className="bg-surface flex flex-col gap-3 rounded-lg p-4">
           <p className="text-text-muted text-sm">
             Both sides are saved and deleted together. Same-currency amounts must match; enter fees
             as separate Expense transactions.
@@ -246,7 +252,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
 
           <ArrowDownIcon className="text-text-muted mx-auto size-5" />
 
-          <div className="flex flex-col gap-3">
+          <div className="border-border flex flex-col gap-3 border-t pt-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <SelectControl
@@ -294,7 +300,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="bg-surface grid grid-cols-2 gap-3 rounded-lg p-4">
           <div className="flex flex-col gap-1">
             <SelectControl
               control={control}
@@ -323,7 +329,12 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         </div>
       )}
 
-      <div className={showTransferSplit ? "grid gap-3 sm:grid-cols-2" : "flex flex-col"}>
+      <div
+        className={twJoin(
+          "bg-surface rounded-lg p-4",
+          showTransferSplit ? "grid gap-3 sm:grid-cols-2" : "flex flex-col",
+        )}
+      >
         {(showTransferSplit ? (["sphereId", "toSphereId"] as const) : (["sphereId"] as const)).map(
           (name) => (
             <label key={name} className="flex min-w-0 flex-col gap-1 text-sm">
@@ -347,7 +358,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
           ),
         )}
       </div>
-      <div aria-live="polite">
+      <div aria-live="polite" className="empty:hidden">
         {!balancesComplete && (
           <p className="text-text-muted text-sm">
             Sphere balances are still loading. Negative-balance warnings are incomplete.
@@ -370,19 +381,21 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
         ))}
       </div>
 
-      <TextareaControl
-        control={control}
-        name="comment"
-        data-testid="transaction-comment"
-        label="Comment"
-        rows={2}
-        enterKeyHint="done"
-        className="w-full"
-      />
+      <div className="bg-surface rounded-lg p-4">
+        <TextareaControl
+          control={control}
+          name="comment"
+          data-testid="transaction-comment"
+          label="Comment"
+          rows={2}
+          enterKeyHint="done"
+          className="w-full"
+        />
+      </div>
 
       {transaction?.type === "TRANSFER" && !isLinkedTransfer && (
         <fieldset
-          className="border-border flex min-w-0 flex-col gap-2 border-t pt-3"
+          className="bg-surface flex min-w-0 flex-col gap-2 rounded-lg p-4"
           disabled={isPending || isLinking}
         >
           <legend className="text-sm font-semibold">Link an existing transfer</legend>
@@ -443,13 +456,16 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
       <footer
         className={twJoin("mt-2 flex gap-2", isEditing ? "justify-between" : "justify-center")}
       >
-        {isEditing && transaction && <DeleteTransactionButton id={transaction.id} />}
+        {isEditing && transaction && (
+          <DeleteTransactionButton id={transaction.id} disabled={isPending || isLinking} />
+        )}
         <div className="flex gap-2">
           <Button
             data-testid="transaction-cancel"
             className="min-w-20"
             variant="secondary"
             type="button"
+            disabled={isPending || isLinking}
             onClick={onCancel}
           >
             Cancel
@@ -461,7 +477,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             variant="primary"
             disabled={isPending || isLinking || !attributionReady}
           >
-            {isEditing ? (isPending ? "Updating…" : "Update") : isPending ? "Saving…" : "Save"}
+            {isPending ? "Saving…" : "Save"}
           </Button>
         </div>
       </footer>

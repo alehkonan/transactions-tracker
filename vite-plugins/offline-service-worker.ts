@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { basename, resolve } from "node:path";
 import { transformWithOxc, type Plugin, type ResolvedConfig } from "vite";
 import { INDEXED_DB_NAME, INDEXED_DB_VERSION } from "../src/modules/sync/indexed-db-contract";
-import { isUiPath, UI_PATHS, uiRewritePaths } from "./ui-shell";
+import { isUiPath, UI_PATHS, uiPathPatterns, uiRewritePaths } from "./ui-shell";
 
 const OUTBOX_ACCEPTANCE_MARKER = "/* __OUTBOX_ACCEPTANCE_KERNEL__ */";
 const ARTIFACT_METADATA_FILE = "offline-artifacts.json";
@@ -60,9 +60,8 @@ export function offlineServiceWorker(): Plugin {
             return;
           }
 
-          const uiPath = url.pathname.replace(/\/$/, "") || "/";
           const isVersionedShell = url.pathname === metadata.shellUrl;
-          const isKnownUiPath = isUiPath(url.pathname) && metadata.uiPaths.includes(uiPath);
+          const isKnownUiPath = isUiPath(url.pathname, metadata.uiPaths);
           if (!isVersionedShell && !isKnownUiPath) {
             next();
             return;
@@ -139,7 +138,7 @@ export async function finalizeOfflineArtifacts(
     .replace("__DATABASE_VERSION__", String(INDEXED_DB_VERSION))
     .replace("__SHELL_URL__", JSON.stringify(shellUrl))
     .replace("__PRECACHE__", JSON.stringify(precache))
-    .replace("__NAVIGATION_PATHS__", JSON.stringify(UI_PATHS));
+    .replace("__NAVIGATION_PATTERNS__", JSON.stringify(uiPathPatterns()));
   if (/__[A-Z][A-Z0-9_]*__/.test(worker)) {
     throw new Error("The generated service worker contains an unresolved placeholder.");
   }

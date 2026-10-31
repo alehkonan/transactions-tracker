@@ -120,14 +120,14 @@ export function useTransactionFormSubmit({ transaction }: Options) {
       await createTransactions(profileId, inputs, replicaContext);
     }
 
-    onComplete();
+    onComplete("saved");
   };
 
   const link = async (counterpartId: string) => {
     if (!transaction || !profileId || !replicaContext)
       throw new Error("Open a saved Transfer in the selected profile before linking.");
     await linkTransfers(profileId, [transaction.id, counterpartId], replicaContext);
-    onComplete();
+    onComplete("linked");
   };
 
   return { submit, link };

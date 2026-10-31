@@ -1,32 +1,34 @@
 import { Loader2Icon, TrashIcon } from "lucide-react";
-import { use, useState } from "react";
+import { useState } from "react";
 import { Button } from "~/components/Button";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
-import { FormTaskContext } from "~/modules/forms/form-task";
+import { useFormTask } from "~/modules/forms/form-task";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { deleteTransactions } from "~/modules/transactions/transaction-mutations";
 
 type Props = {
   id: string;
+  disabled?: boolean;
 };
 
 /** Deletes the transaction being edited, after confirmation, then closes the form. */
-export function DeleteTransactionButton({ id }: Props) {
-  const { onComplete } = use(FormTaskContext);
+export function DeleteTransactionButton({ id, disabled }: Props) {
   const replicaContext = useReplicaBinding();
   const isLinked = useSyncStore((state) =>
     Boolean(state.transactions.find((row) => row.id === id)?.transferId),
   );
   const [isDeleting, setIsDeleting] = useState(false);
+  const { onComplete } = useFormTask({ isDirty: false, isPending: isDeleting });
 
   const handleConfirm = async () => {
-    if (!replicaContext) return;
+    if (!replicaContext)
+      throw new Error("Your local profile is unavailable. Reopen the form and try again.");
     setIsDeleting(true);
     try {
       await deleteTransactions([id], replicaContext);
-      onComplete();
+      onComplete("deleted");
     } finally {
       setIsDeleting(false);
     }
@@ -41,7 +43,7 @@ export function DeleteTransactionButton({ id }: Props) {
           data-testid="transaction-delete"
           variant="danger"
           type="button"
-          disabled={isDeleting}
+          disabled={disabled || isDeleting}
           onClick={onOpen}
         >
           {isDeleting ? (
