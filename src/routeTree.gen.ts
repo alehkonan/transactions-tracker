@@ -19,6 +19,7 @@ import { Route as ClientStatisticsRouteImport } from './routes/_client.statistic
 import { Route as ClientTransactionsRouteImport } from './routes/_client.transactions'
 import { Route as ClientTransactionsImportRouteImport } from './routes/_client.transactions-import'
 import { Route as ApiPushRouteImport } from './routes/api/push'
+import { Route as ClientAccountsAccountIdRouteImport } from './routes/_client.accounts_.$accountId'
 import { Route as ClientTransactionsTransactionIdRouteImport } from './routes/_client.transactions_.$transactionId'
 import { Route as ClientTransactionsNewRouteImport } from './routes/_client.transactions_.new'
 
@@ -72,6 +73,11 @@ const ApiPushRoute = ApiPushRouteImport.update({
   path: '/api/push',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientAccountsAccountIdRoute = ClientAccountsAccountIdRouteImport.update({
+  id: '/accounts_/$accountId',
+  path: '/accounts/$accountId',
+  getParentRoute: () => ClientRoute,
+} as any)
 const ClientTransactionsTransactionIdRoute =
   ClientTransactionsTransactionIdRouteImport.update({
     id: '/transactions_/$transactionId',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/transactions': typeof ClientTransactionsRoute
   '/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
+  '/accounts/$accountId': typeof ClientAccountsAccountIdRoute
   '/transactions/$transactionId': typeof ClientTransactionsTransactionIdRoute
   '/transactions/new': typeof ClientTransactionsNewRoute
 }
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
   '/': typeof ClientIndexRoute
+  '/accounts/$accountId': typeof ClientAccountsAccountIdRoute
   '/transactions/$transactionId': typeof ClientTransactionsTransactionIdRoute
   '/transactions/new': typeof ClientTransactionsNewRoute
 }
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/_client/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
   '/_client/': typeof ClientIndexRoute
+  '/_client/accounts_/$accountId': typeof ClientAccountsAccountIdRoute
   '/_client/transactions_/$transactionId': typeof ClientTransactionsTransactionIdRoute
   '/_client/transactions_/new': typeof ClientTransactionsNewRoute
 }
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/transactions-import'
     | '/api/push'
+    | '/accounts/$accountId'
     | '/transactions/$transactionId'
     | '/transactions/new'
   fileRoutesByTo: FileRoutesByTo
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/transactions-import'
     | '/api/push'
     | '/'
+    | '/accounts/$accountId'
     | '/transactions/$transactionId'
     | '/transactions/new'
   id:
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_client/transactions-import'
     | '/api/push'
     | '/_client/'
+    | '/_client/accounts_/$accountId'
     | '/_client/transactions_/$transactionId'
     | '/_client/transactions_/new'
   fileRoutesById: FileRoutesById
@@ -245,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPushRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_client/accounts_/$accountId': {
+      id: '/_client/accounts_/$accountId'
+      path: '/accounts/$accountId'
+      fullPath: '/accounts/$accountId'
+      preLoaderRoute: typeof ClientAccountsAccountIdRouteImport
+      parentRoute: typeof ClientRoute
+    }
     '/_client/transactions_/$transactionId': {
       id: '/_client/transactions_/$transactionId'
       path: '/transactions/$transactionId'
@@ -271,6 +290,7 @@ interface ClientRouteChildren {
   ClientTransactionsRoute: typeof ClientTransactionsRoute
   ClientTransactionsImportRoute: typeof ClientTransactionsImportRoute
   ClientIndexRoute: typeof ClientIndexRoute
+  ClientAccountsAccountIdRoute: typeof ClientAccountsAccountIdRoute
   ClientTransactionsTransactionIdRoute: typeof ClientTransactionsTransactionIdRoute
   ClientTransactionsNewRoute: typeof ClientTransactionsNewRoute
 }
@@ -284,6 +304,7 @@ const ClientRouteChildren: ClientRouteChildren = {
   ClientTransactionsRoute: ClientTransactionsRoute,
   ClientTransactionsImportRoute: ClientTransactionsImportRoute,
   ClientIndexRoute: ClientIndexRoute,
+  ClientAccountsAccountIdRoute: ClientAccountsAccountIdRoute,
   ClientTransactionsTransactionIdRoute: ClientTransactionsTransactionIdRoute,
   ClientTransactionsNewRoute: ClientTransactionsNewRoute,
 }

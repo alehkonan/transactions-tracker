@@ -5,18 +5,17 @@ import type { AccountWithBalance } from "~/modules/accounts/compute-balances";
 type Props = {
   accounts: AccountWithBalance[];
   selected?: string;
+  selectedId?: string;
 };
 
 /**
- * Account filter for the transactions table; drives the `account` route search param (matched by
- * account name), so each pick re-runs the loader. Picking the placeholder item reports `undefined`,
- * which drops the param and brings every account back.
+ * New selections use stable account ids; existing name-based URLs remain readable.
  */
-export function TransactionsAccountFilter({ accounts, selected }: Props) {
+export function TransactionsAccountFilter({ accounts, selected, selectedId }: Props) {
   const navigate = useNavigate({ from: "/transactions" });
 
-  const handleValueChange = (account: string | undefined) => {
-    void navigate({ search: (prev) => ({ ...prev, account }) });
+  const handleValueChange = (accountId: string | undefined) => {
+    void navigate({ search: (prev) => ({ ...prev, account: undefined, accountId }) });
   };
 
   return (
@@ -26,8 +25,8 @@ export function TransactionsAccountFilter({ accounts, selected }: Props) {
       </label>
       <Select
         id="transaction-account-filter"
-        options={accounts.map((account) => account.name)}
-        value={selected}
+        options={accounts.map((account) => ({ value: account.id, label: account.name }))}
+        value={selectedId ?? accounts.find((account) => account.name === selected)?.id}
         onValueChange={handleValueChange}
         placeholder="All accounts"
         className="w-full md:min-w-40"

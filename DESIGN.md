@@ -218,7 +218,7 @@ components:
 
 Cracker Tracker uses the iOS-inspired grouped-list direction approved in issue #34: a flat pale-yellow page, white groups, black text, restrained corners, and straight separators. System typography and aligned monetary values keep everyday bookkeeping readable on phones and desktop screens. The illustrated cracker remains the application icon; the working interface uses no decorative textures or food motifs.
 
-This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell and transaction list are the first implemented slice. Account and purpose details, routed transaction forms, the combined Money overview, statistics composition, settings, authentication states, and import adaptation continue in issues #35–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
+This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell, transaction list, and account details are implemented. Purpose details, routed transaction forms, the combined Money overview, statistics composition, settings, authentication states, and import adaptation continue in issues #35 and #37–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
 
 **Key Characteristics:**
 
@@ -309,6 +309,8 @@ The transaction screen retains distinct empty states for no accounts, no transac
 The bottom navigation shows an icon and a visible label for every destination at every breakpoint. Active destinations use an accent-colored top rule as well as text emphasis, so color is not the only cue. Keyboard focus remains visible. Money currently links to `/accounts`, preserving inbound links and existing account access until #38.
 
 `PageHeader` provides a parent-labeled Back link and a visible title for import and selected-profile navigation. Initial profile onboarding retains its standalone title. No breadcrumbs or second set of primary top tabs is introduced.
+
+Account rows link to stable `/accounts/$accountId` details with an Accounts Back control and the account name as the title. Flat groups show the exact balance, currency, status, initial balance, and activity; View transactions applies the `accountId` filter and provides a labeled return to the account. Loading or incomplete balances, empty activity, and unavailable accounts—including missing accounts or accounts from another profile—remain explicit. Editing, archiving, and deletion reuse the protected `AccountForm`/`Dialog` flow; creation retains `CreateAccountButton`. Explicit saves, discard protection, and retained drafts on failure follow the shared sheet behavior.
 
 ### Existing Financial and System Surfaces
 

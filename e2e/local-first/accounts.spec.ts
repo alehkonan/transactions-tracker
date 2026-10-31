@@ -63,6 +63,17 @@ test("fixed-currency accounts retain money through offline edits, archive filter
 
   const cards = page.getByTestId("accounts-list").getByTestId(/^account-/);
   await cards.filter({ hasText: E2E_ACCOUNT_NAME }).click();
+  await expect(page).toHaveURL(new RegExp(`/accounts/${source.id}`));
+  await expect(page.getByTestId("account-detail-balance")).toContainText(/2[.,]66/);
+  await page.getByTestId("account-transactions").click();
+  await expect(page).toHaveURL(new RegExp(`accountId=${source.id}`));
+  await Promise.all(
+    history.map((transaction) =>
+      expect(page.getByTestId(`transaction-${transaction.id}`)).toBeVisible(),
+    ),
+  );
+  await page.getByTestId("parent-back").click();
+  await page.getByTestId("account-edit").click();
   const form = page.getByTestId("account-form");
   await expect(form.getByTestId("account-currency")).toBeDisabled();
   await expect(form.getByTestId("account-currency")).toHaveValue("USD");
@@ -71,6 +82,9 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await form.getByTestId("account-status").selectOption("ARCHIVED");
   await form.getByTestId("account-submit").click();
 
+  await expect(page.getByTestId("account-detail-status")).toHaveText("Archived");
+  await expect(page.getByTestId("account-detail-balance")).toContainText(/102[.,]66/);
+  await page.getByTestId("parent-back").click();
   await expect(page.getByTestId("accounts-empty")).toHaveText("No active accounts.");
   await expect(page.getByTestId("accounts-total")).toContainText(/102[.,]66/);
   await page.getByTestId("view-purposes").locator("..").click();
@@ -138,6 +152,8 @@ test("fixed-currency accounts retain money through offline edits, archive filter
     expectOperatingReconciled(await readFinancialReplica(secondPage));
     await secondPage.getByTestId("view-accounts").locator("..").click();
     await archivedCard.click();
+    await expect(secondPage.getByTestId("account-detail-status")).toHaveText("Archived");
+    await secondPage.getByTestId("account-edit").click();
     await expect(secondPage.getByTestId("account-initial-balance")).toHaveValue("100.00");
     await expect(secondPage.getByTestId("account-currency")).toHaveValue("USD");
     await expect(secondPage.getByTestId("account-currency")).toBeDisabled();

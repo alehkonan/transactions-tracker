@@ -12,6 +12,7 @@ export const Route = createFileRoute("/_client/transactions")({
     from: dateKeySchema,
     to: dateKeySchema,
     account: z.string().optional(),
+    accountId: z.string().optional(),
     category: z.string().optional(),
     q: z.string().optional(),
   }),

@@ -5,6 +5,7 @@ import { useDeferredValue, useEffect, useMemo } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { PageContainer } from "~/components/PageContainer";
+import { PageHeader } from "~/components/PageHeader";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useCategories } from "~/modules/categories/useCategories";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -27,12 +28,14 @@ export function TransactionsScreen() {
     from,
     to,
     account: accountFilter,
+    accountId,
     category: categoryFilter,
     q,
   } = useSearch({ from: "/_client/transactions" });
   const navigate = useNavigate({ from: "/transactions" });
   const router = useRouter();
   const accounts = useAccounts();
+  const linkedAccount = accounts.find((account) => account.id === accountId);
   const categories = useCategories();
   const allTransactions = useTransactionRows();
   const activeAccounts = accounts.filter((account) => account.status === "ACTIVE");
@@ -87,15 +90,18 @@ export function TransactionsScreen() {
         from,
         to,
         account: accountFilter,
+        accountId,
         category: categoryFilter,
         search: deferredSearch,
       }),
-    [allTransactions, from, to, accountFilter, categoryFilter, deferredSearch],
+    [allTransactions, from, to, accountFilter, accountId, categoryFilter, deferredSearch],
   );
 
   const transactionsByDay = useMemo(() => groupTransactionsByDay(transactions), [transactions]);
   const isSearching = search !== deferredSearch;
-  const activeFilterCount = [from || to, accountFilter, categoryFilter].filter(Boolean).length;
+  const activeFilterCount = [from || to, accountId || accountFilter, categoryFilter].filter(
+    Boolean,
+  ).length;
   const hasFilters = activeFilterCount > 0;
 
   const clearFilters = () =>
@@ -105,6 +111,7 @@ export function TransactionsScreen() {
         from: undefined,
         to: undefined,
         account: undefined,
+        accountId: undefined,
         category: undefined,
       }),
     });
@@ -123,11 +130,16 @@ export function TransactionsScreen() {
             }),
         }
       : null,
-    accountFilter
+    accountId || accountFilter
       ? {
           key: "account",
-          label: accountFilter,
-          onClear: () => navigate({ search: (previous) => ({ ...previous, account: undefined }) }),
+          label: accountId
+            ? (linkedAccount?.name ?? "Unavailable account")
+            : (accountFilter ?? "Account"),
+          onClear: () =>
+            navigate({
+              search: (previous) => ({ ...previous, account: undefined, accountId: undefined }),
+            }),
         }
       : null,
     categoryFilter
@@ -159,17 +171,29 @@ export function TransactionsScreen() {
   return (
     <PageContainer className="flex min-h-0 w-full flex-1">
       <main
-        aria-labelledby="transactions-heading"
+        aria-label="Transactions"
         className="mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 py-2 md:py-6"
       >
-        <header>
-          <h1 id="transactions-heading" className="text-2xl font-bold tracking-tight">
-            Transactions
-          </h1>
+        <div>
+          {linkedAccount ? (
+            <PageHeader
+              title="Transactions"
+              backLabel={linkedAccount.name}
+              onBack={() =>
+                void navigate({
+                  to: "/accounts/$accountId",
+                  params: { accountId: linkedAccount.id },
+                  search: { status: linkedAccount.status },
+                })
+              }
+            />
+          ) : (
+            <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
+          )}
           <p aria-live="polite" className="text-text-muted text-sm">
             {transactionCountLabel}
           </p>
-        </header>
+        </div>
 
         <div className="flex items-center gap-2">
           <TransactionsSearchInput value={search} onValueChange={setSearch} />
@@ -207,7 +231,11 @@ export function TransactionsScreen() {
               </p>
               <div className="mt-4 flex flex-wrap items-start gap-3">
                 <TransactionsDateRangeFilter from={from} to={to} />
-                <TransactionsAccountFilter accounts={accounts} selected={accountFilter} />
+                <TransactionsAccountFilter
+                  accounts={accounts}
+                  selected={accountFilter}
+                  selectedId={accountId}
+                />
                 <TransactionsCategoryFilter categories={categories} selected={categoryFilter} />
               </div>
             </Dialog>
