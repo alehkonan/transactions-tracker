@@ -11,7 +11,7 @@ type Passkey = {
 type Props = {
   passkeys: Passkey[];
   disabled: boolean;
-  onRemove: (passkey: Passkey) => void;
+  onRemove: (passkey: Passkey) => Promise<void>;
 };
 
 export function PasskeyList({ passkeys, disabled, onRemove }: Props) {

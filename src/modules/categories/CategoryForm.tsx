@@ -1,9 +1,8 @@
 import { TrashIcon } from "lucide-react";
-import { useContext, useId, useTransition } from "react";
+import { useId, useState } from "react";
 import { useController, useForm } from "react-hook-form";
 import { twMerge } from "tailwind-merge";
 import { Button } from "~/components/Button";
-import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
@@ -13,6 +12,7 @@ import {
   updateCategory,
 } from "~/modules/categories/category-mutations";
 import { getCategoryDisplayColor } from "~/modules/categories/category-palette";
+import { useFormTask } from "~/modules/forms/form-task";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import type { CategoryRow } from "~/modules/categories/to-category-rows";
@@ -39,11 +39,10 @@ function getDefaultValues(category?: CategoryRow): CategoryFormValues {
 
 /** Creates a category, or renames/recolors/deletes an existing one — the single editor behind a category tag. */
 export function CategoryForm({ colors, category }: Props) {
-  const { onClose } = useContext(DialogContext);
   const replicaContext = useReplicaBinding();
   const profileId = useSelectedProfileId();
   const isEditing = Boolean(category);
-  const { control, handleSubmit, reset, formState } = useForm<CategoryFormValues>({
+  const { control, handleSubmit, reset, setError, formState } = useForm<CategoryFormValues>({
     defaultValues: getDefaultValues(category),
   });
   const colorErrorId = useId();
@@ -52,37 +51,58 @@ export function CategoryForm({ colors, category }: Props) {
     name: "colorId",
     rules: { validate: (colorId) => colorId != null || "Pick a color." },
   });
-  const [isDeleting, startDeleteTransition] = useTransition();
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!category || !replicaContext) return;
-    startDeleteTransition(async () => {
+    setIsDeleting(true);
+    try {
       await deleteCategory(category.id, replicaContext);
-      onClose();
-    });
+      onComplete();
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
+  const { onCancel, onComplete } = useFormTask({
+    isDirty: formState.isDirty,
+    isPending: formState.isSubmitting || isDeleting,
+  });
+
   const onSubmit = handleSubmit(async ({ name, colorId }) => {
-    // The validation rule above already rejected a missing color; this only narrows the type.
-    if (colorId == null) return;
+    try {
+      // The validation rule above already rejected a missing color; this only narrows the type.
+      if (colorId == null) return;
 
-    if (profileId == null || !replicaContext) return;
+      if (profileId == null || !replicaContext)
+        throw new Error("Your local profile is unavailable. Reopen the form and try again.");
 
-    if (category) {
-      await updateCategory(category.id, name, colorId, replicaContext);
-    } else {
-      await createCategory(profileId, name, colorId, replicaContext);
-      reset(getDefaultValues());
+      if (category) {
+        await updateCategory(category.id, name, colorId, replicaContext);
+      } else {
+        await createCategory(profileId, name, colorId, replicaContext);
+        reset(getDefaultValues());
+      }
+
+      onComplete();
+    } catch (cause) {
+      setError("root", {
+        message: cause instanceof Error ? cause.message : "Could not save your changes. Try again.",
+      });
     }
-
-    onClose();
   });
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-3">
+    <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-3" data-testid="category-form">
+      {formState.errors.root?.message && (
+        <p role="alert" className="text-danger text-sm">
+          {formState.errors.root.message}
+        </p>
+      )}
       <InputControl
         control={control}
         name="name"
+        data-testid="category-name"
         label="Name"
         rules={{ required: "Category name is required." }}
         autoCapitalize="words"
@@ -113,10 +133,8 @@ export function CategoryForm({ colors, category }: Props) {
                 />
                 <span
                   className={twMerge(
-                    "peer-focus-visible:ring-accent block size-7 rounded-full border-2 transition-transform peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:outline-none",
-                    color.id === colorField.value
-                      ? "border-text scale-110"
-                      : "border-transparent hover:scale-110",
+                    "peer-focus-visible:ring-accent block size-7 rounded-full border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:outline-none",
+                    color.id === colorField.value ? "border-text" : "border-transparent",
                   )}
                   style={{ backgroundColor: getCategoryDisplayColor(color.id) }}
                 />
@@ -133,6 +151,7 @@ export function CategoryForm({ colors, category }: Props) {
       <div className="flex items-center justify-between gap-2">
         {category && (
           <Popover
+            sheet
             aria-label="Remove category"
             renderTrigger={({ onOpen }) => (
               <Button variant="danger" type="button" disabled={isDeleting} onClick={onOpen}>
@@ -151,10 +170,20 @@ export function CategoryForm({ colors, category }: Props) {
           </Popover>
         )}
         <div className="ml-auto flex gap-2">
-          <Button variant="secondary" type="button" onClick={onClose}>
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={onCancel}
+            data-testid="category-cancel"
+          >
             Cancel
           </Button>
-          <Button variant="primary" type="submit" disabled={formState.isSubmitting}>
+          <Button
+            variant="primary"
+            type="submit"
+            disabled={formState.isSubmitting}
+            data-testid="category-submit"
+          >
             {isEditing ? "Save" : "Create"}
           </Button>
         </div>

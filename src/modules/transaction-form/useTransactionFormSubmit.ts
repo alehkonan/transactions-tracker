@@ -1,5 +1,5 @@
 import { use } from "react";
-import { DialogContext } from "~/components/Dialog";
+import { FormTaskContext } from "~/modules/forms/form-task";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -21,14 +21,15 @@ type Options = {
   transaction?: TransactionRow;
 };
 
-/** Persists the submitted form values (create or update) and closes the dialog. Throws on failure. */
+/** Persists the submitted form values (create or update) and completes the task. Throws on failure. */
 export function useTransactionFormSubmit({ transaction }: Options) {
-  const { onClose } = use(DialogContext);
+  const { onComplete } = use(FormTaskContext);
   const replicaContext = useReplicaBinding();
   const profileId = useSelectedProfileId();
 
   const submit = async (values: TransactionFormValues) => {
-    if (profileId == null || !replicaContext) return;
+    if (profileId == null || !replicaContext)
+      throw new Error("Your local profile is unavailable. Reopen the form and try again.");
 
     const shared = {
       createdAt: values.createdAt,
@@ -49,7 +50,7 @@ export function useTransactionFormSubmit({ transaction }: Options) {
     if (transaction) {
       // The form works from the derived row; the stored one is what a mutation edits.
       const stored = useSyncStore.getState().transactions.find((row) => row.id === transaction.id);
-      if (!stored) return;
+      if (!stored) throw new Error("This transaction is no longer available.");
 
       if (stored.transferId) {
         await updateTransfer(
@@ -119,14 +120,14 @@ export function useTransactionFormSubmit({ transaction }: Options) {
       await createTransactions(profileId, inputs, replicaContext);
     }
 
-    onClose();
+    onComplete();
   };
 
   const link = async (counterpartId: string) => {
     if (!transaction || !profileId || !replicaContext)
       throw new Error("Open a saved Transfer in the selected profile before linking.");
     await linkTransfers(profileId, [transaction.id, counterpartId], replicaContext);
-    onClose();
+    onComplete();
   };
 
   return { submit, link };

@@ -1,5 +1,5 @@
 import { FolderOpenIcon, PencilIcon, TrashIcon } from "lucide-react";
-import { useTransition } from "react";
+import { useState } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { Popover } from "~/components/Popover";
@@ -18,13 +18,16 @@ type Props = {
 /** A profile summary with explicit open, edit, and delete actions in its footer. */
 export function ProfileCard({ profile, onOpen }: Props) {
   const replicaContext = useReplicaBinding();
-  const [isDeleting, startDeleteTransition] = useTransition();
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!replicaContext) return;
-    startDeleteTransition(async () => {
+    setIsDeleting(true);
+    try {
       await deleteProfile(profile.id, replicaContext);
-    });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -63,6 +66,7 @@ export function ProfileCard({ profile, onOpen }: Props) {
           <ProfileForm profile={profile} />
         </Dialog>
         <Popover
+          sheet
           aria-label="Remove profile"
           renderTrigger={({ onOpen: openDelete }) => (
             <Button variant="danger" disabled={isDeleting} onClick={openDelete}>

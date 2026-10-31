@@ -76,7 +76,7 @@ export function SecuritySection() {
             <PasskeyList
               passkeys={credentials.passkeys}
               disabled={isMutating}
-              onRemove={(passkey) => void deletePasskey(passkey.id)}
+              onRemove={(passkey) => deletePasskey(passkey.id)}
             />
           </div>
           <div className="border-border border-t pt-4">

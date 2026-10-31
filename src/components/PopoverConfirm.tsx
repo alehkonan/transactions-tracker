@@ -1,4 +1,5 @@
-import { use } from "react";
+import { use, useState } from "react";
+import { useFormTask } from "~/modules/forms/form-task";
 import { Button } from "./Button";
 import { PopoverContext } from "./Popover";
 
@@ -8,10 +9,10 @@ type PopoverConfirmProps = {
   confirmLabel?: string;
   confirmTestId?: string;
   confirmVariant?: "primary" | "danger";
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 };
 
-/** Confirm/cancel body for a `Popover`; closes the popover before running `onConfirm`. */
+/** Confirmation body: complete only after the action succeeds, retaining errors for retry. */
 export function PopoverConfirm({
   title,
   message,
@@ -21,25 +22,54 @@ export function PopoverConfirm({
   onConfirm,
 }: PopoverConfirmProps) {
   const { onClose } = use(PopoverContext);
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { onCancel, onComplete } = useFormTask({ isDirty: false, isPending });
 
   return (
-    <div className="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 text-sm">
-      {title && <p className="text-text font-bold">{title}</p>}
+    <div className="mt-3 flex max-w-prose flex-col gap-3 text-sm">
+      {title && <p className="sr-only">{title}</p>}
       <p>{message}</p>
+      {error && (
+        <p role="alert" className="text-danger">
+          {error}
+        </p>
+      )}
       <div className="flex justify-end gap-2">
-        <Button className="min-w-16 py-1 text-xs" variant="secondary" onClick={onClose}>
+        <Button
+          variant="secondary"
+          disabled={isPending}
+          onClick={() => {
+            onCancel();
+            onClose();
+          }}
+        >
           Cancel
         </Button>
         <Button
           data-testid={confirmTestId}
-          className="min-w-16 py-1 text-xs"
           variant={confirmVariant}
-          onClick={() => {
-            onClose();
-            onConfirm();
+          disabled={isPending}
+          onClick={async () => {
+            if (isPending) return;
+            setIsPending(true);
+            setError(null);
+            try {
+              await onConfirm();
+              onComplete();
+              onClose();
+            } catch (cause) {
+              setError(
+                cause instanceof Error
+                  ? cause.message
+                  : "Could not complete this action. Try again.",
+              );
+            } finally {
+              setIsPending(false);
+            }
           }}
         >
-          {confirmLabel}
+          {isPending ? "Working…" : confirmLabel}
         </Button>
       </div>
     </div>

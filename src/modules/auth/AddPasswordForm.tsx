@@ -1,25 +1,25 @@
-import { useContext } from "react";
 import { useForm } from "react-hook-form";
 import { addPassword } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
-import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
 import { runAuthenticatedRequest } from "~/modules/auth/complete-sign-in";
 import { getSecurityErrorMessage, unwrapServerResponse } from "~/modules/auth/security-errors";
+import { useFormTask } from "~/modules/forms/form-task";
 
 type Values = { newPassword: string; confirmPassword: string };
 
 type Props = { onSaved: () => Promise<void> };
 
 export function AddPasswordForm({ onSaved }: Props) {
-  const { onClose } = useContext(DialogContext);
   const {
     control,
     getValues,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<Values>({ defaultValues: { newPassword: "", confirmPassword: "" } });
+
+  const { onCancel, onComplete } = useFormTask({ isDirty, isPending: isSubmitting });
 
   const onSubmit = handleSubmit(async ({ newPassword }) => {
     try {
@@ -27,7 +27,7 @@ export function AddPasswordForm({ onSaved }: Props) {
         await runAuthenticatedRequest(() => addPassword({ data: { password: newPassword } })),
       );
       await onSaved();
-      onClose();
+      onComplete();
     } catch (caught) {
       setError("root", { message: getSecurityErrorMessage(caught) ?? "Password was not added." });
     }
@@ -62,7 +62,7 @@ export function AddPasswordForm({ onSaved }: Props) {
       />
       {errors.root?.message && <p className="text-danger text-sm">{errors.root.message}</p>}
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" disabled={isSubmitting} onClick={onClose}>
+        <Button variant="secondary" disabled={isSubmitting} onClick={onCancel}>
           Cancel
         </Button>
         <Button variant="primary" type="submit" disabled={isSubmitting}>

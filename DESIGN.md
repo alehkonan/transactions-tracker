@@ -276,7 +276,7 @@ All four primary destinations—Money, Transactions, Statistics, and Settings—
 
 Tab activation goes to the destination root and resets its page/list scroll to the top while preserving that destination's query parameters. Transactions store search as `q` alongside filters in the URL; account status/view and statistics period/month remain URL state. Navbar memory stays mounted while hydrated across hidden profile/login surfaces and resets for replica/profile changes. Router scroll restoration and the virtual-list restoration ID support return navigation.
 
-Controls use `44px` phone heights and may compact to `36px` for pointer layouts. Native file, date, select, and input behavior remains available. Dialogs retain their existing mobile-sheet/desktop-modal behavior until the task-specific follow-ups migrate them.
+Controls use `44px` phone heights and may compact to `36px` for pointer layouts. Native file, date, select, and input behavior remains available. Dialogs and destructive confirmations enter from the bottom and exit downward on phones and desktop. Sheets respect safe areas and the visual viewport, contain scrolling, and keep short tasks focused. Changed forms require an explicit Discard changes or Keep editing decision; successful local persistence completes immediately, while failures retain edits and an actionable error. Filters apply immediately and close without a discard prompt.
 
 ## Elevation & Depth
 

@@ -1,27 +1,27 @@
-import { useContext } from "react";
 import { useForm } from "react-hook-form";
 import { changePassword } from "~/api/auth.functions";
 import { Button } from "~/components/Button";
-import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
 import { runAuthenticatedRequest } from "~/modules/auth/complete-sign-in";
 import { getSecurityErrorMessage, unwrapServerResponse } from "~/modules/auth/security-errors";
+import { useFormTask } from "~/modules/forms/form-task";
 
 type Values = { currentPassword: string; newPassword: string; confirmPassword: string };
 
 type Props = { onSaved: () => Promise<void> };
 
 export function ChangePasswordForm({ onSaved }: Props) {
-  const { onClose } = useContext(DialogContext);
   const {
     control,
     getValues,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<Values>({
     defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
   });
+
+  const { onCancel, onComplete } = useFormTask({ isDirty, isPending: isSubmitting });
 
   const onSubmit = handleSubmit(async ({ currentPassword, newPassword }) => {
     try {
@@ -31,7 +31,7 @@ export function ChangePasswordForm({ onSaved }: Props) {
         ),
       );
       await onSaved();
-      onClose();
+      onComplete();
     } catch (caught) {
       setError("root", { message: getSecurityErrorMessage(caught) ?? "Password was not changed." });
     }
@@ -74,7 +74,7 @@ export function ChangePasswordForm({ onSaved }: Props) {
       />
       {errors.root?.message && <p className="text-danger text-sm">{errors.root.message}</p>}
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" disabled={isSubmitting} onClick={onClose}>
+        <Button variant="secondary" disabled={isSubmitting} onClick={onCancel}>
           Cancel
         </Button>
         <Button variant="primary" type="submit" disabled={isSubmitting}>

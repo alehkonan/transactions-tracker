@@ -13,7 +13,7 @@ type Passkey = {
 type Props = {
   passkey: Passkey;
   disabled: boolean;
-  onRemove: (passkey: Passkey) => void;
+  onRemove: (passkey: Passkey) => Promise<void>;
 };
 
 function formatDate(value: Date | string | null) {
@@ -45,6 +45,7 @@ export function PasskeyItem({ passkey, disabled, onRemove }: Props) {
         </div>
       </dl>
       <Popover
+        sheet
         aria-label="Remove passkey"
         renderTrigger={({ onOpen }) => (
           <Button variant="danger" disabled={disabled} onClick={onOpen}>

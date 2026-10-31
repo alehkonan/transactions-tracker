@@ -83,7 +83,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
     projectedToBalance,
     markToAmountTouched,
     onSubmit,
-    onClose,
+    onCancel,
     isEditing,
     isPending,
     rootError,
@@ -450,7 +450,7 @@ export function TransactionForm({ accounts, categories, transaction }: Props) {
             className="min-w-20"
             variant="secondary"
             type="button"
-            onClick={onClose}
+            onClick={onCancel}
           >
             Cancel
           </Button>

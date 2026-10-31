@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { currencyCodeEnum } from "~/database/enums";
+import { FormTaskContext } from "~/modules/forms/form-task";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
@@ -44,6 +45,7 @@ function SphereItem({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [draftName, setDraftName] = useState(sphere.name);
   const nameRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   const [pending, startTransition] = useTransition();
@@ -153,6 +155,7 @@ function SphereItem({
                 event.currentTarget.focus({ preventScroll: true });
                 setError(null);
                 setConfirmDelete(false);
+                setDraftName(sphere.name);
                 setManageOpen(true);
               }}
             >
@@ -164,6 +167,7 @@ function SphereItem({
       <Dialog
         title={confirmDelete ? `Delete ${sphere.name}?` : `Manage ${sphere.name}`}
         open={manageOpen}
+        isDirty={draftName !== sphere.name}
         onOpenChange={setManageOpen}
         requireAction={pending}
         closeButtonLabel={pending ? undefined : "Close sphere settings"}
@@ -187,7 +191,8 @@ function SphereItem({
                   key={sphere.name}
                   id={nameId}
                   name="name"
-                  defaultValue={sphere.name}
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
                   required
                   className={fieldClass}
                   data-testid="sphere-name"
@@ -246,14 +251,13 @@ function SphereItem({
                 This sphere has history and cannot be deleted.
               </p>
             )}
-            <Button
-              variant="secondary"
-              className="mt-4"
-              disabled={pending}
-              onClick={() => setManageOpen(false)}
-            >
-              Cancel
-            </Button>
+            <FormTaskContext.Consumer>
+              {({ onCancel }) => (
+                <Button variant="secondary" className="mt-4" disabled={pending} onClick={onCancel}>
+                  Cancel
+                </Button>
+              )}
+            </FormTaskContext.Consumer>
           </>
         ) : (
           <div className="mt-3 space-y-4" data-testid="sphere-delete-confirmation">
@@ -315,6 +319,8 @@ export function NamedSpheres({
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [allocationBaseline, setAllocationBaseline] = useState("");
   const [createType, setCreateType] = useState<"FUNDS" | "CAPITAL">("FUNDS");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
@@ -416,7 +422,9 @@ export function NamedSpheres({
     setEditingId(undefined);
     setFromSphereId(from);
     setToSphereId(to);
-    setCurrencyCode(preferredCurrency(from));
+    const currency = preferredCurrency(from);
+    setCurrencyCode(currency);
+    setAllocationBaseline(JSON.stringify([from, to, currency, ""]));
     setAmount("");
     setReallocationError(null);
     setDeletingId(null);
@@ -430,6 +438,8 @@ export function NamedSpheres({
   function openCreator(trigger: HTMLButtonElement) {
     trigger.focus({ preventScroll: true });
     setError(null);
+    setCreateName("");
+    setCreateType("FUNDS");
     setCreating(true);
   }
   function handleRemovedSphere(message: string) {
@@ -586,6 +596,13 @@ export function NamedSpheres({
       <Dialog
         title={creating ? "Create a sphere" : editingId ? "Edit allocation" : "Assign money"}
         open={creating || editorOpen}
+        isDirty={
+          creating
+            ? createName !== "" || createType !== "FUNDS"
+            : editorOpen &&
+              JSON.stringify([fromSphereId, toSphereId, currencyCode, amount]) !==
+                allocationBaseline
+        }
         onOpenChange={(open) => {
           if (!open) closeEditor();
         }}
@@ -797,14 +814,18 @@ export function NamedSpheres({
                       ? "Save allocation"
                       : "Assign money"}
               </Button>
-              <Button
-                variant="secondary"
-                disabled={pending}
-                onClick={closeEditor}
-                data-testid="reallocation-cancel"
-              >
-                Cancel
-              </Button>
+              <FormTaskContext.Consumer>
+                {({ onCancel }) => (
+                  <Button
+                    variant="secondary"
+                    disabled={pending}
+                    onClick={onCancel}
+                    data-testid="reallocation-cancel"
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </FormTaskContext.Consumer>
             </div>
           </form>
         )}
@@ -860,6 +881,8 @@ export function NamedSpheres({
                   id={nameId}
                   name="name"
                   required
+                  value={createName}
+                  onChange={(event) => setCreateName(event.target.value)}
                   placeholder={
                     createType === "FUNDS" ? "e.g. Emergency reserve" : "e.g. Investments"
                   }
@@ -884,9 +907,13 @@ export function NamedSpheres({
               >
                 {pending ? "Creating…" : "Create and assign money"}
               </Button>
-              <Button variant="secondary" disabled={pending} onClick={closeEditor}>
-                Cancel
-              </Button>
+              <FormTaskContext.Consumer>
+                {({ onCancel }) => (
+                  <Button variant="secondary" disabled={pending} onClick={onCancel}>
+                    Cancel
+                  </Button>
+                )}
+              </FormTaskContext.Consumer>
             </div>
             {error && (
               <p role="alert" className="text-danger text-sm">
@@ -1011,6 +1038,14 @@ export function NamedSpheres({
                           setToSphereId(to.sphereId);
                           setCurrencyCode(to.currencyCode);
                           setAmount(to.amount);
+                          setAllocationBaseline(
+                            JSON.stringify([
+                              from.sphereId,
+                              to.sphereId,
+                              to.currencyCode,
+                              to.amount,
+                            ]),
+                          );
                           setDeletingId(null);
                           setReallocationError(null);
                           setEditorOpen(true);
