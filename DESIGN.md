@@ -218,7 +218,7 @@ components:
 
 Cracker Tracker uses the iOS-inspired grouped-list direction approved in issue #34: a flat pale-yellow page, white groups, black text, restrained corners, and straight separators. System typography and aligned monetary values keep everyday bookkeeping readable on phones and desktop screens. The illustrated cracker remains the application icon; the working interface uses no decorative textures or food motifs.
 
-This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell, transaction list, and account details are implemented. Purpose details, routed transaction forms, the combined Money overview, statistics composition, settings, authentication states, and import adaptation continue in issues #35 and #37–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
+This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell, transaction list, account details, and purpose details are implemented. Routed transaction forms, the combined Money overview, statistics composition, settings, authentication states, and import adaptation continue in issues #35 and #38–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
 
 **Key Characteristics:**
 
@@ -314,7 +314,7 @@ Account rows link to stable `/accounts/$accountId` details with an Accounts Back
 
 ### Existing Financial and System Surfaces
 
-Operating and named spheres retain native disclosures, per-currency values, incomplete-data messages, negative-currency warnings, and lifecycle actions until their detail-page follow-up. The existing sphere-specific brief remains a behavior reference, subject to the new shared palette and flat-surface direction.
+Purposes remains a view of the same account money under Money at `/accounts?view=purposes`, with Operating first and alphabetized Funds and Capital groups. Rows link to stable `/accounts/purposes/$sphereId` details; `/accounts/purposes/archived` provides separate archived navigation. Parent-labeled Back controls, exact per-currency balances, approximate USD totals, sphere-scoped allocation history, and account activity in batches of 50 use the shared flat groups. Loading, unavailable or other-profile purposes, negative balances, and exact reconciliation differences remain explicit. Creation, assignment, movement, and management reuse protected short sheets with local-first persistence, lifecycle safeguards, retained drafts on failure, and shared dirty-dismiss, browser Back, and refresh protection. The sphere-specific brief records this surface's behavior within the shared visual direction.
 
 Charts preserve their financial calculations, category identities, interactions, and data ink; their layout adaptation belongs to #39. Synchronization, local recovery, expired-session notices, and conflict acknowledgment retain their existing behavior and visibility. Their further visual adaptation belongs to #41. The illustrated application icon remains unchanged.
 
@@ -327,7 +327,7 @@ Charts preserve their financial calculations, category identities, interactions,
 - **Do** keep bottom navigation visible on mobile and desktop without covering content.
 - **Do** use native controls, visible focus, safe-area spacing, and 44px phone targets.
 - **Do** keep financial comparisons aligned in tabular monospace.
-- **Do** treat issues #35–#42 as the remaining screen/workflow migration scope.
+- **Do** treat issues #35 and #38–#42 as the remaining screen/workflow migration scope.
 
 ### Don't:
 

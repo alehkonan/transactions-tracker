@@ -3,6 +3,8 @@ export const UI_PATHS = [
   "/login",
   "/profile",
   "/accounts",
+  "/accounts/purposes/archived",
+  "/accounts/purposes/:sphereId",
   "/transactions",
   "/transactions/new",
   "/transactions/:transactionId",

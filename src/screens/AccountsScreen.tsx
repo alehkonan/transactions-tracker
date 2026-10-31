@@ -8,7 +8,7 @@ import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { NamedSpheres } from "~/modules/spheres/NamedSpheres";
-import { operatingBalances } from "~/modules/spheres/operating";
+import { usePurposeBalances } from "~/modules/spheres/usePurposeBalances";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
 
@@ -16,29 +16,8 @@ export function AccountsScreen() {
   const search = useSearch({ from: "/_client/accounts" });
   const navigate = useNavigate({ from: "/accounts" });
   const accounts = useAccounts();
-  const {
-    usdRates,
-    transactions,
-    accounts: rawAccounts,
-    allocations,
-    selectedProfileId,
-    isHydrated,
-    pending,
-  } = useSyncStore();
-  const complete =
-    isHydrated &&
-    !pending.some((table) =>
-      ["accounts", "transactions", "spheres", "allocations"].includes(table),
-    );
-  const sphereBalances = useMemo(
-    () =>
-      operatingBalances(
-        selectedProfileId ?? "",
-        { accounts: rawAccounts, transactions, allocations },
-        complete,
-      ),
-    [selectedProfileId, rawAccounts, transactions, allocations, complete],
-  );
+  const { usdRates, transactions, selectedProfileId, replicaContext } = useSyncStore();
+  const { complete, operating } = usePurposeBalances();
   const status = search.status ?? "ACTIVE";
   const view = search.view ?? "accounts";
   const total = useMemo(() => computeBalanceTotals(accounts, usdRates), [accounts, usdRates]);
@@ -55,11 +34,13 @@ export function AccountsScreen() {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 id="accounts-heading" className="text-text text-xl font-semibold">
-                Accounts
+                {view === "purposes" ? "Purposes" : "Accounts"}
               </h1>
               <p className="text-text-muted text-sm" data-testid="accounts-total">
                 Approx. total balance:{" "}
-                <span className="font-mono">≈ {formatMoney(total.balanceUsd, "USD")}</span>
+                <span className="text-text font-mono">
+                  {complete ? `≈ ${formatMoney(total.balanceUsd, "USD")}` : "Loading…"}
+                </span>
               </p>
               <p className="text-text-muted text-xs">Includes archived accounts</p>
             </div>
@@ -152,9 +133,15 @@ export function AccountsScreen() {
               </p>
             )}
           </section>
-          <div id="purposes-view" hidden={view !== "purposes"}>
-            <NamedSpheres key={selectedProfileId} complete={complete} operating={sphereBalances} />
-          </div>
+          {view === "purposes" && (
+            <div id="purposes-view">
+              <NamedSpheres
+                key={`${replicaContext?.replicaId}:${selectedProfileId}`}
+                complete={complete}
+                operating={operating}
+              />
+            </div>
+          )}
         </div>
       </main>
     </PageContainer>
