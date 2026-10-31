@@ -77,8 +77,8 @@ export const Route = createFileRoute("/_client/statistics")({
     return (
       <PageContainer>
         <main aria-labelledby="statistics-heading" className="flex flex-col gap-4">
-          <header className="flex justify-end">
-            <h1 id="statistics-heading" className="sr-only">
+          <header className="flex flex-wrap items-baseline justify-between gap-2">
+            <h1 id="statistics-heading" className="text-2xl font-bold tracking-tight">
               Statistics
             </h1>
             <p className="text-text-muted text-sm">Approximate totals in USD</p>

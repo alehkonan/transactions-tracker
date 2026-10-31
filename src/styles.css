@@ -2,14 +2,14 @@
 @import "./styles/dark.css" layer(dark-theme);
 
 @theme {
-  /* The Proofing Sheet: cream crumb, golden bake, caramel edge, and cocoa ink. */
-  --color-ink: oklch(0.22 0.036 48);
-  --color-paper: oklch(0.945 0.052 88);
+  /* Flat grouped lists, with warmth confined to the page background. */
+  --color-ink: #000000;
+  --color-paper: #fff3dd;
 
-  --color-accent: oklch(0.47 0.132 50);
-  --color-accent-hover: oklch(0.42 0.135 48);
-  --color-accent-active: oklch(0.37 0.125 45);
-  --color-accent-muted: oklch(0.86 0.105 80);
+  --color-accent: #000000;
+  --color-accent-hover: #262626;
+  --color-accent-active: #404040;
+  --color-accent-muted: #e5dfd4;
 
   --color-hold: oklch(0.45 0.09 90);
   --color-hold-hover: oklch(0.4 0.095 88);
@@ -32,19 +32,19 @@
   --color-gain-muted: oklch(0.85 0.06 110);
 
   --color-text: var(--color-ink);
-  --color-text-muted: oklch(0.43 0.04 58);
+  --color-text-muted: #595959;
   --color-background: var(--color-paper);
 
-  --color-surface: oklch(0.985 0.022 92);
-  --color-surface-hover: oklch(0.958 0.045 88);
-  --color-surface-active: oklch(0.925 0.068 83);
-  --color-surface-muted: oklch(0.97 0.034 90);
+  --color-surface: #ffffff;
+  --color-surface-hover: #f7f7f7;
+  --color-surface-active: #ededed;
+  --color-surface-muted: #f4f2ee;
 
   --color-danger: var(--color-spend);
   --color-danger-hover: var(--color-spend-hover);
   --color-danger-active: var(--color-spend-active);
   --color-danger-muted: var(--color-spend-muted);
-  --color-border: oklch(0.65 0.08 68);
+  --color-border: #d5d0c7;
   --color-overlay: color-mix(in oklab, var(--color-ink) 72%, transparent);
 
   --color-expense: var(--color-spend);
@@ -112,24 +112,6 @@
 body {
   caret-color: var(--color-accent);
   background-color: var(--color-background);
-  background-image:
-    radial-gradient(
-      circle at center,
-      color-mix(in oklab, var(--color-border) 22%, transparent) 0 0.55px,
-      transparent 0.8px
-    ),
-    radial-gradient(
-      circle at center,
-      color-mix(in oklab, var(--color-ink) 9%, transparent) 0 0.45px,
-      transparent 0.75px
-    );
-  background-position:
-    0 0,
-    9px 7px;
-  background-size:
-    19px 17px,
-    29px 23px;
-  background-attachment: fixed;
 }
 
 ::selection {
@@ -151,5 +133,16 @@ a {
 }
 
 hr {
-  border-top-style: dashed;
+  border-top-style: solid;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_client/settings")({
       <PageContainer>
         <main aria-labelledby="settings-heading" className="mx-auto max-w-4xl py-2 sm:py-6">
           <header className="mb-8">
-            <h1 id="settings-heading" className="sr-only">
+            <h1 id="settings-heading" className="mb-2 text-2xl font-bold tracking-tight">
               Settings
             </h1>
             <p className="text-text-muted max-w-2xl">
@@ -95,6 +95,7 @@ export const Route = createFileRoute("/_client/settings")({
                     <span className="text-text font-medium">{profile?.name ?? "None"}</span>
                     <Link
                       to="/profile"
+                      data-testid="settings-profile"
                       className="text-accent hover:text-accent-hover focus-visible:ring-accent inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:min-h-9"
                     >
                       Choose profile

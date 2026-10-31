@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { z } from "zod";
 import { PageContainer } from "~/components/PageContainer";
 import { Select } from "~/components/Select";
 import { AccountCard } from "~/modules/accounts/AccountCard";
@@ -13,7 +14,13 @@ import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
 
 export const Route = createFileRoute("/_client/accounts")({
+  validateSearch: z.object({
+    status: z.enum(["ACTIVE", "ARCHIVED", "ALL"]).optional().catch("ACTIVE"),
+    view: z.enum(["accounts", "purposes"]).optional().catch("accounts"),
+  }),
   component: () => {
+    const search = Route.useSearch();
+    const navigate = useNavigate({ from: "/accounts" });
     const accounts = useAccounts();
     const {
       usdRates,
@@ -38,8 +45,8 @@ export const Route = createFileRoute("/_client/accounts")({
         ),
       [selectedProfileId, rawAccounts, transactions, allocations, complete],
     );
-    const [status, setStatus] = useState("ACTIVE");
-    const [view, setView] = useState("accounts");
+    const status = search.status ?? "ACTIVE";
+    const view = search.view ?? "accounts";
     const total = useMemo(() => computeBalanceTotals(accounts, usdRates), [accounts, usdRates]);
     const visibleAccounts = accounts.filter(
       (account) => status === "ALL" || account.status === status,
@@ -78,7 +85,15 @@ export const Route = createFileRoute("/_client/accounts")({
                     name="accounts-view"
                     value={option.value}
                     checked={view === option.value}
-                    onChange={() => setView(option.value)}
+                    onChange={() =>
+                      void navigate({
+                        search: (previous) => ({
+                          ...previous,
+                          view: option.value as "accounts" | "purposes",
+                        }),
+                        resetScroll: false,
+                      })
+                    }
                     aria-controls={`${option.value}-view`}
                     aria-label={`${option.label}: ${option.description}`}
                     className="peer sr-only"
@@ -101,7 +116,15 @@ export const Route = createFileRoute("/_client/accounts")({
                     id="accounts-status"
                     data-testid="accounts-status"
                     value={status}
-                    onValueChange={(value) => setStatus(value ?? "ACTIVE")}
+                    onValueChange={(value) =>
+                      void navigate({
+                        search: (previous) => ({
+                          ...previous,
+                          status: (value ?? "ACTIVE") as "ACTIVE" | "ARCHIVED" | "ALL",
+                        }),
+                        resetScroll: false,
+                      })
+                    }
                     options={[
                       { value: "ACTIVE", label: "Active accounts" },
                       { value: "ARCHIVED", label: "Archived accounts" },

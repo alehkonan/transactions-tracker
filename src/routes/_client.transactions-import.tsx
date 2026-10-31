@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ListChecksIcon, UploadIcon } from "lucide-react";
 import { PageContainer } from "~/components/PageContainer";
+import { PageHeader } from "~/components/PageHeader";
 import { Step, Stepper } from "~/components/Stepper";
 import { ProcessingStep } from "~/modules/transactions-import/ProcessingStep";
 import { UploadStep } from "~/modules/transactions-import/UploadStep";
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/_client/transactions-import")({
 
     return (
       <PageContainer>
+        <PageHeader title="Import transactions" backTo="/settings" backLabel="Settings" />
         <Stepper>
           <Step
             icon={<UploadIcon className="size-4" />}

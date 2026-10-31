@@ -1,52 +1,52 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-26T05:47:56.386Z",
+  "generatedAt": "2026-10-31T06:27:11.617507+00:00",
   "title": "Design System: Cracker Tracker",
   "extensions": {
     "colorMeta": {
       "ink": {
         "role": "neutral",
-        "displayName": "Cocoa Ink",
-        "canonical": "oklch(0.22 0.036 48)",
+        "displayName": "Black Ink",
+        "canonical": "#000000",
         "tonalRamp": [
-          "oklch(0.15 0.036 48)",
-          "oklch(0.27 0.036 48)",
-          "oklch(0.39 0.036 48)",
-          "oklch(0.51 0.036 48)",
-          "oklch(0.63 0.036 48)",
-          "oklch(0.75 0.036 48)",
-          "oklch(0.87 0.036 48)",
-          "oklch(0.95 0.036 48)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       },
       "paper": {
         "role": "neutral",
-        "displayName": "Cream Crumb Stock",
-        "canonical": "oklch(0.945 0.052 88)",
+        "displayName": "Pale Yellow Page",
+        "canonical": "#fff3dd",
         "tonalRamp": [
-          "oklch(0.15 0.052 88)",
-          "oklch(0.27 0.052 88)",
-          "oklch(0.39 0.052 88)",
-          "oklch(0.51 0.052 88)",
-          "oklch(0.63 0.052 88)",
-          "oklch(0.75 0.052 88)",
-          "oklch(0.87 0.052 88)",
-          "oklch(0.95 0.052 88)"
+          "#211b12",
+          "#43392a",
+          "#66583f",
+          "#8a795b",
+          "#b09c78",
+          "#d6c09a",
+          "#f0ddba",
+          "#fff3dd"
         ]
       },
       "accent": {
         "role": "primary",
-        "displayName": "Cocoa Caramel",
-        "canonical": "oklch(0.47 0.132 50)",
+        "displayName": "Ink Action",
+        "canonical": "#000000",
         "tonalRamp": [
-          "oklch(0.15 0.132 50)",
-          "oklch(0.27 0.132 50)",
-          "oklch(0.39 0.132 50)",
-          "oklch(0.51 0.132 50)",
-          "oklch(0.63 0.132 50)",
-          "oklch(0.75 0.132 50)",
-          "oklch(0.87 0.132 50)",
-          "oklch(0.95 0.132 50)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       },
       "hold": {
@@ -111,32 +111,32 @@
       },
       "surface": {
         "role": "neutral",
-        "displayName": "Cream Highlight Surface",
-        "canonical": "oklch(0.985 0.022 92)",
+        "displayName": "White Group",
+        "canonical": "#ffffff",
         "tonalRamp": [
-          "oklch(0.15 0.022 92)",
-          "oklch(0.27 0.022 92)",
-          "oklch(0.39 0.022 92)",
-          "oklch(0.51 0.022 92)",
-          "oklch(0.63 0.022 92)",
-          "oklch(0.75 0.022 92)",
-          "oklch(0.87 0.022 92)",
-          "oklch(0.95 0.022 92)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       },
       "border": {
         "role": "neutral",
-        "displayName": "Baked Edge Rule",
-        "canonical": "oklch(0.65 0.08 68)",
+        "displayName": "Straight Separator",
+        "canonical": "#d5d0c7",
         "tonalRamp": [
-          "oklch(0.15 0.08 68)",
-          "oklch(0.27 0.08 68)",
-          "oklch(0.39 0.08 68)",
-          "oklch(0.51 0.08 68)",
-          "oklch(0.63 0.08 68)",
-          "oklch(0.75 0.08 68)",
-          "oklch(0.87 0.08 68)",
-          "oklch(0.95 0.08 68)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       },
       "necessity-low": {
@@ -201,77 +201,77 @@
       },
       "dark-ink": {
         "role": "neutral",
-        "displayName": "Night Cocoa Ink",
-        "canonical": "oklch(0.92 0.035 88)",
+        "displayName": "Light Ink",
+        "canonical": "#f5f5f5",
         "tonalRamp": [
-          "oklch(0.15 0.035 88)",
-          "oklch(0.27 0.035 88)",
-          "oklch(0.39 0.035 88)",
-          "oklch(0.51 0.035 88)",
-          "oklch(0.63 0.035 88)",
-          "oklch(0.75 0.035 88)",
-          "oklch(0.87 0.035 88)",
-          "oklch(0.95 0.035 88)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       },
       "dark-paper": {
         "role": "neutral",
-        "displayName": "Night Cocoa",
-        "canonical": "oklch(0.155 0.035 48)",
+        "displayName": "Dark Page",
+        "canonical": "#141414",
         "tonalRamp": [
-          "oklch(0.15 0.035 48)",
-          "oklch(0.27 0.035 48)",
-          "oklch(0.39 0.035 48)",
-          "oklch(0.51 0.035 48)",
-          "oklch(0.63 0.035 48)",
-          "oklch(0.75 0.035 48)",
-          "oklch(0.87 0.035 48)",
-          "oklch(0.95 0.035 48)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       },
       "dark-accent": {
         "role": "primary",
-        "displayName": "Baked Gold",
-        "canonical": "oklch(0.8 0.15 80)",
+        "displayName": "Light Action",
+        "canonical": "#f5f5f5",
         "tonalRamp": [
-          "oklch(0.15 0.15 80)",
-          "oklch(0.27 0.15 80)",
-          "oklch(0.39 0.15 80)",
-          "oklch(0.51 0.15 80)",
-          "oklch(0.63 0.15 80)",
-          "oklch(0.75 0.15 80)",
-          "oklch(0.87 0.15 80)",
-          "oklch(0.95 0.15 80)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       },
       "pwa-theme": {
         "role": "primary",
-        "displayName": "PWA Caramel",
-        "canonical": "#9c480c",
+        "displayName": "Pale Yellow Chrome",
+        "canonical": "#fff3dd",
         "tonalRamp": [
-          "oklch(0.15 0.132 50)",
-          "oklch(0.27 0.132 50)",
-          "oklch(0.39 0.132 50)",
-          "oklch(0.51 0.132 50)",
-          "oklch(0.63 0.132 50)",
-          "oklch(0.75 0.132 50)",
-          "oklch(0.87 0.132 50)",
-          "oklch(0.95 0.132 50)"
+          "#211b12",
+          "#43392a",
+          "#66583f",
+          "#8a795b",
+          "#b09c78",
+          "#d6c09a",
+          "#f0ddba",
+          "#fff3dd"
         ]
       },
       "pwa-background": {
         "role": "neutral",
-        "displayName": "PWA Crumb",
-        "canonical": "#f5e8c8",
+        "displayName": "Pale Yellow Startup",
+        "canonical": "#fff3dd",
         "tonalRamp": [
-          "oklch(0.15 0.052 88)",
-          "oklch(0.27 0.052 88)",
-          "oklch(0.39 0.052 88)",
-          "oklch(0.51 0.052 88)",
-          "oklch(0.63 0.052 88)",
-          "oklch(0.75 0.052 88)",
-          "oklch(0.87 0.052 88)",
-          "oklch(0.95 0.052 88)"
+          "#211b12",
+          "#43392a",
+          "#66583f",
+          "#8a795b",
+          "#b09c78",
+          "#d6c09a",
+          "#f0ddba",
+          "#fff3dd"
         ]
       },
       "warning": {
@@ -292,16 +292,16 @@
       "text-muted": {
         "role": "neutral",
         "displayName": "Muted Cocoa",
-        "canonical": "oklch(0.43 0.04 58)",
+        "canonical": "#595959",
         "tonalRamp": [
-          "oklch(0.15 0.04 58)",
-          "oklch(0.27 0.04 58)",
-          "oklch(0.39 0.04 58)",
-          "oklch(0.51 0.04 58)",
-          "oklch(0.63 0.04 58)",
-          "oklch(0.75 0.04 58)",
-          "oklch(0.87 0.04 58)",
-          "oklch(0.95 0.04 58)"
+          "#141414",
+          "#303030",
+          "#484848",
+          "#666666",
+          "#858585",
+          "#a8a8a8",
+          "#d0d0d0",
+          "#f5f5f5"
         ]
       }
     },
@@ -344,7 +344,7 @@
       {
         "name": "lifted-proof",
         "value": "0 2px 4px color-mix(in oklab, var(--color-ink) 13%, transparent), 0 8px 22px color-mix(in oklab, var(--color-ink) 8%, transparent)",
-        "purpose": "Hover feedback and the persistent navigation dock."
+        "purpose": "Existing floating UI; not navigation, controls, or ordinary groups."
       },
       {
         "name": "floating-plate",
@@ -356,7 +356,7 @@
       {
         "name": "state-standard",
         "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
-        "purpose": "Default color, border, shadow, and transform state transitions."
+        "purpose": "Restrained color and border transitions; no decorative hover lift. Global reduced-motion preferences minimize animation."
       },
       {
         "name": "floating-out",
@@ -390,9 +390,9 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The canonical action control: Toasted Ochre, touch-sized on mobile, and shadowed only on interaction.",
+      "description": "A flat ink-colored native action, with 8px corners and phone-sized targets.",
       "html": "<button class=\"ds-btn-primary\">Save changes</button>",
-      "css": ".ds-btn-primary { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 0; border-radius: 16px; background: var(--color-accent); color: var(--color-surface); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-btn-primary:hover { box-shadow: var(--shadow); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-primary:disabled { background: var(--color-accent-muted); } @media (min-width: 640px) { .ds-btn-primary { height: 36px; } }"
+      "css": ".ds-btn-primary { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--color-accent); color: var(--color-surface); font: inherit; transition: background-color 150ms, color 150ms, border-color 150ms; }  .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-primary:hover { background: var(--color-accent-hover); } .ds-btn-primary:disabled { opacity: .6; } @media (min-width: 640px) { .ds-btn-primary { height: 36px; } } @media (prefers-reduced-motion: reduce) { button, input, select { transition: none; } }"
     },
     {
       "name": "Secondary Button",
@@ -400,7 +400,7 @@
       "refersTo": "button-secondary",
       "description": "A pressed-surface control for neutral actions and cancellation.",
       "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
-      "css": ".ds-btn-secondary { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-btn-secondary:hover { box-shadow: var(--shadow); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-secondary:disabled { background: var(--color-surface-muted); } @media (min-width: 640px) { .ds-btn-secondary { height: 36px; } }"
+      "css": ".ds-btn-secondary { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: background-color 150ms, color 150ms, border-color 150ms; }  .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-secondary:disabled { background: var(--color-surface-muted); } @media (min-width: 640px) { .ds-btn-secondary { height: 36px; } } @media (prefers-reduced-motion: reduce) { button, input, select { transition: none; } }"
     },
     {
       "name": "Danger Button",
@@ -408,7 +408,7 @@
       "refersTo": "button-danger",
       "description": "A neutral-at-rest destructive control that reveals Brick Press on hover.",
       "html": "<button class=\"ds-btn-danger\">Delete</button>",
-      "css": ".ds-btn-danger { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-btn-danger:hover { border-color: var(--color-danger); background: var(--color-danger); color: var(--color-surface); box-shadow: var(--shadow); } .ds-btn-danger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-danger:disabled { background: var(--color-surface-muted); } @media (min-width: 640px) { .ds-btn-danger { height: 36px; } }"
+      "css": ".ds-btn-danger { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: background-color 150ms, color 150ms, border-color 150ms; } .ds-btn-danger:hover { border-color: var(--color-danger); background: var(--color-danger); color: var(--color-surface); } .ds-btn-danger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } .ds-btn-danger:disabled { background: var(--color-surface-muted); } @media (min-width: 640px) { .ds-btn-danger { height: 36px; } } @media (prefers-reduced-motion: reduce) { button, input, select { transition: none; } }"
     },
     {
       "name": "Text Input",
@@ -416,7 +416,7 @@
       "refersTo": "input",
       "description": "The canonical field, aligned in height and focus treatment with buttons and select triggers.",
       "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Name</span><input class=\"ds-input\" value=\"Household\"></label>",
-      "css": ".ds-field { display: flex; flex-direction: column; gap: 4px; color: var(--color-text); font-family: var(--font-sans); } .ds-field-label { font-size: 14px; line-height: 20px; font-weight: 700; } .ds-input { box-sizing: border-box; height: 44px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: box-shadow 150ms, background-color 150ms, color 150ms, border-color 150ms; } .ds-input:hover { box-shadow: var(--shadow); } .ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } @media (min-width: 640px) { .ds-input { height: 36px; } }"
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 4px; color: var(--color-text); font-family: var(--font-sans); } .ds-field-label { font-size: 14px; line-height: 20px; font-weight: 700; } .ds-input { box-sizing: border-box; height: 44px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font: inherit; transition: background-color 150ms, color 150ms, border-color 150ms; }  .ds-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-accent); } @media (min-width: 640px) { .ds-input { height: 36px; } } @media (prefers-reduced-motion: reduce) { button, input, select { transition: none; } }"
     },
     {
       "name": "Category Tag",
@@ -430,17 +430,17 @@
       "name": "Ledger Card",
       "kind": "card",
       "refersTo": "card",
-      "description": "A flat pressed-surface container defined by tone and a dry rule rather than default elevation.",
+      "description": "A flat grouped surface with restrained corners and no default border or shadow.",
       "html": "<article class=\"ds-card\"><h3>Current balance</h3><strong>$12,480.00</strong><p>Available across active accounts</p></article>",
-      "css": ".ds-card { border: 1px solid var(--color-border); border-radius: 12px; padding: 8px; background: var(--color-surface); color: var(--color-text); font-family: var(--font-sans); } .ds-card h3 { margin: 0 0 8px; font-size: 14px; line-height: 20px; font-weight: 700; } .ds-card strong { display: block; font-family: var(--font-mono); font-size: 20px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-card p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 16px; }"
+      "css": ".ds-card { border: 0; border-radius: 8px; padding: 12px; background: var(--color-surface); color: var(--color-text); font-family: var(--font-sans); } .ds-card h3 { margin: 0 0 8px; font-size: 14px; line-height: 20px; font-weight: 700; } .ds-card strong { display: block; font-family: var(--font-mono); font-size: 20px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-card p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 16px; }"
     },
     {
-      "name": "Navigation Dock",
+      "name": "Bottom Navigation",
       "kind": "nav",
       "refersTo": "nav-active",
-      "description": "The floating app dock with one scarce active-ochre destination.",
-      "html": "<nav class=\"ds-nav\" aria-label=\"Primary\"><a class=\"ds-nav-item ds-nav-active\" href=\"#accounts\">Accounts</a><a class=\"ds-nav-item\" href=\"#transactions\">Transactions</a><a class=\"ds-nav-item\" href=\"#statistics\">Statistics</a><a class=\"ds-nav-item\" href=\"#settings\">Settings</a></nav>",
-      "css": ".ds-nav { display: inline-grid; grid-auto-flow: column; gap: 4px; border-radius: 16px; padding: 2px; background: var(--color-surface); box-shadow: var(--shadow); font-family: var(--font-sans); } .ds-nav-item { display: flex; height: 48px; align-items: center; justify-content: center; border-radius: 16px; padding: 0 12px; color: var(--color-text); text-decoration: none; font-size: 14px; } .ds-nav-active { background: var(--color-accent); color: var(--color-surface); } .ds-nav-item:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; } @media (min-width: 768px) { .ds-nav-item { height: 40px; padding: 0 16px; } }"
+      "description": "Four labeled destinations at the bottom on phone and desktop; active state includes a top rule.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary\"><a class=\"ds-nav-item ds-nav-active\" href=\"#accounts\">Money</a><a class=\"ds-nav-item\" href=\"#transactions\">Transactions</a><a class=\"ds-nav-item\" href=\"#statistics\">Statistics</a><a class=\"ds-nav-item\" href=\"#settings\">Settings</a></nav>",
+      "css": ".ds-nav { display: grid; width: 100%; max-width: 672px; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; padding: 0 8px env(safe-area-inset-bottom); background: var(--color-surface); border-top: 1px solid var(--color-border); font-family: var(--font-sans); } .ds-nav-item { display: flex; flex-direction: column; gap: 4px; height: 64px; align-items: center; justify-content: center; border-top: 2px solid transparent; padding: 0 4px; color: var(--color-text-muted); text-decoration: none; font-size: 12px; font-weight: 600; } .ds-nav-active { border-top-color: var(--color-accent); color: var(--color-accent); } .ds-nav-item:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; } @media (min-width: 768px) { .ds-nav-item { font-size: 14px; } }"
     },
     {
       "name": "Dialog Plate",
@@ -463,68 +463,52 @@
       "refersTo": "disclosure-row",
       "description": "Native purpose disclosures with aligned approximate totals, exact currency balances on expansion, and independent supporting disclosure state.",
       "html": "<section class=\"ds-purpose-ledger\"><details class=\"ds-sphere\"><summary class=\"ds-sphere-summary\"><span class=\"ds-sphere-name\">Travel</span><span class=\"ds-total\"><span class=\"ds-sr-only\">Approximate balance in USD: </span>≈ $1,700.00</span><svg class=\"ds-chevron\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></summary><div class=\"ds-sphere-content\"><dl class=\"ds-currencies\"><div><dt>EUR</dt><dd>€450.00</dd></div><div><dt>USD</dt><dd>$1,200.00</dd></div></dl><div class=\"ds-actions\"><div class=\"ds-money-actions\"><button type=\"button\" class=\"ds-sphere-action\">Assign money</button><button type=\"button\" class=\"ds-sphere-action\">Move money</button></div><button type=\"button\" class=\"ds-sphere-action ds-manage\">Manage</button></div></div></details><details class=\"ds-sphere\"><summary class=\"ds-sphere-summary\"><span class=\"ds-sphere-name\">Emergency reserve</span><span class=\"ds-total ds-warning\" title=\"At least one currency balance is below zero.\"><svg class=\"ds-warning-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4m0 4h.01\"/></svg><span class=\"ds-sr-only\">Approximate balance in USD: </span>≈ $400.00<span class=\"ds-sr-only\">. At least one currency balance is below zero.</span></span><svg class=\"ds-chevron\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></summary><div class=\"ds-sphere-content\"><dl class=\"ds-currencies\"><div><dt>GEL</dt><dd class=\"ds-warning\">−₾270.00</dd></div><div><dt>USD</dt><dd>$500.00</dd></div></dl></div></details><details class=\"ds-support\"><summary class=\"ds-support-summary\"><span>How purpose balances work</span><svg class=\"ds-chevron\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></summary><p>In each currency, Operating + Funds + Capital equals your account total, including archived accounts. These are the same money viewed by purpose, not extra balances to add to your accounts.</p></details></section>",
-      "css": ".ds-purpose-ledger { max-width: 56rem; color: var(--color-text); font-family: var(--font-sans); line-height: 1.5; }\n.ds-sphere { border-block: 1px solid var(--color-border); }\n.ds-sphere + .ds-sphere { border-top: 0; }\n.ds-sphere-summary, .ds-support-summary { list-style: none; cursor: pointer; border-radius: 8px; transition: background-color 150ms, color 150ms; }\n.ds-sphere-summary::-webkit-details-marker, .ds-support-summary::-webkit-details-marker { display: none; }\n.ds-sphere-summary { display: grid; grid-template-columns: minmax(0,1fr) auto 1rem; min-height: 64px; box-sizing: border-box; align-items: center; gap: 12px; padding: 12px; }\n.ds-sphere-name { min-width: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 500; }\n.ds-total { display: inline-flex; justify-content: flex-end; align-items: center; gap: 4px; text-align: right; white-space: nowrap; font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 400; font-variant-numeric: tabular-nums; }\n.ds-chevron { width: 16px; height: 16px; flex-shrink: 0; color: var(--color-text-muted); }\n.ds-sphere[open] > .ds-sphere-summary > .ds-chevron, .ds-support[open] > .ds-support-summary > .ds-chevron { rotate: 180deg; }\n.ds-sphere-summary:hover, .ds-support-summary:hover { background: var(--color-surface-hover); color: var(--color-text); }\n.ds-sphere-summary:active, .ds-support-summary:active { background: var(--color-surface-active); }\n.ds-sphere-summary:focus-visible, .ds-support-summary:focus-visible, .ds-sphere-action:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }\n.ds-sphere-content { display: flex; flex-direction: column; gap: 16px; padding: 4px 12px 16px; }\n.ds-currencies { width: 100%; max-width: 24rem; margin: 0; }\n.ds-currencies > div { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: baseline; column-gap: 16px; }\n.ds-currencies > div + div { margin-top: 8px; }\n.ds-currencies dt { color: var(--color-text-muted); font-size: 12px; line-height: 16px; }\n.ds-currencies dd { margin: 0; text-align: right; font-family: var(--font-mono); font-size: 16px; line-height: 24px; font-weight: 400; font-variant-numeric: tabular-nums; }\n.ds-actions { display: flex; flex-direction: column; gap: 12px; }\n.ds-money-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }\n.ds-sphere-action { height: 44px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); color: var(--color-text); font-family: var(--font-sans); font-size: 14px; white-space: nowrap; cursor: pointer; transition: background-color 150ms, box-shadow 150ms; }\n.ds-sphere-action:hover { box-shadow: var(--shadow); }\n.ds-sphere-action:disabled { background: var(--color-surface-muted); cursor: default; }\n.ds-manage { align-self: flex-start; }\n.ds-support { margin-top: 24px; }\n.ds-support-summary { display: flex; min-height: 44px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; color: var(--color-text-muted); font-size: 14px; }\n.ds-support p { max-width: 65ch; color: var(--color-text-muted); font-size: 14px; }\n.ds-warning { color: var(--color-warning); }\n.ds-warning-icon { width: 14px; height: 14px; flex-shrink: 0; }\n.ds-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }\n@media (min-width: 640px) { .ds-actions { flex-direction: row; align-items: center; } .ds-money-actions { display: flex; } .ds-manage { margin-left: auto; } .ds-sphere-action { height: 36px; padding-inline: 12px; } }\n@media (prefers-reduced-motion: reduce) { .ds-sphere-summary, .ds-support-summary, .ds-sphere-action { transition: none; } }"
+      "css": ".ds-purpose-ledger { max-width: 56rem; color: var(--color-text); font-family: var(--font-sans); line-height: 1.5; }\n.ds-sphere { border-block: 1px solid var(--color-border); }\n.ds-sphere + .ds-sphere { border-top: 0; }\n.ds-sphere-summary, .ds-support-summary { list-style: none; cursor: pointer; border-radius: 8px; transition: background-color 150ms, color 150ms; }\n.ds-sphere-summary::-webkit-details-marker, .ds-support-summary::-webkit-details-marker { display: none; }\n.ds-sphere-summary { display: grid; grid-template-columns: minmax(0,1fr) auto 1rem; min-height: 64px; box-sizing: border-box; align-items: center; gap: 12px; padding: 12px; }\n.ds-sphere-name { min-width: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 500; }\n.ds-total { display: inline-flex; justify-content: flex-end; align-items: center; gap: 4px; text-align: right; white-space: nowrap; font-family: var(--font-mono); font-size: 14px; line-height: 20px; font-weight: 400; font-variant-numeric: tabular-nums; }\n.ds-chevron { width: 16px; height: 16px; flex-shrink: 0; color: var(--color-text-muted); }\n.ds-sphere[open] > .ds-sphere-summary > .ds-chevron, .ds-support[open] > .ds-support-summary > .ds-chevron { rotate: 180deg; }\n.ds-sphere-summary:hover, .ds-support-summary:hover { background: var(--color-surface-hover); color: var(--color-text); }\n.ds-sphere-summary:active, .ds-support-summary:active { background: var(--color-surface-active); }\n.ds-sphere-summary:focus-visible, .ds-support-summary:focus-visible, .ds-sphere-action:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }\n.ds-sphere-content { display: flex; flex-direction: column; gap: 16px; padding: 4px 12px 16px; }\n.ds-currencies { width: 100%; max-width: 24rem; margin: 0; }\n.ds-currencies > div { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: baseline; column-gap: 16px; }\n.ds-currencies > div + div { margin-top: 8px; }\n.ds-currencies dt { color: var(--color-text-muted); font-size: 12px; line-height: 16px; }\n.ds-currencies dd { margin: 0; text-align: right; font-family: var(--font-mono); font-size: 16px; line-height: 24px; font-weight: 400; font-variant-numeric: tabular-nums; }\n.ds-actions { display: flex; flex-direction: column; gap: 12px; }\n.ds-money-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }\n.ds-sphere-action { height: 44px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-family: var(--font-sans); font-size: 14px; white-space: nowrap; cursor: pointer; transition: background-color 150ms, box-shadow 150ms; }\n\n.ds-sphere-action:disabled { background: var(--color-surface-muted); cursor: default; }\n.ds-manage { align-self: flex-start; }\n.ds-support { margin-top: 24px; }\n.ds-support-summary { display: flex; min-height: 44px; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; color: var(--color-text-muted); font-size: 14px; }\n.ds-support p { max-width: 65ch; color: var(--color-text-muted); font-size: 14px; }\n.ds-warning { color: var(--color-warning); }\n.ds-warning-icon { width: 14px; height: 14px; flex-shrink: 0; }\n.ds-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }\n@media (min-width: 640px) { .ds-actions { flex-direction: row; align-items: center; } .ds-money-actions { display: flex; } .ds-manage { margin-left: auto; } .ds-sphere-action { height: 36px; padding-inline: 12px; } }\n@media (prefers-reduced-motion: reduce) { .ds-sphere-summary, .ds-support-summary, .ds-sphere-action { transition: none; } } @media (prefers-reduced-motion: reduce) { button, input, select { transition: none; } }"
     }
   ],
   "narrative": {
-    "northStar": "The Proofing Sheet",
-    "overview": "Cracker Tracker is a calibrated financial proof printed on warm cracker stock. Cream crumb paper, cocoa ink, caramel controls, golden baked edges, and restrained dry-press pigments are sampled from the product icon without competing with balances, transactions, or runway. The material character comes from color, hairline structure, sparse registration geometry, and near-imperceptible grain—not decoration laid over the data.\n\nThis is an Operate interface. Financial clarity is strict: semantic states remain unmistakable, monetary figures align, controls are comfortably targetable, and the visual hierarchy stays quieter than the records it serves. Dark mode is the same proofing world under low light, not a separate neon identity. The system explicitly rejects the generic beige finance dashboard and literal cracker or food illustration inside the application UI.",
+    "northStar": "The Grouped Ledger",
+    "overview": "Cracker Tracker uses the iOS-inspired grouped-list direction approved in issue #34: a flat pale-yellow page, white groups, black text, restrained corners, and straight separators. System typography and aligned monetary values keep everyday bookkeeping readable on phones and desktop screens. The illustrated cracker remains the application icon; the working interface uses no decorative textures or food motifs.\n\nThis is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell and transaction list are the first implemented slice. Account and purpose details, routed transaction forms, the combined Money overview, statistics composition, settings, authentication states, and import adaptation continue in issues #35–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.",
     "keyCharacteristics": [
-      "Warm cream stock and pale crumb surfaces, with cocoa rather than black ink.",
-      "Dark caramel in light mode and baked gold in dark mode as the scarce action and focus colors.",
-      "Dry borders, occasional dashed rules, restrained ledger marks, and fixed micro-grain.",
-      "A narrow, earthbound semantic palette for gain, spend, transfer, hold, warning, and necessity.",
-      "System typography for speed and familiarity; tabular monospace for financial values.",
-      "Flat ledger structure at rest, with restrained lift reserved for interaction and floating UI.",
-      "Responsive 44 px touch controls that compact to 36 px for pointer layouts."
+      "Flat pale-yellow background, white grouped surfaces, and black primary text.",
+      "A system-driven neutral dark theme with light text and dark grouped surfaces.",
+      "Persistent labeled bottom navigation on phone and desktop layouts.",
+      "System sans for prose and controls; tabular system monospace for financial comparisons.",
+      "Native controls with thin wrappers, 44px phone targets, and explicit focus feedback.",
+      "Straight separators, restrained 8px group corners, and no decorative hover lift."
     ],
     "rules": [
       {
-        "name": "The Scarce Ink Rule",
-        "body": "Cocoa caramel marks action, focus, and current location in light mode; baked gold takes that role in dark mode. Neither floods passive surfaces.",
-        "section": "colors"
-      },
-      {
-        "name": "The Semantic Pigment Rule",
-        "body": "Gain, spend, transfer, hold, warning, necessity, and category colors communicate financial meaning before they decorate.",
-        "section": "colors"
-      },
-      {
-        "name": "The Low-Light Proof Rule",
-        "body": "Dark mode overrides the same semantic custom properties through `prefers-color-scheme`; components never hardcode a separate dark palette.",
+        "name": "The Semantic Color Rule",
+        "body": "Financial and category colors communicate meaning; shared controls use semantic tokens rather than raw color classes.",
         "section": "colors"
       },
       {
         "name": "The Figures Register Rule",
-        "body": "Monetary values use the mono stack and tabular numerals where comparison matters; prose and labels stay in system sans.",
+        "body": "Monetary comparisons use tabular monospace; prose and labels use system sans.",
         "section": "typography"
       },
       {
-        "name": "The Flat Ledger Rule",
-        "body": "Cards and rows are flat at rest; shadow is evidence of interaction or physical separation, never a default decoration for every container.",
+        "name": "The Flat Group Rule",
+        "body": "Use surface tone and separators for ordinary groups; reserve elevation for floating UI.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do preserve Cocoa Ink, Cream Crumb Stock, Cream Highlight Surface, and Baked Edge Rule as the default reading environment.",
-      "Do reserve Cocoa Caramel/Baked Gold for action, focus, selection, loading, and current location.",
-      "Do use semantic custom properties so `prefers-color-scheme: dark` changes contrast without changing meaning.",
-      "Do render monetary comparisons in the system mono stack, with tabular numerals when alignment improves scanning.",
-      "Do keep phone controls at least `44px` high and compact canonical controls to `36px` from `sm`.",
-      "Do use borders and tonal layering before shadows; use shadow only for hover or true floating depth.",
-      "Do keep charts sparse, ranked, and directly readable, with quiet furniture and semantic data pigment.",
-      "Do use the fixed category palette and preserve persisted category color IDs.",
-      "Do keep literal cracker imagery confined to the application icon; carry its identity into the shell through semantic color."
+      "Do use the pale-yellow page, white groups, black text, and neutral system dark counterparts through semantic tokens.",
+      "Do preserve category identities, financial meanings, warning states, and incomplete-data feedback.",
+      "Do keep bottom navigation visible on mobile and desktop without covering content.",
+      "Do use native controls, visible focus, safe-area spacing, and 44px phone targets.",
+      "Do keep financial comparisons aligned in tabular monospace.",
+      "Do treat issues #35–#42 as the remaining screen/workflow migration scope."
     ],
     "donts": [
-      "Don't introduce raw blue, neon green, generic red, pure black, or cool gray where a semantic proofing-sheet token exists.",
-      "Don't turn the system into a generic beige finance dashboard; cream crumb stock needs cocoa contrast, baked edge rules, and calibrated pigments.",
-      "Don't use literal crackers, crumbs, food photography, biscuit perforation patterns, or other food illustration in the application UI.",
-      "Don't put every section in a shadowed card or use shadow as passive decoration.",
-      "Don't use category pigments as arbitrary accents or bypass the shared display-palette mapping.",
-      "Don't hardcode dark-mode component colors; override semantic variables at the theme boundary.",
-      "Don't use pie charts when ranked bars or aligned values communicate the comparison more clearly.",
-      "Don't let material texture reduce legibility; grain stays near-imperceptible and behind all content."
+      "Don't restore decorative gradients, page textures, dashed global rules, or hover lift.",
+      "Don't add shadow to every group or a floating capsule around primary navigation.",
+      "Don't hide navigation labels on phones or duplicate the four destinations in top tabs.",
+      "Don't silently clear filters/search on tab activation or replace incomplete balances with zero.",
+      "Don't change financial calculations, synchronization, access semantics, or persisted category IDs for visual work.",
+      "Don't hardcode separate dark component colors; override shared tokens at the theme boundary."
     ]
   }
 }

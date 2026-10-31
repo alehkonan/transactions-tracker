@@ -1,20 +1,20 @@
 ---
 name: Cracker Tracker
-description: A precise offline-first financial ledger printed on warm cracker stock.
+description: A clear offline-first ledger with flat iOS-inspired grouped lists.
 colors:
-  ink: "oklch(0.22 0.036 48)"
-  paper: "oklch(0.945 0.052 88)"
-  text-muted: "oklch(0.43 0.04 58)"
-  surface: "oklch(0.985 0.022 92)"
-  surface-hover: "oklch(0.958 0.045 88)"
-  surface-active: "oklch(0.925 0.068 83)"
-  surface-muted: "oklch(0.97 0.034 90)"
-  border: "oklch(0.65 0.08 68)"
-  overlay: "color-mix(in oklab, oklch(0.22 0.036 48) 72%, transparent)"
-  accent: "oklch(0.47 0.132 50)"
-  accent-hover: "oklch(0.42 0.135 48)"
-  accent-active: "oklch(0.37 0.125 45)"
-  accent-muted: "oklch(0.86 0.105 80)"
+  ink: "#000000"
+  paper: "#fff3dd"
+  text-muted: "#595959"
+  surface: "#ffffff"
+  surface-hover: "#f7f7f7"
+  surface-active: "#ededed"
+  surface-muted: "#f4f2ee"
+  border: "#d5d0c7"
+  overlay: "color-mix(in oklab, #000000 72%, transparent)"
+  accent: "#000000"
+  accent-hover: "#262626"
+  accent-active: "#404040"
+  accent-muted: "#e5dfd4"
   hold: "oklch(0.45 0.09 90)"
   hold-hover: "oklch(0.4 0.095 88)"
   hold-active: "oklch(0.35 0.09 85)"
@@ -47,20 +47,20 @@ colors:
   warning-muted: "color-mix(in oklab, oklch(0.72 0.13 78) 14%, transparent)"
   warning-border: "color-mix(in oklab, oklch(0.62 0.12 72) 44%, transparent)"
   saving-muted: "oklch(0.86 0.095 83)"
-  archived-muted: "color-mix(in oklab, oklch(0.43 0.04 58) 20%, transparent)"
-  dark-ink: "oklch(0.92 0.035 88)"
-  dark-paper: "oklch(0.155 0.035 48)"
-  dark-text-muted: "oklch(0.7 0.04 72)"
-  dark-surface: "oklch(0.215 0.04 52)"
-  dark-surface-hover: "oklch(0.265 0.05 56)"
-  dark-surface-active: "oklch(0.32 0.06 60)"
-  dark-surface-muted: "oklch(0.185 0.032 50)"
-  dark-border: "oklch(0.52 0.07 65)"
+  archived-muted: "color-mix(in oklab, #595959 20%, transparent)"
+  dark-ink: "#f5f5f5"
+  dark-paper: "#141414"
+  dark-text-muted: "#b3b3b3"
+  dark-surface: "#242424"
+  dark-surface-hover: "#303030"
+  dark-surface-active: "#383838"
+  dark-surface-muted: "#1c1c1c"
+  dark-border: "#484848"
   dark-overlay: "color-mix(in oklab, oklch(0.06 0.025 46) 84%, transparent)"
-  dark-accent: "oklch(0.8 0.15 80)"
-  dark-accent-hover: "oklch(0.85 0.14 84)"
-  dark-accent-active: "oklch(0.89 0.11 88)"
-  dark-accent-muted: "oklch(0.31 0.075 58)"
+  dark-accent: "#f5f5f5"
+  dark-accent-hover: "#e0e0e0"
+  dark-accent-active: "#cccccc"
+  dark-accent-muted: "#484848"
   dark-hold: "oklch(0.79 0.09 93)"
   dark-hold-hover: "oklch(0.84 0.08 95)"
   dark-hold-active: "oklch(0.89 0.07 97)"
@@ -93,9 +93,9 @@ colors:
   dark-warning-muted: "color-mix(in oklab, oklch(0.64 0.12 78) 18%, transparent)"
   dark-warning-border: "color-mix(in oklab, oklch(0.7 0.12 79) 46%, transparent)"
   dark-saving-muted: "color-mix(in oklab, oklch(0.38 0.075 82) 62%, transparent)"
-  dark-archived-muted: "color-mix(in oklab, oklch(0.7 0.035 75) 30%, transparent)"
-  pwa-theme: "#9c480c"
-  pwa-background: "#f5e8c8"
+  dark-archived-muted: "color-mix(in oklab, #b3b3b3 30%, transparent)"
+  pwa-theme: "#fff3dd"
+  pwa-background: "#fff3dd"
 typography:
   display:
     fontFamily: "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
@@ -155,23 +155,23 @@ components:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.surface}"
     typography: "{typography.body}"
-    rounded: "{rounded.2xl}"
+    rounded: "{rounded.lg}"
     padding: "0 12px"
     height: "44px"
 
   button-primary-disabled:
-    backgroundColor: "{colors.accent-muted}"
+    backgroundColor: "{colors.accent}"
   button-secondary:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     typography: "{typography.body}"
-    rounded: "{rounded.2xl}"
+    rounded: "{rounded.lg}"
     padding: "0 12px"
     height: "44px"
   button-danger:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.2xl}"
+    rounded: "{rounded.lg}"
     padding: "0 12px"
     height: "44px"
   button-danger-hover:
@@ -187,19 +187,18 @@ components:
   card:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.xl}"
-    padding: "8px"
+    rounded: "{rounded.lg}"
+    padding: "12px"
   chip:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     rounded: "{rounded.full}"
     padding: "2px 8px"
   nav-active:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.2xl}"
-    padding: "0 20px"
-    height: "48px"
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.accent}"
+    padding: "0 4px"
+    height: "64px"
   dialog:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -215,193 +214,124 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Proofing Sheet"**
+**Creative North Star: "The Grouped Ledger"**
 
-Cracker Tracker is a calibrated financial proof printed on warm cracker stock. Cream crumb paper, cocoa ink, caramel controls, golden baked edges, and restrained dry-press pigments are sampled from the product icon without competing with balances, transactions, or runway. The material character comes from color, hairline structure, sparse registration geometry, and near-imperceptible grain—not decoration laid over the data.
+Cracker Tracker uses the iOS-inspired grouped-list direction approved in issue #34: a flat pale-yellow page, white groups, black text, restrained corners, and straight separators. System typography and aligned monetary values keep everyday bookkeeping readable on phones and desktop screens. The illustrated cracker remains the application icon; the working interface uses no decorative textures or food motifs.
 
-This is an Operate interface. Financial clarity is strict: semantic states remain unmistakable, monetary figures align, controls are comfortably targetable, and the visual hierarchy stays quieter than the records it serves. Dark mode is the same proofing world under low light, not a separate neon identity. The system explicitly rejects the generic beige finance dashboard and literal cracker or food illustration inside the application UI.
+This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell and transaction list are the first implemented slice. Account and purpose details, routed transaction forms, the combined Money overview, statistics composition, settings, authentication states, and import adaptation continue in issues #35–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
 
 **Key Characteristics:**
 
-- Warm cream stock and pale crumb surfaces, with cocoa rather than black ink.
-- Dark caramel in light mode and baked gold in dark mode as the scarce action and focus colors.
-- Dry borders, occasional dashed rules, restrained ledger marks, and fixed micro-grain.
-- A narrow, earthbound semantic palette for gain, spend, transfer, hold, warning, and necessity.
-- System typography for speed and familiarity; tabular monospace for financial values.
-- Flat ledger structure at rest, with restrained lift reserved for interaction and floating UI.
-- Responsive 44 px touch controls that compact to 36 px for pointer layouts.
+- Flat pale-yellow background, white grouped surfaces, and black primary text.
+- A system-driven neutral dark theme with light text and dark grouped surfaces.
+- Persistent labeled bottom navigation on phone and desktop layouts.
+- System sans for prose and controls; tabular system monospace for financial comparisons.
+- Native controls with thin wrappers, 44px phone targets, and explicit focus feedback.
+- Straight separators, restrained 8px group corners, and no decorative hover lift.
 
 ## Colors
 
-The palette starts with the icon's cream highlight, golden crumb, orange edge, and cocoa holes, then extends into brick, olive, and dusty press pigments for financial semantics. Every role has a contrast-adjusted dark counterpart under `prefers-color-scheme: dark`.
+The semantic custom properties in `src/styles.css` are the source of truth. `src/styles/dark.css` overrides the same roles under `prefers-color-scheme: dark`.
 
 ### Primary
 
-- **Cocoa Caramel / Baked Gold** (`oklch(0.47 0.132 50)`; dark `oklch(0.8 0.15 80)`): primary actions, active navigation, focus rings, carets, loading indicators, and selected chart or control accents. Light mode borrows the icon's dark holes for contrast; dark mode lifts the golden crumb into the foreground.
-- **Golden Crumb Highlight** (`oklch(0.86 0.105 80)`; dark `oklch(0.31 0.075 58)`): disabled primary actions, selection, scrollbars, and quiet accent fields.
+- **Ink Action** (`#000000`; dark `#f5f5f5`): primary actions, focus rings, carets, active navigation, and loading indicators. Primary buttons use the surface token for contrasting text.
+- **Quiet Selection** (`#e5dfd4`; dark `#484848`): selection and scrollbar emphasis.
 
 ### Secondary
 
-- **Held Mustard** (`oklch(0.45 0.09 90)`; dark `oklch(0.79 0.09 93)`): reserved or held-value semantics.
-- **Brick Press** (`oklch(0.48 0.14 35)`; dark `oklch(0.72 0.13 38)`): spending, expenses, danger, destructive hover states, and the cumulative spending chart.
-- **Cocoa Graphite** (`oklch(0.43 0.03 55)`; dark `oklch(0.7 0.03 70)`): transfers and neutral financial movement.
-- **Ledger Olive** (`oklch(0.44 0.085 120)`; dark `oklch(0.72 0.1 120)`): income and positive change. It remains muted and earthy; never substitute a generic saturated success green.
+The existing hold, spend/danger, transfer, and gain tokens retain their financial meanings and dark counterparts. Income uses the gain tone, transfers use graphite, and ordinary transaction expenses remain quiet black/light text. Necessity and warning roles retain their existing text, fill, and border relationships.
 
-### Tertiary
-
-- **Necessity Sequence:** low, medium, high, and essential progress from dry straw through ochre and umber to brick. Each level owns a text, muted fill, and border token; do not reorder or collapse these roles by hue alone.
-- **Category Press Palette:** categories cycle through the 16 fixed colors in `CATEGORY_DISPLAY_COLORS`, ranging from ochre and bark through olive and dusty plum. Persisted color IDs stay stable while rendering maps them into this print palette.
-- **Warning Ochre** (`oklch(0.44 0.115 70)`; dark `oklch(0.8 0.12 82)`): import and caution feedback, with separate translucent panel and border treatments.
+Category rendering continues to map stable persisted color IDs through `CATEGORY_DISPLAY_COLORS`. These colors identify categories; they are not general UI accents and must not be reassigned as part of the shell redesign.
 
 ### Neutral
 
-- **Cocoa Ink** (`oklch(0.22 0.036 48)`): primary text and the source pigment for shadows and grain.
-- **Cream Crumb Stock** (`oklch(0.945 0.052 88)`): the application field and focus-ring offset.
-- **Cream Highlight Surface** (`oklch(0.985 0.022 92)`): cards, fields, menus, navigation, dialogs, and tooltips.
-- **Quiet Crumb Surface** (`oklch(0.97 0.034 90)`): subdued panels, disabled secondary controls, chart tracks, and highlighted menu rows.
-- **Baked Edge Rule** (`oklch(0.65 0.08 68)`; dark `oklch(0.52 0.07 65)`): borders and dividers. It stays above 3:1 against control surfaces in both themes so fields remain identifiable without relying on shadows.
-- **Muted Cocoa** (`oklch(0.43 0.04 58)`): secondary copy, axes, placeholders, and inactive controls.
-- **Night Cocoa / Night Crust** (`oklch(0.155 0.035 48)` / `oklch(0.215 0.04 52)`): dark-mode field and raised surface. Cocoa relationships and warm hue are preserved rather than neutralized to gray.
-- **PWA Caramel / PWA Crumb** (`#9c480c` / `#f5e8c8`): static browser chrome and manifest colors. The raster icon source is `samples/cracker.png`; its dominant golden crumb is approximately `#fcc048`, its baked edge `#d88424`, its cocoa holes `#9c480c`, and its cream highlight `#fcf0cc`.
+- **Page** (`#fff3dd`; dark `#141414`): the application background and focus-ring offset.
+- **Group** (`#ffffff`; dark `#242424`): cards, fields, lists, navigation, and dialogs.
+- **Muted Text** (`#595959`; dark `#b3b3b3`): secondary copy, counts, and inactive navigation.
+- **Separator** (`#d5d0c7`; dark `#484848`): straight rules and control boundaries.
+- **Hover / Active Surface** (`#f7f7f7` / `#ededed`; dark `#303030` / `#383838`): quiet interaction feedback.
+- **Muted Surface** (`#f4f2ee`; dark `#1c1c1c`): subdued and disabled surfaces.
 
-### Named Rules
+The manifest uses the pale-yellow page color for its static background and theme color. Document metadata supplies light and dark browser theme colors.
 
-**The Scarce Ink Rule.** Cocoa caramel marks action, focus, and current location in light mode; baked gold takes that role in dark mode. Neither floods passive surfaces.
-
-**The Semantic Pigment Rule.** Gain, spend, transfer, hold, warning, necessity, and category colors communicate financial meaning before they decorate.
-
-**The Low-Light Proof Rule.** Dark mode overrides the same semantic custom properties through `prefers-color-scheme`; components never hardcode a separate dark palette.
+**The Semantic Color Rule.** Financial and category colors communicate meaning; shared controls use semantic tokens rather than raw color classes.
 
 ## Typography
 
-**Display Font:** system sans (`ui-sans-serif`, `system-ui`, platform UI fallbacks)  
-**Body Font:** system sans (`ui-sans-serif`, `system-ui`, platform UI fallbacks)  
-**Label/Mono Font:** system monospace (`ui-monospace`, `SFMono-Regular`, `Menlo`, `Monaco`, `Consolas`, monospace fallbacks)
+System sans (`ui-sans-serif`, `system-ui`, platform fallbacks) serves headings, controls, and prose. System monospace (`ui-monospace`, `SFMono-Regular`, platform fallbacks) serves financial values. No downloaded fonts are required.
 
-**Character:** Typography is deliberately infrastructural rather than nostalgic. Weight, scale, alignment, and monospace figures carry hierarchy while the proofing-sheet identity lives in pigment and material detail.
+- The transaction, statistics, settings, and internal-page headings use `24px` bold text with tight tracking. Existing `Title` variants remain available while other screens migrate.
+- Card and dialog headings use `20px` semibold text; field labels use `14px` bold text.
+- Body text uses `16px` with a `24px` line height. Secondary annotations use `12px` or `14px`.
+- Monetary rows use `14px` monospace with tabular numerals; larger balances retain their existing context-dependent scale.
 
-### Hierarchy
-
-- **Display** (700, `1.875rem`, `2.25rem`): page titles only.
-- **Headline** (600, `1.25rem`, `1.75rem`): card and dialog titles.
-- **Title** (700, `0.875rem`, `1.25rem`): section headings and field labels.
-- **Body** (400, `1rem`, `1.5rem`): controls, records, and general copy.
-- **Label** (700, `0.75rem`, `1rem`): compact tooltip titles and dense annotations; secondary counts may use the same size at regular weight.
-- **Financial** (500–600, context-dependent, system mono): balances, totals, changes, and chart values. Use tabular numerals when rows or comparisons benefit from alignment.
-- **Compact Financial** (400, `0.875rem`, `1.25rem`, system mono): approximate totals in disclosure rows. Exact currency balances inside the disclosure use regular-weight `1rem` mono text.
-
-### Named Rules
-
-**The Figures Register Rule.** Monetary values use the mono stack and tabular numerals where comparison matters; prose and labels stay in system sans.
+**The Figures Register Rule.** Monetary comparisons use tabular monospace; prose and labels use system sans.
 
 ## Layout
 
-The app uses a centered `80rem` maximum-width page container with `16px` padding. Layouts are mobile-first and flex or grid based; dense content compacts without card clutter, while primary groups use the `4px` Tailwind spacing base and recurring `8px`, `12px`, and `16px` gaps.
+The shared page container is centered at a maximum width of `80rem`, with `16px` padding. The transaction screen narrows to `56rem`, separating its title/count, search/actions, and remaining-height list into three rows. Active filter indicators wrap above the list. The list itself scrolls and virtualizes transaction rows, retaining a pinned day header.
 
-Controls are `44px` high on phones and compact to `36px` at the `sm` breakpoint (`640px`). The primary navigation is a fixed, safe-area-aware bottom dock on small screens, showing icons in `48px` targets; at `md` (`768px`) it becomes a sticky top dock with `40px` targets and visible labels. Content reserves space for both navigation and synchronization state rather than allowing chrome to cover records.
+All four primary destinations—Money, Transactions, Statistics, and Settings—remain at the bottom on mobile and desktop. The full-width footer participates in the flex layout rather than covering content. Its inner four-column navigation is limited to `42rem`, each target is `64px` high, and bottom padding respects the safe-area inset. Synchronization remains visible at the top; the content scroller reserves space for it.
 
-Dialogs are bottom sheets on small screens and centered modal plates from `sm`, capped at `85dvh` and `42rem` wide. Charts are `9rem` high on compact screens and `18rem` from `sm`; axes are intentionally sparse and unboxed. The global paper grain is fixed to the viewport so scrolling content reads as ink moving over one sheet rather than repeated texture tiles attached to cards.
+Tab activation goes to the destination root and resets its page/list scroll to the top while preserving that destination's query parameters. Transactions store search as `q` alongside filters in the URL; account status/view and statistics period/month remain URL state. Navbar memory stays mounted while hydrated across hidden profile/login surfaces and resets for replica/profile changes. Router scroll restoration and the virtual-list restoration ID support return navigation.
+
+Controls use `44px` phone heights and may compact to `36px` for pointer layouts. Native file, date, select, and input behavior remains available. Dialogs retain their existing mobile-sheet/desktop-modal behavior until the task-specific follow-ups migrate them.
 
 ## Elevation & Depth
 
-The system is flat by default. Surface tone and toasted `1px` rules establish most hierarchy; shadows appear on hover, the navigation dock, toasts, dropdowns, popovers, and other genuinely floating layers. Shadow pigment is mixed from cocoa ink, so elevation remains warm in both themes. The dialog backdrop uses a semantic cocoa overlay rather than generic black.
+The shell, transaction rows, canonical cards, buttons, and account tiles are flat. White/dark group surfaces, space, and straight separators establish hierarchy. There is no page grain, decorative background gradient, navigation shadow, or hover lift. Existing shadow tokens remain for floating popovers and notifications, not as a default container treatment.
 
-### Shadow Vocabulary
+State transitions are restrained color changes. Existing dialogs and popovers retain their functional entrance/exit motion. The global reduced-motion rule minimizes transitions and animation and disables smooth scrolling.
 
-- **Contact Proof** (`0 1px 2px color-mix(in oklab, var(--color-ink) 12%, transparent), 0 5px 14px color-mix(in oklab, var(--color-ink) 7%, transparent)`): toasts, create-account affordances, and low floating contact.
-- **Lifted Proof** (`0 2px 4px color-mix(in oklab, var(--color-ink) 13%, transparent), 0 8px 22px color-mix(in oklab, var(--color-ink) 8%, transparent)`): hover feedback and the persistent navigation dock.
-- **Floating Plate** (`0 4px 10px color-mix(in oklab, var(--color-ink) 14%, transparent), 0 18px 40px color-mix(in oklab, var(--color-ink) 10%, transparent)`): dropdown and popover surfaces.
-
-### Named Rules
-
-**The Flat Ledger Rule.** Cards and rows are flat at rest; shadow is evidence of interaction or physical separation, never a default decoration for every container.
+**The Flat Group Rule.** Use surface tone and separators for ordinary groups; reserve elevation for floating UI.
 
 ## Shapes
 
-The form language is a disciplined family of softened press plates. Fields, buttons, navigation items, and major action tiles use `16px` corners; cards, dialogs, menus, toasts, and floating plates use `12px`; nested options and palette wells use `8px`; compact segmented controls may use `6px`. Chips, category tags, chart tracks, color wells, and small reset actions are fully rounded.
-
-Borders are usually a single baked edge rule. Dashed borders denote invitation or separation—such as create/drop affordances and horizontal rules—not uncertainty. Literal cracker imagery belongs only to the application icon; the working interface carries the brand through color, grain, and edge treatment rather than decorative food motifs.
+Canonical buttons, cards, search fields, account tiles, and active-filter controls use `8px` corners. Native form wrappers still use some existing `16px` radii; dialogs and notifications retain `12px` corners during the staged migration. Category tags retain their compact pill shape. Horizontal rules are solid. Avoid using fully rounded containers as a general page structure.
 
 ## Components
 
-### Buttons
+### Buttons and Fields
 
-Buttons are compact press controls: generous on touch, restrained under a pointer.
+`Button` has primary, secondary, and danger variants, `8px` corners, `12px` horizontal padding, `4px` icon gaps, and `44px`/`36px` responsive height. Primary actions use Ink Action and contrasting surface text; secondary actions use a surface with a separator border. Danger actions retain semantic destructive feedback. Disabled controls reduce opacity. Focus uses a `2px` accent ring with a `2px` page-colored offset. Buttons and native input/select wrappers use color transitions without hover shadows.
 
-- **Shape:** `16px` radius, `44px` mobile height, `36px` from `sm`, `12px` horizontal padding, and a `4px` icon gap.
-- **Primary:** Cocoa Caramel background with Cream Highlight Surface text in light mode; Baked Gold with Night Crust text in dark mode. Disabled state uses Golden Crumb Highlight.
-- **Secondary:** Cream Highlight Surface, Cocoa Ink, and a `1px` Baked Edge Rule; disabled state shifts to Quiet Crumb Surface.
-- **Danger:** neutral at rest. Destructive meaning arrives on hover through Brick Press background/border and surface text, avoiding a screen full of red controls.
-- **Hover / Focus:** hover adds Lifted Proof shadow; focus uses a `2px` primary accent ring with a `2px` Cream Crumb Stock offset. Color, border, background, and shadow transitions use the default `150ms` state timing.
+Inputs remain native controls with associated labels, validation, and thin form wrappers. The transaction search field has an accessible label, a search icon, a clear action, and the `/` keyboard shortcut.
 
-### Chips
+### Groups and Transaction Rows
 
-- **Style:** fully rounded, `2px 8px` padding, small text, Cream Highlight Surface fill, and Baked Edge Rule border.
-- **Category tags:** mix the assigned category pigment at 18% into the background and 48% into the border; text mixes 40% pigment into the semantic text color so it remains legible in both themes.
-- **Interaction:** editable tags keep the visual pill compact but expand the wrapper to a `44px` minimum touch target on phones. Palette choices are `28px` circles; selection adds a `2px` text-color ring and `1.1×` scale.
+The canonical `Card` is a surface group with `8px` corners and `12px` padding, without a default border or shadow. Transaction rows are full-width native buttons with straight separators, explicit amounts, account/category context, comments, and sphere attribution. Daily headers retain the existing spending/income totals. Long secondary content truncates while amounts remain aligned and visible.
 
-### Cards / Containers
+The transaction screen retains distinct empty states for no accounts, no transactions, unmatched search, and unmatched filters. Search clearing and filter clearing remain explicit actions. Creation/edit dialogs remain functional pending the routed forms in #35.
 
-- **Corner Style:** `12px`.
-- **Background:** Cream Highlight Surface.
-- **Shadow Strategy:** none at rest; refer to the Flat Ledger Rule.
-- **Border:** `1px` Baked Edge Rule.
-- **Internal Padding:** `8px` by default; richer profile and form containers use the spacing scale contextually rather than creating a second card style.
+### Navigation and Internal Headers
 
-### Inputs / Fields
+The bottom navigation shows an icon and a visible label for every destination at every breakpoint. Active destinations use an accent-colored top rule as well as text emphasis, so color is not the only cue. Keyboard focus remains visible. Money currently links to `/accounts`, preserving inbound links and existing account access until #38.
 
-- **Style:** `44px`/`36px` responsive height, Cream Highlight Surface fill, Cocoa Ink, `1px` Baked Edge Rule, `16px` corners, and `12px` horizontal padding.
-- **Focus:** the same `2px` primary accent ring and Cream Crumb Stock offset as buttons.
-- **Hover / Disabled:** hover adds Lifted Proof shadow; disabled secondary controls use Quiet Crumb Surface. Errors use Brick Press text below the field; supporting copy uses Muted Cocoa.
-- **Selects:** triggers match secondary buttons exactly. Popups use a `12px` Floating Plate; highlighted options use Quiet Crumb Surface and selected indicators use the primary accent.
+`PageHeader` provides a parent-labeled Back link and a visible title for import and selected-profile navigation. Initial profile onboarding retains its standalone title. No breadcrumbs or second set of primary top tabs is introduced.
 
-### Navigation
+### Existing Financial and System Surfaces
 
-The navigation dock is a Cream Highlight Surface capsule with Lifted Proof shadow and `4px` gaps. Active destinations invert to Cocoa Caramel in light mode and Baked Gold in dark mode; inactive destinations use Cocoa Ink. The dock is fixed at the safe-area-aware bottom on mobile and sticky at the top from `md`; labels are hidden below `md` while icons grow from `24px` to `28px` on compact layouts.
+Operating and named spheres retain native disclosures, per-currency values, incomplete-data messages, negative-currency warnings, and lifecycle actions until their detail-page follow-up. The existing sphere-specific brief remains a behavior reference, subject to the new shared palette and flat-surface direction.
 
-### Dialogs
-
-Dialogs are mobile bottom sheets and desktop centered plates. The surface has a Baked Edge Rule, `16px` padding, and `12px` corners except the mobile sheet, whose bottom edge stays square. The cocoa overlay, backdrop fade, and popup translate/scale complete in `150ms`. Dialogs that require explicit action suppress outside press and Escape dismissal.
-
-### Disclosure Rows
-
-Purpose balances use native `details` and `summary` as flat ledger rows. Operating and named spheres share the same treatment; a system sphere does not receive a separate filled card. The sphere-specific composition and state contract are recorded in [.impeccable/surfaces/src-modules-spheres-named-spheres-tsx.md](.impeccable/surfaces/src-modules-spheres-named-spheres-tsx.md).
-
-- **Summary:** minimum height (`64px`), internal padding (`12px`), softly rounded interaction surface (`8px`), and a three-column register: wrapping name, right-aligned approximate total, and chevron. The total remains in the same column on phones and desktops. Names use medium-weight system sans; totals use Compact Financial typography.
-- **Disclosure:** rows start closed. Currency balances and actions appear on expansion; currency codes and exact amounts align in a compact definition list. Archive, allocation history, and balance help use quieter secondary summaries with a minimum touch height (`44px`).
-- **Interaction:** hover and active states use the semantic surface variants. Keyboard focus uses an accent ring (`2px`) and paper-colored offset (`2px`). Color transitions take (`150ms`) and are disabled for reduced motion. Lucide chevrons (`16px`) rotate only for their own disclosure; opening an archive must not rotate a closed child sphere's chevron.
-- **Feedback:** an incomplete total reads “Loading…” rather than zero. Empty-state copy distinguishes loading from a completed sphere with no assigned money. A warning-colored outline triangle (`14px`) and accessible explanation identify a negative currency balance, even when the combined total is positive; Operating also flags reconciliation differences.
-- **Actions:** sphere actions use regular-weight small text (`14px`), secondary button styling, phone height (`44px`), and desktop height (`36px`). Focus moves to the name or amount field after its dialog mounts and returns to the invoking control when the dialog closes.
-
-### Charts
-
-Charts are ledger evidence, not dashboard ornament. Cumulative spending uses a `2px` Brick Press monotone stroke with a transparent vertical fade and no dots or axis lines. Ticks are `11px` Muted Cocoa; tooltips reuse the canonical Card. Category composition uses ranked horizontal bars rather than a pie, with fully rounded `6px` tracks, category pigments, monospace totals, and quiet transaction counts.
-
-### Loading and Application Icon
-
-Loading is a `32px` primary-accent spinning line icon centered with generous breathing room. The application icon is the full-size illustrated cracker from `samples/cracker.png`, with a vector companion at `public/icon.svg`. Its golden crumb, baked edge, cocoa holes, and cream highlights define the application palette; the manifest and document metadata use the static PWA Caramel and PWA Crumb colors.
+Charts preserve their financial calculations, category identities, interactions, and data ink; their layout adaptation belongs to #39. Synchronization, local recovery, expired-session notices, and conflict acknowledgment retain their existing behavior and visibility. Their further visual adaptation belongs to #41. The illustrated application icon remains unchanged.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** preserve Cocoa Ink, Cream Crumb Stock, Cream Highlight Surface, and Baked Edge Rule as the default reading environment.
-- **Do** reserve Cocoa Caramel/Baked Gold for action, focus, selection, loading, and current location.
-- **Do** use semantic custom properties so `prefers-color-scheme: dark` changes contrast without changing meaning.
-- **Do** render monetary comparisons in the system mono stack, with tabular numerals when alignment improves scanning.
-- **Do** keep phone controls at least `44px` high and compact canonical controls to `36px` from `sm`.
-- **Do** use borders and tonal layering before shadows; use shadow only for hover or true floating depth.
-- **Do** keep charts sparse, ranked, and directly readable, with quiet furniture and semantic data pigment.
-- **Do** use the fixed category palette and preserve persisted category color IDs.
-- **Do** keep literal cracker imagery confined to the application icon; carry its identity into the shell through semantic color.
+- **Do** use the pale-yellow page, white groups, black text, and neutral system dark counterparts through semantic tokens.
+- **Do** preserve category identities, financial meanings, warning states, and incomplete-data feedback.
+- **Do** keep bottom navigation visible on mobile and desktop without covering content.
+- **Do** use native controls, visible focus, safe-area spacing, and 44px phone targets.
+- **Do** keep financial comparisons aligned in tabular monospace.
+- **Do** treat issues #35–#42 as the remaining screen/workflow migration scope.
 
 ### Don't:
 
-- **Don't** introduce raw blue, neon green, generic red, pure black, or cool gray where a semantic proofing-sheet token exists.
-- **Don't** turn the system into a generic beige finance dashboard; cream crumb stock needs cocoa contrast, baked edge rules, and calibrated pigments.
-- **Don't** use literal crackers, crumbs, food photography, biscuit perforation patterns, or other food illustration in the application UI.
-- **Don't** put every section in a shadowed card or use shadow as passive decoration.
-- **Don't** use category pigments as arbitrary accents or bypass the shared display-palette mapping.
-- **Don't** hardcode dark-mode component colors; override semantic variables at the theme boundary.
-- **Don't** use pie charts when ranked bars or aligned values communicate the comparison more clearly.
-- **Don't** let material texture reduce legibility; grain stays near-imperceptible and behind all content.
+- **Don't** restore decorative gradients, page textures, dashed global rules, or hover lift.
+- **Don't** add shadow to every group or a floating capsule around primary navigation.
+- **Don't** hide navigation labels on phones or duplicate the four destinations in top tabs.
+- **Don't** silently clear filters/search on tab activation or replace incomplete balances with zero.
+- **Don't** change financial calculations, synchronization, access semantics, or persisted category IDs for visual work.
+- **Don't** hardcode separate dark component colors; override shared tokens at the theme boundary.

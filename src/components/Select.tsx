@@ -43,7 +43,7 @@ export function Select({
       onChange={(event) => onValueChange?.(event.currentTarget.value || undefined)}
       className={twMerge(
         "border-border bg-surface text-text h-11 min-w-0 rounded-2xl border px-3 sm:h-9",
-        "transition-[box-shadow,background-color,color,border-color] not-disabled:hover:shadow",
+        "transition-colors motion-reduce:transition-none",
         "focus-visible:ring-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
         "disabled:bg-surface-muted disabled:cursor-not-allowed",
         className,

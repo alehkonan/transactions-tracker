@@ -62,7 +62,7 @@ export function SyncStatus() {
   return (
     <div
       aria-live="polite"
-      className="z-navbar fixed inset-x-0 top-0 md:inset-x-auto md:inset-s-0 md:p-3"
+      className="z-navbar fixed inset-x-0 top-0 pt-[env(safe-area-inset-top)] md:inset-x-auto md:inset-s-0 md:px-3 md:pt-[calc(env(safe-area-inset-top)+0.75rem)]"
     >
       <button
         data-testid="sync-status"

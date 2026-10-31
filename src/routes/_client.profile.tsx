@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { PageContainer } from "~/components/PageContainer";
+import { PageHeader } from "~/components/PageHeader";
 import { Title } from "~/components/Title";
 import { computeProfileSummaries } from "~/modules/accounts/compute-balances";
 import { CreateProfileButton } from "~/modules/profile/CreateProfileButton";
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/_client/profile")({
     const accounts = useSyncStore((state) => state.accounts);
     const transactions = useSyncStore((state) => state.transactions);
     const usdRates = useSyncStore((state) => state.usdRates);
+    const selectedProfileId = useSyncStore((state) => state.selectedProfileId);
 
     const summaries = useMemo(
       () => computeProfileSummaries(profiles, accounts, transactions, usdRates),
@@ -30,8 +32,11 @@ export const Route = createFileRoute("/_client/profile")({
 
     return (
       <PageContainer>
+        {selectedProfileId && (
+          <PageHeader title="Choose a profile" backTo="/settings" backLabel="Settings" />
+        )}
         <div className="flex items-center justify-between">
-          <Title variant="page">Choose a profile</Title>
+          {!selectedProfileId && <Title variant="page">Choose a profile</Title>}
           <CreateProfileButton />
         </div>
         <hr className="border-border my-3" />

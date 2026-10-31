@@ -42,8 +42,7 @@ export function AccountCard({ account, activity }: Props) {
         data-testid={`account-${account.id}`}
         aria-label={`Edit ${account.name}. ${account.status.toLowerCase()} account, balance ${formattedBalance}`}
         className={twMerge(
-          "group from-surface bg-surface focus-visible:ring-accent flex min-h-28 w-full cursor-pointer flex-col justify-between gap-3 rounded-2xl bg-linear-to-br p-3 text-left shadow-sm transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transform-none motion-reduce:transition-none",
-          account.status === "ARCHIVED" ? "to-archived-muted" : "to-accent-muted",
+          "group bg-surface hover:bg-surface-hover focus-visible:ring-accent flex min-h-28 w-full cursor-pointer flex-col justify-between gap-3 rounded-lg p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none",
         )}
       >
         <div className="flex items-start justify-between gap-2">
