@@ -1,4 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ImportRow } from "./utils";
+
+const invalidRow: ImportRow = {
+  categoryName: "",
+  comment: "",
+  outcomeAccountName: "",
+  outcome: "",
+  outcomeCurrencyShortTitle: "",
+  incomeAccountName: "",
+  income: "",
+  incomeCurrencyShortTitle: "",
+  createdDate: "invalid",
+};
 
 const mocks = vi.hoisted(() => ({
   assertCurrentReplicaContext: vi.fn(),
@@ -40,7 +53,7 @@ describe("transactions import lifecycle fencing", () => {
     mocks.assertCurrentReplicaContext.mockResolvedValue(undefined);
     mocks.parseCsv.mockReturnValue({ rows: [{}] });
     mocks.getMissingHeaders.mockReturnValue([]);
-    mocks.csvToImportRows.mockReturnValue([{ date: "2026-09-12" }]);
+    mocks.csvToImportRows.mockReturnValue([invalidRow]);
     mocks.getSyncState.mockReturnValue({
       selectedProfileId: "profile-a",
       accounts: [],
@@ -111,7 +124,6 @@ describe("transactions import lifecycle fencing", () => {
 
   it("does not submit again while an import is processing or after it completes", async () => {
     // Invalid source rows need no account fixture, but still exercise the real planning/commit seam.
-    mocks.csvToImportRows.mockReturnValue([{ createdDate: "invalid" }]);
     let finishCommit!: () => void;
     mocks.commit.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -158,7 +170,6 @@ describe("transactions import lifecycle fencing", () => {
   });
 
   it("keeps a completion report and prevents retry when the import was persisted before an error", async () => {
-    mocks.csvToImportRows.mockReturnValue([{ createdDate: "invalid" }]);
     mocks.commit.mockRejectedValueOnce(new mocks.PersistedError("Refresh failed after saving"));
     await actions.selectFile({ text: async () => "csv" } as File);
     actions.reviewFile();
