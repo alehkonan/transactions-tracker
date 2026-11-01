@@ -15,6 +15,9 @@ const Navbar = lazy(() =>
 const SyncGate = lazy(() =>
   import("~/modules/sync/SyncGate").then((module) => ({ default: module.SyncGate })),
 );
+const SyncStatus = lazy(() =>
+  import("~/modules/sync/SyncStatus").then((module) => ({ default: module.SyncStatus })),
+);
 
 export const Route = createFileRoute("/_client")({
   ssr: false,
@@ -27,30 +30,33 @@ function ClientLayout() {
   const isStandalone = pathname === "/profile" || pathname === "/login";
   const isLogin = pathname === "/login";
   const isHydrated = useSyncStore((state) => state.isHydrated);
+  const replicaId = useSyncStore((state) => state.replicaContext?.replicaId);
+  const profileId = useSyncStore((state) => state.selectedProfileId);
   const showNavbar = !isStandalone && isHydrated;
 
   return (
     <Toast.Provider>
       <ServiceWorkerRegistration />
-      {showNavbar && (
-        <header
-          className={twJoin(
-            "pointer-events-none",
-            "flex items-center justify-center px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]",
-            "z-navbar fixed inset-x-0 bottom-0",
-            "md:sticky md:top-0 md:bottom-auto md:p-3",
-          )}
-        >
+      {isHydrated && !isLogin && (
+        <header className="shrink-0">
           <Suspense fallback={null}>
-            <Navbar />
+            <SyncStatus />
           </Suspense>
         </header>
       )}
+      {isHydrated && (
+        <footer hidden={!showNavbar} className="z-navbar order-last shrink-0">
+          <Suspense fallback={<div className="h-16" />}>
+            <Navbar key={`${replicaId}:${profileId}`} />
+          </Suspense>
+        </footer>
+      )}
       <div
+        id="app-scroll"
+        data-tab-scroll
         className={twJoin(
           "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto",
-          !isLogin && (showNavbar ? "pt-12 md:pt-0" : "pt-12 md:pt-14"),
-          showNavbar && "pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-0",
+          !isLogin && !isHydrated && "pt-[env(safe-area-inset-top)]",
         )}
       >
         {isLogin ? (
@@ -65,6 +71,7 @@ function ClientLayout() {
       </div>
       <Toaster />
       <TanStackDevtools
+        config={{ position: "top-right" }}
         plugins={[
           {
             name: "Tanstack Router",

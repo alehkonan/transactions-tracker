@@ -6,8 +6,10 @@ export type TransactionsFilter = {
   from?: string;
   /** Inclusive upper bound, `yyyy-MM-dd` — the whole day counts, not just its first instant. */
   to?: string;
-  /** Account name, matching the `account` search param the filter select drives. */
+  /** Legacy account-name search param. */
   account?: string;
+  /** Stable account link; takes precedence over the legacy name filter. */
+  accountId?: string;
   /** Category name, matching the `category` search param the filter select drives. */
   category?: string;
   /** Case-insensitive text matched against the row's account, category, comment, type, necessity, or currency. */
@@ -25,7 +27,7 @@ const parseDateKey = (dateKey: string) => startOfDay(parse(dateKey, "yyyy-MM-dd"
  */
 export function filterTransactions(
   rows: TransactionRow[],
-  { from, to, account, category, search }: TransactionsFilter,
+  { from, to, account, accountId, category, search }: TransactionsFilter,
 ): TransactionRow[] {
   const start = from ? parseDateKey(from) : undefined;
   // Exclusive upper bound at the next midnight, so the `to` day counts in full.
@@ -35,7 +37,8 @@ export function filterTransactions(
   return rows.filter((row) => {
     if (start && row.createdAt < start) return false;
     if (end && row.createdAt >= end) return false;
-    if (account != null && row.account !== account) return false;
+    if (accountId != null && row.accountId !== accountId) return false;
+    if (accountId == null && account != null && row.account !== account) return false;
     if (category != null && row.category !== category) return false;
     if (
       query &&

@@ -93,7 +93,10 @@ export function useSecuritySettings() {
         );
         await refresh();
       } catch (caught) {
-        setError(getSecurityErrorMessage(caught));
+        const message =
+          getSecurityErrorMessage(caught) ?? "Could not remove the passkey. Try again.";
+        setError(message);
+        throw new Error(message, { cause: caught });
       } finally {
         setIsMutating(false);
       }

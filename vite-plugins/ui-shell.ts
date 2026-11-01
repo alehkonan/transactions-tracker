@@ -3,16 +3,28 @@ export const UI_PATHS = [
   "/login",
   "/profile",
   "/accounts",
+  "/accounts/archived",
+  "/accounts/:accountId",
+  "/accounts/purposes",
+  "/accounts/purposes/archived",
+  "/accounts/purposes/:sphereId",
   "/transactions",
+  "/transactions/new",
+  "/transactions/:transactionId",
   "/statistics",
   "/settings",
+  "/settings/categories",
+  "/settings/security",
   "/transactions-import",
 ] as const;
 
-export function isUiPath(pathname: string): boolean {
-  if (pathname === "/") return true;
-  const canonicalPath = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-  return (UI_PATHS as readonly string[]).includes(canonicalPath);
+/** A named parameter admits exactly one nonempty path segment, never an arbitrary subtree. */
+export function uiPathPatterns(paths: readonly string[] = UI_PATHS): string[] {
+  return paths.map((path) => `^${path.replace(/:[^/]+/g, "[^/]+")}${path === "/" ? "" : "/?"}$`);
+}
+
+export function isUiPath(pathname: string, paths: readonly string[] = UI_PATHS): boolean {
+  return uiPathPatterns(paths).some((pattern) => new RegExp(pattern).test(pathname));
 }
 
 export function uiRewritePaths(): readonly string[] {

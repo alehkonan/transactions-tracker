@@ -1,7 +1,7 @@
 import { format } from "date-fns";
-import { use, useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
-import { DialogContext } from "~/components/Dialog";
+import { useFormTask } from "~/modules/forms/form-task";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { sphereLabel } from "~/modules/spheres/sphere-label";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -26,7 +26,6 @@ type Options = {
 };
 
 export function useTransactionForm({ accounts, transaction }: Options) {
-  const { onClose } = use(DialogContext);
   const isEditing = Boolean(transaction);
   const transactions = useSyncStore((state) => state.transactions);
   const allocations = useSyncStore((state) => state.allocations);
@@ -113,6 +112,10 @@ export function useTransactionForm({ accounts, transaction }: Options) {
   const { submit, link } = useTransactionFormSubmit({ transaction });
   const [counterpartId, setCounterpartId] = useState("");
   const [isLinking, startLinking] = useTransition();
+  const { onCancel } = useFormTask({
+    isDirty: formState.isDirty || counterpartId !== "",
+    isPending: formState.isSubmitting || isLinking,
+  });
   const counterpartOptions = transactions
     .filter(
       (row) =>
@@ -123,7 +126,7 @@ export function useTransactionForm({ accounts, transaction }: Options) {
         row.deletedAt == null,
     )
     .map((row) => {
-      const account = accounts.find((account) => account.id === row.accountId);
+      const account = accounts.find((candidate) => candidate.id === row.accountId);
       return {
         value: row.id,
         label: `${format(row.createdAt, "MMM d, yyyy HH:mm")} · ${account?.name ?? "Unknown account"} · ${account ? formatMoney(row.amount, account.currencyCode) : row.amount}${row.comment ? ` · ${row.comment}` : ""}`,
@@ -244,7 +247,7 @@ export function useTransactionForm({ accounts, transaction }: Options) {
     projectedToBalance,
     markToAmountTouched,
     onSubmit,
-    onClose,
+    onCancel,
     isEditing,
     isPending: formState.isSubmitting,
     rootError: formState.errors.root?.message,

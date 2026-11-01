@@ -1,0 +1,6 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { TransactionDetailScreen } from "~/screens/TransactionDetailScreen";
+
+export const Route = createFileRoute("/_client/transactions_/new")({
+  component: TransactionDetailScreen,
+});

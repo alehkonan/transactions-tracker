@@ -1,4 +1,4 @@
-import { FileTextIcon, UploadCloudIcon, XIcon } from "lucide-react";
+import { FileTextIcon, XIcon } from "lucide-react";
 import { type DragEvent, useId, useRef, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
@@ -51,14 +51,15 @@ export function FileInput({
 
   if (file) {
     return (
-      <div className="border-border bg-surface-muted flex items-center gap-3 rounded-xl border p-4">
-        <FileTextIcon className="text-accent shrink-0" />
-        <span className="min-w-0 flex-1 truncate">{file.name}</span>
+      <div className="flex items-center gap-3">
+        <FileTextIcon aria-hidden="true" className="text-text-muted size-5 shrink-0" />
+        <span className="min-w-0 flex-1 wrap-anywhere">{file.name}</span>
         <button
           type="button"
           aria-label="Remove file"
           onClick={clear}
-          className="text-text-muted hover:bg-surface-active hover:text-text focus-visible:ring-accent grid size-11 shrink-0 place-items-center rounded-xl focus-visible:ring-2 focus-visible:outline-none sm:size-9"
+          data-testid="import-remove-file"
+          className="text-text-muted hover:bg-surface-active hover:text-text focus-visible:ring-accent grid size-11 shrink-0 place-items-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
         >
           <XIcon />
         </button>
@@ -74,22 +75,15 @@ export function FileInput({
       }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
-      className={twJoin(
-        "rounded-xl border border-dashed transition-colors",
-        isDragging ? "border-accent bg-accent-muted/30" : "border-border",
-      )}
+      className={twJoin("rounded-lg", isDragging && "bg-surface-active")}
     >
       <label
         htmlFor={inputId}
-        className={twJoin(
-          "flex cursor-default flex-col items-center gap-2 p-8 text-center",
-          isDragging ? "text-text" : "text-text-muted",
-        )}
+        className={twJoin("flex flex-col gap-2", isDragging ? "text-text" : "text-text-muted")}
       >
-        <UploadCloudIcon className="size-8" />
-        <span>
-          <span className="text-accent">Choose a CSV file</span>
-          <span className="hidden sm:inline"> or drag it here</span>
+        <span className="text-text text-sm">
+          CSV file
+          <span className="text-text-muted hidden sm:inline"> · You can also drag it here</span>
         </span>
         <input
           id={inputId}
@@ -97,7 +91,7 @@ export function FileInput({
           type="file"
           data-testid={inputTestId}
           accept={accept}
-          className="sr-only"
+          className="text-text focus-visible:ring-accent file:border-border file:bg-surface file:text-text min-h-11 w-full min-w-0 text-base file:mr-3 file:min-h-11 file:rounded-lg file:border file:px-3 focus-visible:ring-2 focus-visible:outline-none"
           onChange={(e) => selectFile(e.target.files)}
         />
       </label>

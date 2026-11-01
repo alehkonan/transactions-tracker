@@ -31,7 +31,7 @@ vi.mock("~/utils/uuid-v7", () => ({
   uuidV7: () => "019d0000-0000-7000-8000-000000000001",
 }));
 
-import { commit } from "./mutations";
+import { commit, LocalCommitPersistedError } from "./mutations";
 
 describe("commit", () => {
   beforeEach(() => {
@@ -130,11 +130,31 @@ describe("commit", () => {
         ] as never,
         { replicaId: "replica-a", ownerUserId: 41 },
       ),
-    ).rejects.toBe(stale);
+    ).rejects.toMatchObject({ name: "LocalCommitPersistedError", cause: stale });
 
     expect(mocks.refreshOutboxState).not.toHaveBeenCalled();
     expect(mocks.applyLocalRows).not.toHaveBeenCalled();
     expect(mocks.announceLocalWrite).not.toHaveBeenCalled();
     expect(mocks.schedulePush).not.toHaveBeenCalled();
+  });
+
+  it("reports that changes persisted when refreshing the outbox fails after the write", async () => {
+    const failure = new Error("Outbox read failed");
+    mocks.refreshOutboxState.mockRejectedValueOnce(failure);
+    const saving = commit(
+      [
+        {
+          op: "upsert",
+          table: "accounts",
+          row: { id: "account-a", profileId: "profile-a", updatedAt: new Date(), deletedAt: null },
+          payload: { profileId: "profile-a" },
+        },
+      ] as never,
+      { replicaId: "replica-a", ownerUserId: 41 },
+    );
+    await expect(saving).rejects.toBeInstanceOf(LocalCommitPersistedError);
+    await expect(saving).rejects.toMatchObject({ cause: failure, message: "Outbox read failed" });
+    expect(mocks.writeLocalMutations).toHaveBeenCalledTimes(1);
+    expect(mocks.applyLocalRows).not.toHaveBeenCalled();
   });
 });

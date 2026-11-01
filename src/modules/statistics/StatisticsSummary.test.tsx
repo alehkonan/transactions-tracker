@@ -73,7 +73,7 @@ afterEach(async () => {
 });
 
 describe("statistics summary", () => {
-  it("presents runway as conditional on stopped income and unchanged spending, not a guaranteed depletion date", async () => {
+  it("explains runway using all account money and average Operating Spending without promising a depletion date", async () => {
     const result = averages();
     await act(async () => {
       root.render(
@@ -86,10 +86,13 @@ describe("statistics summary", () => {
     });
 
     expect(text(container)).toContain("Estimated runway");
-    expect(text(container)).toMatch(/if income stopped/i);
-    expect(text(container)).toMatch(/spending stayed at this rate/i);
+    expect(text(container)).toMatch(
+      /all remaining account money ÷ average daily Operating Spending/i,
+    );
+    expect(text(container)).toMatch(/assuming no future income/i);
     expect(text(container)).toContain("10 days");
-    expect(text(container)).toMatch(/total account balance \(including archived\)/i);
+    expect(text(container)).toMatch(/available across all accounts/i);
+    expect(text(container)).toMatch(/includes archived accounts.*Funds and Capital/i);
     expect(text(container)).toContain(usd(100));
     expect(text(container)).toContain(usd(10));
     expect(text(container)).toContain("could last until Sep 20, 2026");
@@ -232,12 +235,11 @@ describe("statistics summary", () => {
   it.each([
     {
       title: "Operating Spending per day",
-      shortTitle: "Operating / day",
       tone: "expense" as const,
     },
-    { title: "Income per day", shortTitle: "Income / day", tone: "income" as const },
+    { title: "Income per day", tone: "income" as const },
   ])(
-    "names the $title mobile button with its current USD value and opens a named, Escape-dismissible real popover",
+    "shows $title and its calendar-day calculation directly and updates them with the history period",
     async (props) => {
       const renderCard = (period: AveragePeriod) => {
         const result = averages({ period });
@@ -252,39 +254,18 @@ describe("statistics summary", () => {
         );
       };
       await act(async () => renderCard("3m"));
-      const trigger = container.querySelector("button")!;
-      expect(trigger.getAttribute("aria-label")).toBe(
-        `${props.shortTitle}: ${usd(10)} USD. Show calculation`,
-      );
-      expect(trigger.textContent).toContain(usd(10));
+      expect(text(container.querySelector("h2"))).toBe(props.title);
+      expect(text(container)).toContain(`${usd(10)} / day`);
+      expect(text(container)).toContain(`${usd(930)} ÷ 93 calendar days`);
+      expect(text(container)).toContain("Jun 10 – Sep 10");
 
       await act(async () => renderCard("6m"));
-      expect(trigger.getAttribute("aria-label")).toBe(
-        `${props.shortTitle}: ${usd(5.03)} USD. Show calculation`,
-      );
-      expect(trigger.textContent).toContain(usd(5.03));
-      await act(async () => {
-        trigger.focus();
-        trigger.click();
-      });
-
-      const popup = document.body.querySelector('[role="dialog"]')!;
-      expect(popup).not.toBeNull();
-      expect(popup.getAttribute("aria-label")).toBe(`${props.title} calculation`);
-      expect(trigger.getAttribute("aria-expanded")).toBe("true");
-      expect(trigger.getAttribute("aria-controls")).toBe(popup.id);
-      expect(text(popup)).toContain(`${usd(930)} ÷ 185 calendar days`);
-      expect(text(popup)).toContain("Mar 10 – Sep 10");
-      expect(text(popup)).toContain("USD");
-      expect(text(popup)).toContain(`${usd(5.03)} / day`);
-
-      await act(async () => {
-        (document.activeElement ?? popup).dispatchEvent(
-          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-        );
-      });
-      expect(trigger.getAttribute("aria-expanded")).toBe("false");
-      expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+      expect(text(container.querySelector("h2"))).toBe(props.title);
+      expect(text(container)).toContain(`${usd(5.03)} / day`);
+      expect(text(container)).toContain(`${usd(930)} ÷ 185 calendar days`);
+      expect(text(container)).toContain("Mar 10 – Sep 10");
+      expect(text(container)).toContain("USD");
+      expect(text(container)).not.toContain(`${usd(10)} / day`);
     },
   );
 

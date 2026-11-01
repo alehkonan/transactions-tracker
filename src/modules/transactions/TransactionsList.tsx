@@ -1,3 +1,4 @@
+import { useElementScrollRestoration } from "@tanstack/react-router";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { format } from "date-fns";
 import { useCallback, useMemo, useRef } from "react";
@@ -87,7 +88,9 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
     [dayIndexes],
   );
 
+  const restoredScroll = useElementScrollRestoration({ id: "transaction-list" });
   const virtualizer = useVirtualizer({
+    initialOffset: restoredScroll?.scrollY,
     count: items.length,
     getScrollElement: () => containerRef.current,
     estimateSize: (index) =>
@@ -100,9 +103,13 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
 
   return (
     <section
+      id="transaction-list"
+      data-scroll-restoration-id="transaction-list"
+      data-tab-scroll
+      data-testid="transaction-list"
       ref={containerRef}
       aria-label="Transactions grouped by day"
-      className="border-border bg-surface isolate -mx-4 min-h-60 flex-1 overflow-x-hidden overflow-y-auto border-y md:mx-0 md:rounded-xl md:border"
+      className="border-border bg-surface isolate min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-lg"
     >
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
@@ -122,7 +129,7 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
                 data-index={virtualItem.index}
                 style={{ ...style, width: "100%" }}
                 className={twJoin(
-                  "bg-surface-muted border-border border-b px-3 py-1.5",
+                  "bg-background border-border border-b px-3 py-2",
                   virtualItem.index > 0 && "border-t",
                   isPinned && "z-stack",
                 )}
@@ -146,7 +153,7 @@ export function TransactionsList({ rowsByDay, onRowClick }: Props) {
               title="Edit transaction"
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               className={twJoin(
-                "hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-accent min-h-11 min-w-0 cursor-pointer px-3 py-1 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+                "hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:ring-accent min-h-11 min-w-0 cursor-pointer px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
                 !item.isFirstOfDay && "border-border border-t",
               )}
             >

@@ -6,9 +6,5 @@ type Props = {
 };
 
 export function Card({ children }: Props) {
-  return (
-    <article className={twJoin("bg-surface border-border rounded-xl border p-2")}>
-      {children}
-    </article>
-  );
+  return <article className={twJoin("bg-surface rounded-lg p-3")}>{children}</article>;
 }

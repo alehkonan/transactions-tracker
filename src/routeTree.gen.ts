@@ -19,6 +19,15 @@ import { Route as ClientStatisticsRouteImport } from './routes/_client.statistic
 import { Route as ClientTransactionsRouteImport } from './routes/_client.transactions'
 import { Route as ClientTransactionsImportRouteImport } from './routes/_client.transactions-import'
 import { Route as ApiPushRouteImport } from './routes/api/push'
+import { Route as ClientAccountsAccountIdRouteImport } from './routes/_client.accounts_.$accountId'
+import { Route as ClientAccountsArchivedRouteImport } from './routes/_client.accounts_.archived'
+import { Route as ClientAccountsPurposesRouteImport } from './routes/_client.accounts_.purposes_'
+import { Route as ClientSettingsCategoriesRouteImport } from './routes/_client.settings_.categories'
+import { Route as ClientSettingsSecurityRouteImport } from './routes/_client.settings_.security'
+import { Route as ClientTransactionsTransactionIdRouteImport } from './routes/_client.transactions_.$transactionId'
+import { Route as ClientTransactionsNewRouteImport } from './routes/_client.transactions_.new'
+import { Route as ClientAccountsPurposesSphereIdRouteImport } from './routes/_client.accounts_.purposes.$sphereId'
+import { Route as ClientAccountsPurposesArchivedRouteImport } from './routes/_client.accounts_.purposes.archived'
 
 const ClientRoute = ClientRouteImport.update({
   id: '/_client',
@@ -70,6 +79,55 @@ const ApiPushRoute = ApiPushRouteImport.update({
   path: '/api/push',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientAccountsAccountIdRoute = ClientAccountsAccountIdRouteImport.update({
+  id: '/accounts_/$accountId',
+  path: '/accounts/$accountId',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientAccountsArchivedRoute = ClientAccountsArchivedRouteImport.update({
+  id: '/accounts_/archived',
+  path: '/accounts/archived',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientAccountsPurposesRoute = ClientAccountsPurposesRouteImport.update({
+  id: '/accounts_/purposes_',
+  path: '/accounts/purposes',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientSettingsCategoriesRoute =
+  ClientSettingsCategoriesRouteImport.update({
+    id: '/settings_/categories',
+    path: '/settings/categories',
+    getParentRoute: () => ClientRoute,
+  } as any)
+const ClientSettingsSecurityRoute = ClientSettingsSecurityRouteImport.update({
+  id: '/settings_/security',
+  path: '/settings/security',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientTransactionsTransactionIdRoute =
+  ClientTransactionsTransactionIdRouteImport.update({
+    id: '/transactions_/$transactionId',
+    path: '/transactions/$transactionId',
+    getParentRoute: () => ClientRoute,
+  } as any)
+const ClientTransactionsNewRoute = ClientTransactionsNewRouteImport.update({
+  id: '/transactions_/new',
+  path: '/transactions/new',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientAccountsPurposesSphereIdRoute =
+  ClientAccountsPurposesSphereIdRouteImport.update({
+    id: '/accounts_/purposes/$sphereId',
+    path: '/accounts/purposes/$sphereId',
+    getParentRoute: () => ClientRoute,
+  } as any)
+const ClientAccountsPurposesArchivedRoute =
+  ClientAccountsPurposesArchivedRouteImport.update({
+    id: '/accounts_/purposes/archived',
+    path: '/accounts/purposes/archived',
+    getParentRoute: () => ClientRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ClientIndexRoute
@@ -81,6 +139,15 @@ export interface FileRoutesByFullPath {
   '/transactions': typeof ClientTransactionsRoute
   '/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
+  '/accounts/$accountId': typeof ClientAccountsAccountIdRoute
+  '/accounts/archived': typeof ClientAccountsArchivedRoute
+  '/accounts/purposes': typeof ClientAccountsPurposesRoute
+  '/settings/categories': typeof ClientSettingsCategoriesRoute
+  '/settings/security': typeof ClientSettingsSecurityRoute
+  '/transactions/$transactionId': typeof ClientTransactionsTransactionIdRoute
+  '/transactions/new': typeof ClientTransactionsNewRoute
+  '/accounts/purposes/$sphereId': typeof ClientAccountsPurposesSphereIdRoute
+  '/accounts/purposes/archived': typeof ClientAccountsPurposesArchivedRoute
 }
 export interface FileRoutesByTo {
   '/accounts': typeof ClientAccountsRoute
@@ -92,6 +159,15 @@ export interface FileRoutesByTo {
   '/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
   '/': typeof ClientIndexRoute
+  '/accounts/$accountId': typeof ClientAccountsAccountIdRoute
+  '/accounts/archived': typeof ClientAccountsArchivedRoute
+  '/accounts/purposes': typeof ClientAccountsPurposesRoute
+  '/settings/categories': typeof ClientSettingsCategoriesRoute
+  '/settings/security': typeof ClientSettingsSecurityRoute
+  '/transactions/$transactionId': typeof ClientTransactionsTransactionIdRoute
+  '/transactions/new': typeof ClientTransactionsNewRoute
+  '/accounts/purposes/$sphereId': typeof ClientAccountsPurposesSphereIdRoute
+  '/accounts/purposes/archived': typeof ClientAccountsPurposesArchivedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -105,6 +181,15 @@ export interface FileRoutesById {
   '/_client/transactions-import': typeof ClientTransactionsImportRoute
   '/api/push': typeof ApiPushRoute
   '/_client/': typeof ClientIndexRoute
+  '/_client/accounts_/$accountId': typeof ClientAccountsAccountIdRoute
+  '/_client/accounts_/archived': typeof ClientAccountsArchivedRoute
+  '/_client/accounts_/purposes_': typeof ClientAccountsPurposesRoute
+  '/_client/settings_/categories': typeof ClientSettingsCategoriesRoute
+  '/_client/settings_/security': typeof ClientSettingsSecurityRoute
+  '/_client/transactions_/$transactionId': typeof ClientTransactionsTransactionIdRoute
+  '/_client/transactions_/new': typeof ClientTransactionsNewRoute
+  '/_client/accounts_/purposes/$sphereId': typeof ClientAccountsPurposesSphereIdRoute
+  '/_client/accounts_/purposes/archived': typeof ClientAccountsPurposesArchivedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -118,6 +203,15 @@ export interface FileRouteTypes {
     | '/transactions'
     | '/transactions-import'
     | '/api/push'
+    | '/accounts/$accountId'
+    | '/accounts/archived'
+    | '/accounts/purposes'
+    | '/settings/categories'
+    | '/settings/security'
+    | '/transactions/$transactionId'
+    | '/transactions/new'
+    | '/accounts/purposes/$sphereId'
+    | '/accounts/purposes/archived'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/accounts'
@@ -129,6 +223,15 @@ export interface FileRouteTypes {
     | '/transactions-import'
     | '/api/push'
     | '/'
+    | '/accounts/$accountId'
+    | '/accounts/archived'
+    | '/accounts/purposes'
+    | '/settings/categories'
+    | '/settings/security'
+    | '/transactions/$transactionId'
+    | '/transactions/new'
+    | '/accounts/purposes/$sphereId'
+    | '/accounts/purposes/archived'
   id:
     | '__root__'
     | '/_client'
@@ -141,6 +244,15 @@ export interface FileRouteTypes {
     | '/_client/transactions-import'
     | '/api/push'
     | '/_client/'
+    | '/_client/accounts_/$accountId'
+    | '/_client/accounts_/archived'
+    | '/_client/accounts_/purposes_'
+    | '/_client/settings_/categories'
+    | '/_client/settings_/security'
+    | '/_client/transactions_/$transactionId'
+    | '/_client/transactions_/new'
+    | '/_client/accounts_/purposes/$sphereId'
+    | '/_client/accounts_/purposes/archived'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -220,6 +332,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPushRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_client/accounts_/$accountId': {
+      id: '/_client/accounts_/$accountId'
+      path: '/accounts/$accountId'
+      fullPath: '/accounts/$accountId'
+      preLoaderRoute: typeof ClientAccountsAccountIdRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/accounts_/archived': {
+      id: '/_client/accounts_/archived'
+      path: '/accounts/archived'
+      fullPath: '/accounts/archived'
+      preLoaderRoute: typeof ClientAccountsArchivedRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/accounts_/purposes_': {
+      id: '/_client/accounts_/purposes_'
+      path: '/accounts/purposes'
+      fullPath: '/accounts/purposes'
+      preLoaderRoute: typeof ClientAccountsPurposesRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/settings_/categories': {
+      id: '/_client/settings_/categories'
+      path: '/settings/categories'
+      fullPath: '/settings/categories'
+      preLoaderRoute: typeof ClientSettingsCategoriesRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/settings_/security': {
+      id: '/_client/settings_/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof ClientSettingsSecurityRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/transactions_/$transactionId': {
+      id: '/_client/transactions_/$transactionId'
+      path: '/transactions/$transactionId'
+      fullPath: '/transactions/$transactionId'
+      preLoaderRoute: typeof ClientTransactionsTransactionIdRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/transactions_/new': {
+      id: '/_client/transactions_/new'
+      path: '/transactions/new'
+      fullPath: '/transactions/new'
+      preLoaderRoute: typeof ClientTransactionsNewRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/accounts_/purposes/$sphereId': {
+      id: '/_client/accounts_/purposes/$sphereId'
+      path: '/accounts/purposes/$sphereId'
+      fullPath: '/accounts/purposes/$sphereId'
+      preLoaderRoute: typeof ClientAccountsPurposesSphereIdRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/accounts_/purposes/archived': {
+      id: '/_client/accounts_/purposes/archived'
+      path: '/accounts/purposes/archived'
+      fullPath: '/accounts/purposes/archived'
+      preLoaderRoute: typeof ClientAccountsPurposesArchivedRouteImport
+      parentRoute: typeof ClientRoute
+    }
   }
 }
 
@@ -232,6 +407,15 @@ interface ClientRouteChildren {
   ClientTransactionsRoute: typeof ClientTransactionsRoute
   ClientTransactionsImportRoute: typeof ClientTransactionsImportRoute
   ClientIndexRoute: typeof ClientIndexRoute
+  ClientAccountsAccountIdRoute: typeof ClientAccountsAccountIdRoute
+  ClientAccountsArchivedRoute: typeof ClientAccountsArchivedRoute
+  ClientAccountsPurposesRoute: typeof ClientAccountsPurposesRoute
+  ClientSettingsCategoriesRoute: typeof ClientSettingsCategoriesRoute
+  ClientSettingsSecurityRoute: typeof ClientSettingsSecurityRoute
+  ClientTransactionsTransactionIdRoute: typeof ClientTransactionsTransactionIdRoute
+  ClientTransactionsNewRoute: typeof ClientTransactionsNewRoute
+  ClientAccountsPurposesSphereIdRoute: typeof ClientAccountsPurposesSphereIdRoute
+  ClientAccountsPurposesArchivedRoute: typeof ClientAccountsPurposesArchivedRoute
 }
 
 const ClientRouteChildren: ClientRouteChildren = {
@@ -243,6 +427,15 @@ const ClientRouteChildren: ClientRouteChildren = {
   ClientTransactionsRoute: ClientTransactionsRoute,
   ClientTransactionsImportRoute: ClientTransactionsImportRoute,
   ClientIndexRoute: ClientIndexRoute,
+  ClientAccountsAccountIdRoute: ClientAccountsAccountIdRoute,
+  ClientAccountsArchivedRoute: ClientAccountsArchivedRoute,
+  ClientAccountsPurposesRoute: ClientAccountsPurposesRoute,
+  ClientSettingsCategoriesRoute: ClientSettingsCategoriesRoute,
+  ClientSettingsSecurityRoute: ClientSettingsSecurityRoute,
+  ClientTransactionsTransactionIdRoute: ClientTransactionsTransactionIdRoute,
+  ClientTransactionsNewRoute: ClientTransactionsNewRoute,
+  ClientAccountsPurposesSphereIdRoute: ClientAccountsPurposesSphereIdRoute,
+  ClientAccountsPurposesArchivedRoute: ClientAccountsPurposesArchivedRoute,
 }
 
 const ClientRouteWithChildren =

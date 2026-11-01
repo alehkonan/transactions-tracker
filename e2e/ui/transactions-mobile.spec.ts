@@ -13,17 +13,19 @@ test("the add transaction action stays reachable above a populated mobile list",
   const addButton = page.getByRole("button", { name: "Add transaction", exact: true }).first();
   await addButton.click();
 
-  const createDialog = page.getByRole("dialog");
-  await createDialog.getByLabel("Account").selectOption({ label: `${E2E_ACCOUNT_NAME} (USD)` });
-  await createDialog.getByLabel("Amount").fill("12.34");
-  await createDialog.getByLabel("Comment").fill(TRANSACTION_COMMENT);
-  await createDialog.getByRole("button", { name: "Save", exact: true }).click();
+  const form = page.getByTestId("transaction-form");
+  await form
+    .getByTestId("transaction-account")
+    .selectOption({ label: `${E2E_ACCOUNT_NAME} (USD)` });
+  await form.getByTestId("transaction-amount").fill("12.34");
+  await form.getByTestId("transaction-comment").fill(TRANSACTION_COMMENT);
+  await form.getByTestId("transaction-submit").click();
 
-  await expect(createDialog).not.toBeVisible();
+  await expect(form).not.toBeVisible();
   await expect(page.getByText(TRANSACTION_COMMENT, { exact: false })).toBeVisible();
   await expect(addButton).toBeVisible();
   await addButton.click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(form).toBeVisible();
 });
 
 test("clearing filters restores the mobile transaction list height", async ({

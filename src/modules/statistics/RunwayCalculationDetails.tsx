@@ -7,13 +7,13 @@ type Props = {
 
 export function RunwayCalculationDetails({ averages }: Props) {
   return (
-    <div className="text-text-muted mt-2 text-sm">
+    <div className="text-text-muted mt-3 text-sm">
       <p>
         Uses all {averages.days} calendar days. Unrecorded expenses can make the runway estimate too
         long.
       </p>
       <details className="mt-1">
-        <summary className="text-text min-h-11 cursor-pointer content-center font-medium sm:min-h-9">
+        <summary className="text-text focus-visible:outline-accent min-h-11 cursor-pointer content-center rounded-lg font-medium focus-visible:outline-2 focus-visible:outline-offset-2">
           How these estimates are calculated
         </summary>
         <div className="max-w-prose space-y-2 pb-2">

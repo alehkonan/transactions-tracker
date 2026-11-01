@@ -5,7 +5,7 @@ const DATABASE_NAME = __DATABASE_NAME__;
 const DATABASE_VERSION = __DATABASE_VERSION__;
 const SHELL_URL = __SHELL_URL__;
 const PRECACHE = __PRECACHE__;
-const NAVIGATION_PATHS = new Set(__NAVIGATION_PATHS__);
+const NAVIGATION_PATTERNS = __NAVIGATION_PATTERNS__.map((pattern) => new RegExp(pattern));
 if (typeof DATABASE_NAME !== "string" || !Number.isInteger(DATABASE_VERSION)) {
   throw new Error("The service worker has an invalid IndexedDB contract.");
 }
@@ -45,9 +45,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
-    const pathname =
-      url.pathname.endsWith("/") && url.pathname !== "/" ? url.pathname.slice(0, -1) : url.pathname;
-    if (!NAVIGATION_PATHS.has(pathname)) return;
+    if (!NAVIGATION_PATTERNS.some((pattern) => pattern.test(url.pathname))) return;
     event.respondWith(getCachedShell());
     return;
   }

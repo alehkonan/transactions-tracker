@@ -193,12 +193,15 @@ async function ensureControlledReplica(page: Page): Promise<void> {
 
 async function editAccountName(page: Page, currentName: string, nextName: string): Promise<void> {
   if (!page.url().endsWith("/accounts")) {
-    await page.getByRole("link", { name: "Accounts" }).click();
+    await page.getByTestId("nav-accounts").click();
     await expect(page).toHaveURL(/\/accounts$/);
   }
   await page
-    .getByRole("button", { name: new RegExp(`^Edit ${escapeRegExp(currentName)}`) })
+    .getByTestId("accounts-list")
+    .getByTestId(/^account-/)
+    .filter({ hasText: currentName })
     .click();
+  await page.getByTestId("account-edit").click();
   const dialog = page.getByRole("dialog", { name: "Edit account" });
   await dialog.getByLabel("Name").fill(nextName);
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
@@ -219,10 +222,6 @@ function expectOnlySyncAuthChanged(
     ...before,
     descriptor: { ...before.descriptor, syncAuth },
   });
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 test("P02: a controlled cached navigation stays local during a 15s upstream document hold", async ({

@@ -1,14 +1,14 @@
 import { TrashIcon } from "lucide-react";
-import { useContext, useTransition } from "react";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Button } from "~/components/Button";
-import { DialogContext } from "~/components/Dialog";
 import { InputControl } from "~/components/InputControl";
 import { Popover } from "~/components/Popover";
 import { PopoverConfirm } from "~/components/PopoverConfirm";
 import { SelectControl } from "~/components/SelectControl";
 import { accountStatusEnum, currencyCodeEnum } from "~/database/enums";
 import { createAccount, deleteAccount, updateAccount } from "~/modules/accounts/account-mutations";
+import { useFormTask } from "~/modules/forms/form-task";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
 import { formatMoney } from "~/utils/format-money";
@@ -57,48 +57,67 @@ function getProjectedBalance(account: AccountWithBalance, initialBalance: string
 }
 
 export function AccountForm({ account }: Props) {
-  const { onClose } = useContext(DialogContext);
   const replicaContext = useReplicaBinding();
   const profileId = useSelectedProfileId();
   const isEditing = Boolean(account);
-  const { control, handleSubmit, reset, formState } = useForm<AccountFormValues>({
+  const { control, handleSubmit, reset, setError, formState } = useForm<AccountFormValues>({
     defaultValues: getDefaultValues(account),
   });
-  const [isDeleting, startDeleteTransition] = useTransition();
+  const [isDeleting, setIsDeleting] = useState(false);
   const initialBalance = useWatch({ control, name: "initialBalance" });
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!account || !replicaContext) return;
-    startDeleteTransition(async () => {
+    setIsDeleting(true);
+    try {
       await deleteAccount(account, replicaContext);
-      onClose();
-    });
+      onComplete();
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
+  const { onCancel, onComplete } = useFormTask({
+    isDirty: formState.isDirty,
+    isPending: formState.isSubmitting || isDeleting,
+  });
+
   const onSubmit = handleSubmit(async (values) => {
-    if (profileId == null || !replicaContext) return;
+    try {
+      if (profileId == null || !replicaContext)
+        throw new Error("Your local profile is unavailable. Reopen the form and try again.");
 
-    const input = {
-      name: values.name,
-      currencyCode: values.currencyCode as (typeof currencyCodeEnum.enumValues)[number],
-      status: values.status as (typeof accountStatusEnum.enumValues)[number],
-      initialBalance: values.initialBalance,
-    };
+      const input = {
+        name: values.name,
+        currencyCode: values.currencyCode as (typeof currencyCodeEnum.enumValues)[number],
+        status: values.status as (typeof accountStatusEnum.enumValues)[number],
+        initialBalance: values.initialBalance,
+      };
 
-    // Both land in the store before this resolves, so the dialog closes onto the change itself
-    // rather than onto the round trip that will carry it to the server.
-    if (account) {
-      await updateAccount(account, input, replicaContext);
-    } else {
-      await createAccount(profileId, input, replicaContext);
+      // Both land in the store before this resolves, so the dialog closes onto the change itself
+      // rather than onto the round trip that will carry it to the server.
+      if (account) {
+        await updateAccount(account, input, replicaContext);
+      } else {
+        await createAccount(profileId, input, replicaContext);
+      }
+
+      if (!isEditing) reset(getDefaultValues());
+      onComplete();
+    } catch (cause) {
+      setError("root", {
+        message: cause instanceof Error ? cause.message : "Could not save your changes. Try again.",
+      });
     }
-
-    if (!isEditing) reset(getDefaultValues());
-    onClose();
   });
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3 pt-3" data-testid="account-form">
+      {formState.errors.root?.message && (
+        <p role="alert" className="text-danger text-sm">
+          {formState.errors.root.message}
+        </p>
+      )}
       <div className="flex flex-col gap-3">
         <InputControl
           control={control}
@@ -178,6 +197,7 @@ export function AccountForm({ account }: Props) {
       >
         {account && (
           <Popover
+            sheet
             aria-label="Remove account"
             renderTrigger={({ onOpen }) => (
               <Button
@@ -203,7 +223,7 @@ export function AccountForm({ account }: Props) {
           </Popover>
         )}
         <div className={isEditing ? "ml-auto flex gap-2" : "flex gap-2"}>
-          <Button variant="secondary" type="button" onClick={onClose}>
+          <Button variant="secondary" type="button" onClick={onCancel}>
             Cancel
           </Button>
           <Button

@@ -72,6 +72,31 @@ describe("filterTransactions", () => {
     expect(ids(filterTransactions(rows, { account: "Bank" }))).toEqual(["after"]);
   });
 
+  it("keeps account links scoped by id after a rename or when names are shared", () => {
+    const sameName = [
+      row({ id: "first", accountId: "first-account", account: "Cash", createdAt: new Date() }),
+      row({ id: "second", accountId: "second-account", account: "Cash", createdAt: new Date() }),
+      row({ id: "renamed", accountId: "first-account", account: "Wallet", createdAt: new Date() }),
+    ];
+    expect(
+      ids(filterTransactions(sameName, { accountId: "first-account", account: "Old name" })),
+    ).toEqual(["first", "renamed"]);
+    expect(filterTransactions(sameName, { accountId: "missing-account" })).toEqual([]);
+  });
+
+  it("combines a stable account id with date, category, and search filters", () => {
+    expect(
+      ids(
+        filterTransactions(rows, {
+          accountId: "a",
+          from: "2026-01-14",
+          category: "Food",
+          search: "essential",
+        }),
+      ),
+    ).toEqual(["lunch"]);
+  });
+
   it("matches a category by name", () => {
     expect(ids(filterTransactions(rows, { category: "Food" }))).toEqual(["groceries", "lunch"]);
   });

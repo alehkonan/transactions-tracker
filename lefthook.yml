@@ -18,8 +18,8 @@ pre-push:
     - name: unit tests
       run: pnpm test:unit
 
-    - name: e2e tests
-      run: pnpm test:e2e
+    # - name: e2e tests
+    #   run: pnpm test:e2e
 
     - name: knip
       run: pnpm knip

@@ -290,6 +290,7 @@ test("an account cascade removes both local transfer legs and synchronizes their
   await page.goto("/accounts");
   await context.setOffline(true);
   await page.getByTestId(`account-${source.id}`).click();
+  await page.getByTestId("account-edit").click();
   await page.getByTestId("account-delete").click();
   await page.getByTestId("account-delete-confirm").click();
   await expect(page.getByTestId("account-form")).toHaveCount(0);
@@ -341,6 +342,7 @@ test("a delayed accepted response cannot restore allocations after an offline ac
   await expect.poll(() => accepted).toBe(true);
   await page.getByTestId("nav-accounts").click();
   await page.getByTestId(`account-${source.id}`).click();
+  await page.getByTestId("account-edit").click();
   await page.getByTestId("account-delete").click();
   await page.getByTestId("account-delete-confirm").click();
   await expect(page.getByTestId("account-form")).toHaveCount(0);
@@ -541,6 +543,8 @@ test("CSV transfer at a push boundary survives a lost response and reload withou
     buffer: Buffer.from([headers, ...expenses, transfer, invalid].join("\n")),
   });
   await page.getByTestId("import-next").click();
+  await expect(page.getByTestId("import-preview")).toBeVisible();
+  await page.getByTestId("import-confirm").click();
   await expect(page.getByTestId("import-report")).toBeVisible();
   await expect(page.getByTestId("import-failures")).toContainText(
     "Same-currency transfer amounts must match",

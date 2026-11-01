@@ -26,13 +26,15 @@ export function PasswordAuthForm({
   const isSignUp = mode === "sign-up";
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-3">
+    <form onSubmit={onSubmit} aria-busy={isPending} className="flex flex-col gap-4">
       <InputControl
         control={control}
         name="username"
         label="Username"
         data-testid="password-auth-username"
         autoComplete="username"
+        enterKeyHint="next"
+        className="rounded-lg"
         disabled={isDisabled}
         rules={{
           validate: (value) => value.trim().length > 0 || "Enter your username.",
@@ -45,6 +47,8 @@ export function PasswordAuthForm({
         label="Password"
         data-testid="password-auth-password"
         autoComplete={isSignUp ? "new-password" : "current-password"}
+        enterKeyHint={isSignUp ? "next" : "go"}
+        className="rounded-lg"
         disabled={isDisabled}
         description={isSignUp ? "Use 12–128 characters." : undefined}
         rules={{
@@ -61,6 +65,8 @@ export function PasswordAuthForm({
           label="Confirm password"
           data-testid="password-auth-confirm-password"
           autoComplete="new-password"
+          enterKeyHint="go"
+          className="rounded-lg"
           disabled={isDisabled}
           rules={{
             required: "Confirm your password.",
@@ -82,7 +88,11 @@ export function PasswordAuthForm({
             ? "Create account"
             : "Sign in"}
       </Button>
-      {error && <p className="text-danger text-sm">{error}</p>}
+      {error && (
+        <p role="alert" className="text-danger text-sm wrap-anywhere">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

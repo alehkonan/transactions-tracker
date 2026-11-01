@@ -97,13 +97,13 @@ test("creates and selects a profile offline before queueing its dependent accoun
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page).toHaveURL(/\/transactions$/);
 
-  await page.getByRole("link", { name: "Accounts" }).click();
+  await page.getByTestId("nav-accounts").click();
   await expect(page).toHaveURL(/\/accounts$/);
-  await page.getByRole("button", { name: "Add account", exact: true }).click();
+  await page.getByTestId("account-create").click();
 
   const accountDialog = page.getByRole("dialog");
-  await accountDialog.getByLabel("Name").fill(ACCOUNT_NAME);
-  await accountDialog.getByRole("button", { name: "Create", exact: true }).click();
+  await accountDialog.getByTestId("account-name").fill(ACCOUNT_NAME);
+  await accountDialog.getByTestId("account-submit").click();
   await expect(accountDialog).not.toBeVisible();
   await expect(page.getByText(ACCOUNT_NAME, { exact: true })).toBeVisible();
 

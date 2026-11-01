@@ -48,6 +48,12 @@ export function SignOutButton({ label = "Sign out" }: { label?: string }) {
           description: "Could not sign out. Your local data remains on this device.",
         });
       }
+      throw new Error(
+        error instanceof SignOutObligationsChangedError
+          ? "Local changes changed. Review the updated warning before signing out."
+          : "Could not sign out. Your local data remains on this device. Try again.",
+        { cause: error },
+      );
     } finally {
       setIsPending(false);
     }
@@ -66,6 +72,7 @@ export function SignOutButton({ label = "Sign out" }: { label?: string }) {
 
   return (
     <Popover
+      sheet
       aria-label={confirmationTitle}
       renderTrigger={({ onOpen }) => (
         <Button variant="danger" onClick={() => void openConfirmation(onOpen)} disabled={isPending}>
@@ -78,7 +85,7 @@ export function SignOutButton({ label = "Sign out" }: { label?: string }) {
         message={confirmationMessage}
         confirmLabel={hasUnsyncedChanges ? "Sign out anyway" : "Sign out"}
         confirmVariant="danger"
-        onConfirm={() => void handleSignOut()}
+        onConfirm={handleSignOut}
       />
     </Popover>
   );

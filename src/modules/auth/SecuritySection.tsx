@@ -1,3 +1,4 @@
+import { PlusIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { PasskeyList } from "~/modules/auth/PasskeyList";
 import { PasswordSettings } from "~/modules/auth/PasswordSettings";
@@ -19,7 +20,7 @@ export function SecuritySection() {
     <div className="p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="max-w-xl">
-          <h3 className="text-text font-bold">Sign-in methods</h3>
+          <h2 className="text-text font-semibold">Account security</h2>
           <p className="text-text-muted text-sm">
             Credential details come directly from the server and are never stored on this device.
           </p>
@@ -36,7 +37,7 @@ export function SecuritySection() {
       </div>
 
       {!isOnline ? (
-        <div className="border-border bg-surface-muted mt-4 rounded-xl border p-3">
+        <div className="border-border mt-4 border-t pt-4">
           <p className="text-text font-bold">Connect to manage account security</p>
           <p className="text-text-muted mt-1 text-sm">
             The rest of settings remains available offline. Security details require a connection so
@@ -63,20 +64,26 @@ export function SecuritySection() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
               <div>
                 <p className="text-text font-bold">Passkeys</p>
-                <p className="text-text-muted text-sm">
+                <p className="text-text-muted text-sm" data-testid="security-passkey-summary">
                   Use a device or security key to sign in.
                   {credentials.passkeys.length > 0 &&
                     ` ${credentials.passkeys.length.toLocaleString()} ${credentials.passkeys.length === 1 ? "passkey" : "passkeys"} attached.`}
                 </p>
               </div>
-              <Button variant="secondary" disabled={isMutating} onClick={() => void addPasskey()}>
+              <Button
+                variant="secondary"
+                disabled={isMutating}
+                onClick={() => void addPasskey()}
+                data-testid="security-add-passkey"
+              >
+                {!isMutating && <PlusIcon aria-hidden="true" className="size-4 shrink-0" />}
                 {isMutating ? "Working…" : "Add passkey"}
               </Button>
             </div>
             <PasskeyList
               passkeys={credentials.passkeys}
               disabled={isMutating}
-              onRemove={(passkey) => void deletePasskey(passkey.id)}
+              onRemove={(passkey) => deletePasskey(passkey.id)}
             />
           </div>
           <div className="border-border border-t pt-4">

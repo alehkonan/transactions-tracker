@@ -243,11 +243,13 @@ async function addVirtualPasskey(
     },
   });
 
-  await page.goto("/settings");
-  const addPasskey = page.getByRole("button", { name: "Add passkey", exact: true });
+  await page.goto("/settings/security");
+  const addPasskey = page.getByTestId("security-add-passkey");
   await expect(addPasskey).toBeVisible({ timeout: 30_000 });
   await addPasskey.click();
-  await expect(page.getByText(/1 passkey attached\./)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("security-passkey-summary")).toContainText("1 passkey attached.", {
+    timeout: 30_000,
+  });
 
   return { cdp, authenticatorId };
 }

@@ -40,9 +40,14 @@ type RawReplicaState = {
 };
 
 async function queueAccountEditThroughUi(page: Page): Promise<void> {
-  await page.getByRole("link", { name: "Accounts" }).click();
+  await page.getByTestId("nav-accounts").click();
   await expect(page).toHaveURL(/\/accounts$/);
-  await page.getByRole("button", { name: /^Edit E2E Account\./ }).click();
+  await page
+    .getByTestId("accounts-list")
+    .getByTestId(/^account-/)
+    .filter({ hasText: "E2E Account" })
+    .click();
+  await page.getByTestId("account-edit").click();
 
   const dialog = page.getByRole("dialog", { name: "Edit account" });
   await dialog.getByLabel("Name").fill(PENDING_ACCOUNT_NAME);
