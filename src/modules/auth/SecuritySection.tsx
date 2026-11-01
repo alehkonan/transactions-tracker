@@ -64,13 +64,18 @@ export function SecuritySection() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
               <div>
                 <p className="text-text font-bold">Passkeys</p>
-                <p className="text-text-muted text-sm">
+                <p className="text-text-muted text-sm" data-testid="security-passkey-summary">
                   Use a device or security key to sign in.
                   {credentials.passkeys.length > 0 &&
                     ` ${credentials.passkeys.length.toLocaleString()} ${credentials.passkeys.length === 1 ? "passkey" : "passkeys"} attached.`}
                 </p>
               </div>
-              <Button variant="secondary" disabled={isMutating} onClick={() => void addPasskey()}>
+              <Button
+                variant="secondary"
+                disabled={isMutating}
+                onClick={() => void addPasskey()}
+                data-testid="security-add-passkey"
+              >
                 {!isMutating && <PlusIcon aria-hidden="true" className="size-4 shrink-0" />}
                 {isMutating ? "Working…" : "Add passkey"}
               </Button>

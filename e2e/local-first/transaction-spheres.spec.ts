@@ -16,7 +16,6 @@ async function prepareSpheres(page: Page, currency = "USD") {
   await page.getByTestId("account-currency").selectOption(currency);
   await page.getByTestId("account-submit").click();
   await expect(page.getByTestId("account-form")).toHaveCount(0);
-  await page.getByTestId("view-purposes").locator("..").click();
   for (const [type, name] of [
     ["FUNDS", "Travel"],
     ["CAPITAL", "Savings"],
@@ -40,15 +39,17 @@ async function prepareSpheres(page: Page, currency = "USD") {
   return { source, destination, funds, capital };
 }
 
-async function expandPurposeBalances(page: Page, ...sphereIds: string[]) {
-  await page.getByTestId("view-purposes").locator("..").click();
-  for (const id of sphereIds) {
-    const sphere = page.getByTestId(`sphere-${id}`);
-    await expect(sphere.getByTestId("sphere-total")).toBeVisible();
-    await expect(sphere.getByTestId("sphere-balances")).not.toBeVisible();
-    await sphere.getByTestId("sphere-expand").click();
-    await expect(sphere.getByTestId("sphere-balances")).toBeVisible();
-  }
+async function expectSphereBalance(page: Page, sphereId: string, amount: string) {
+  const sphere = page.getByTestId(`sphere-${sphereId}`);
+  await expect(sphere.getByTestId("sphere-total")).toBeVisible();
+  await expect(page.getByTestId("sphere-detail")).toHaveCount(0);
+  await sphere.getByTestId("sphere-open").click();
+  await expect(page).toHaveURL(new RegExp(`/accounts/purposes/${sphereId}$`));
+  await expect(page.getByTestId("sphere-detail").getByTestId("sphere-balances")).toContainText(
+    amount,
+  );
+  await page.getByTestId("parent-back").click();
+  await expect(page).toHaveURL(/\/accounts$/);
 }
 
 test("reserved income can fund spending on another account with warnings and complete offline edit/delete effects", async ({
@@ -90,10 +91,7 @@ test("reserved income can fund spending on another account with warnings and com
   await page.getByTestId("nav-accounts").click();
   await expect(page.getByTestId(`account-${source.id}`)).toContainText("$100.00");
   await expect(page.getByTestId(`account-${destination.id}`)).toContainText("−$25.00");
-  await expandPurposeBalances(page, funds.id);
-  await expect(page.getByTestId(`sphere-${funds.id}`).getByTestId("sphere-balances")).toContainText(
-    "$75.00",
-  );
+  await expectSphereBalance(page, funds.id, "$75.00");
   await page.getByTestId("nav-transactions").click();
   await page.getByTestId(`transaction-${expense.id}`).click();
   await expect(page.getByTestId("transaction-sphere")).toHaveValue(funds.id);
@@ -110,13 +108,8 @@ test("reserved income can fund spending on another account with warnings and com
   await page.getByTestId("nav-accounts").click();
   await expect(page.getByTestId(`account-${source.id}`)).toContainText("$70.00");
   await expect(page.getByTestId(`account-${destination.id}`)).toContainText("$0.00");
-  await expandPurposeBalances(page, funds.id, capital.id);
-  await expect(page.getByTestId(`sphere-${funds.id}`).getByTestId("sphere-balances")).toContainText(
-    "$100.00",
-  );
-  await expect(
-    page.getByTestId(`sphere-${capital.id}`).getByTestId("sphere-balances"),
-  ).toContainText("−$30.00");
+  await expectSphereBalance(page, funds.id, "$100.00");
+  await expectSphereBalance(page, capital.id, "−$30.00");
   await context.setOffline(false);
   await page.getByTestId("sync-status").click();
   await waitForSynced(page);
@@ -133,7 +126,6 @@ test("reserved income can fund spending on another account with warnings and com
     await waitForSynced(second.page);
     await second.page.getByTestId("nav-accounts").click();
     await expect(second.page.getByTestId(`account-${source.id}`)).toContainText("$100.00");
-    await second.page.getByTestId("view-purposes").locator("..").click();
     await expect(
       second.page.getByTestId(`sphere-${capital.id}`).getByTestId("sphere-total"),
     ).toContainText("≈ $0.00");
@@ -177,10 +169,7 @@ test("transfer spheres default independently, cancel in one currency, and conver
   const created = await readFinancialReplica(page);
   const incoming = created.transactions.find((row) => Number(row.amount) > 0)!;
   await page.getByTestId("nav-accounts").click();
-  await expandPurposeBalances(page, funds.id);
-  await expect(page.getByTestId(`sphere-${funds.id}`).getByTestId("sphere-balances")).toContainText(
-    "$0.00",
-  );
+  await expectSphereBalance(page, funds.id, "$0.00");
   await page.getByTestId("nav-transactions").click();
   await page.getByTestId(`transaction-${incoming.id}`).click();
   await expect(page.getByTestId("transaction-sphere")).toHaveValue(funds.id);
@@ -227,13 +216,8 @@ test("transfer spheres default independently, cancel in one currency, and conver
     await expect(second.page.getByTestId(`account-${source.id}`)).toContainText("−$20.00");
     await expect(second.page.getByTestId(`account-${destination.id}`)).toContainText("$0.00");
     await expect(second.page.getByTestId(`account-${euro.id}`)).toContainText("€18.50");
-    await expandPurposeBalances(second.page, funds.id, capital.id);
-    await expect(
-      second.page.getByTestId(`sphere-${funds.id}`).getByTestId("sphere-balances"),
-    ).toContainText("−$20.00");
-    await expect(
-      second.page.getByTestId(`sphere-${capital.id}`).getByTestId("sphere-balances"),
-    ).toContainText("€18.50");
+    await expectSphereBalance(second.page, funds.id, "−$20.00");
+    await expectSphereBalance(second.page, capital.id, "€18.50");
     await second.page.getByTestId("nav-transactions").click();
     await second.page.getByTestId(`transaction-${incoming.id}`).click();
     await expect(second.page.getByTestId("transaction-sphere")).toHaveValue(funds.id);

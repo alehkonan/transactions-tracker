@@ -7,7 +7,7 @@ import {
   readFinancialReplica,
 } from "../fixtures/transfers";
 
-test("fixed-currency accounts retain money through offline edits, archive filtering, reload, and another device", async ({
+test("fixed-currency accounts retain money through offline edits, archived navigation, reload, and another device", async ({
   onboardedPage: page,
   context,
   authCredentials,
@@ -85,15 +85,15 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await expect(page.getByTestId("account-detail-status")).toHaveText("Archived");
   await expect(page.getByTestId("account-detail-balance")).toContainText(/102[.,]66/);
   await page.getByTestId("parent-back").click();
-  await expect(page.getByTestId("accounts-empty")).toHaveText("No active accounts.");
+  await expect(page.getByTestId("accounts-empty")).toHaveText(
+    "No active accounts. Add an account or restore an archived one.",
+  );
   await expect(page.getByTestId("accounts-total")).toContainText(/102[.,]66/);
-  await page.getByTestId("view-purposes").locator("..").click();
+  await page.getByTestId(`sphere-${source.profileId}`).getByTestId("sphere-open").click();
   await expect(page.getByTestId("operating-total")).toContainText(/102[.,]66/);
-  await expect(page.getByTestId("operating-balances")).not.toBeVisible();
-  await page.getByTestId("operating-expand").click();
   await expect(page.getByTestId("operating-balances")).toBeVisible();
   await expect(page.getByTestId("operating-balances")).toContainText(/102[.,]66/);
-  await page.getByTestId("view-accounts").locator("..").click();
+  await page.getByTestId("parent-back").click();
   expectOperatingReconciled(await readFinancialReplica(page));
   const totalWithArchivedMoney = await page.getByTestId("accounts-total").textContent();
 
@@ -105,11 +105,14 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await expect(cards).toHaveCount(1);
   await expect(cards).toContainText("Euro card");
 
-  await page.getByTestId("accounts-status").selectOption("ARCHIVED");
+  await page.getByTestId("archived-accounts").click();
+  await expect(page).toHaveURL(/\/accounts\/archived$/);
   await expect(cards).toHaveCount(1);
   await expect(cards).toContainText("Archived wallet");
-  await page.getByTestId("accounts-status").selectOption("ALL");
-  await expect(cards).toHaveCount(2);
+  await page.getByTestId("parent-back").click();
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toContainText("Euro card");
+  await expect(page.getByTestId("archived-accounts")).toContainText("(1)");
   await expect(page.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
   expect((await readFinancialReplica(page)).transactions).toEqual(history);
   expectOperatingReconciled(await readFinancialReplica(page));
@@ -117,14 +120,14 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   await page.reload();
   await expect(cards).toHaveCount(1);
   await expect(cards).toContainText("Euro card");
-  await page.getByTestId("accounts-status").selectOption("ARCHIVED");
+  await page.getByTestId("archived-accounts").click();
   await expect(cards).toHaveCount(1);
   await expect(cards).toContainText("Archived wallet");
+  await page.getByTestId("parent-back").click();
   await expect(page.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
-  await page.getByTestId("view-purposes").locator("..").click();
-  await page.getByTestId("purpose-balances-help").click();
+  await page.getByTestId("sphere-balances-info").click();
   await expect(page.getByTestId("operating-reconciliation")).toContainText(
-    "Purpose totals match account totals in every currency.",
+    "Sphere totals match account totals in every currency.",
   );
   expectOperatingReconciled(await readFinancialReplica(page));
 
@@ -140,17 +143,18 @@ test("fixed-currency accounts retain money through offline edits, archive filter
   try {
     await secondPage.goto("/accounts");
     await waitForSynced(secondPage);
-    await secondPage.getByTestId("accounts-status").selectOption("ARCHIVED");
+    await expect(secondPage.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
+    await secondPage.getByTestId("archived-accounts").click();
     const archivedCard = secondPage.getByTestId("accounts-list").getByTestId(/^account-/);
     await expect(archivedCard).toHaveCount(1);
     await expect(archivedCard).toContainText("Archived wallet");
-    await expect(secondPage.getByTestId("accounts-total")).toHaveText(totalWithArchivedMoney!);
-    await secondPage.getByTestId("view-purposes").locator("..").click();
+    await secondPage.getByTestId("parent-back").click();
+    await secondPage.getByTestId(`sphere-${source.profileId}`).getByTestId("sphere-open").click();
     await expect(secondPage.getByTestId("operating-total")).toContainText(/102[.,]66/);
-    await secondPage.getByTestId("operating-expand").click();
     await expect(secondPage.getByTestId("operating-balances")).toContainText(/102[.,]66/);
     expectOperatingReconciled(await readFinancialReplica(secondPage));
-    await secondPage.getByTestId("view-accounts").locator("..").click();
+    await secondPage.getByTestId("parent-back").click();
+    await secondPage.getByTestId("archived-accounts").click();
     await archivedCard.click();
     await expect(secondPage.getByTestId("account-detail-status")).toHaveText("Archived");
     await secondPage.getByTestId("account-edit").click();
@@ -195,16 +199,22 @@ test("an interrupted allocation pull remains incomplete after an offline reload"
     database.close();
   });
   await page.reload();
-  await page.getByTestId("view-purposes").locator("..").click();
-  await expect(page.getByTestId("operating-total")).toContainText("Loading…");
-  await page.getByTestId("purpose-balances-help").click();
+  const operatingId = (await readFinancialReplica(page)).accounts[0].profileId;
+  await expect(page.getByTestId("accounts-total")).toHaveText("Loading…");
+  await expect(page.getByTestId(`sphere-${operatingId}`).getByTestId("sphere-total")).toContainText(
+    "Loading…",
+  );
+  await page.getByTestId("sphere-balances-info").click();
   await expect(page.getByTestId("operating-reconciliation")).toContainText(
     "Balances are incomplete — synchronize to finish loading.",
   );
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("sphere-balances-help")).toHaveCount(0);
   await context.setOffline(false);
   await page.getByTestId("sync-status").click();
   await waitForSynced(page);
+  await page.getByTestId("sphere-balances-info").click();
   await expect(page.getByTestId("operating-reconciliation")).toContainText(
-    "Purpose totals match account totals in every currency.",
+    "Sphere totals match account totals in every currency.",
   );
 });

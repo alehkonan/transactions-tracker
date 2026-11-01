@@ -306,13 +306,15 @@ test("P11: cookies for B cannot sync, drain, or merge durable replica A through 
   await expect
     .poll(async () => (await readReplica(mismatchedPage)).descriptor.syncAuth)
     .toBe("owner-mismatch");
-  await expect(mismatchedPage.getByRole("button", { name: /^Sign in to sync\./ })).toBeVisible();
+  await expect(mismatchedPage.getByTestId("sync-status")).toContainText(
+    "Sign in as workspace owner",
+  );
   expect(responseStatuses).toContain(409);
 
   const requestsAfterMismatch = syncRequests.length;
   expect(requestsAfterMismatch).toBeGreaterThan(0);
 
-  await mismatchedPage.getByRole("button", { name: /^Sign in to sync\./ }).click();
+  await mismatchedPage.getByTestId("sync-status").click();
   await expect(mismatchedPage).toHaveURL(/\/login(?:\?|$)/);
   expect(syncRequests).toHaveLength(requestsAfterMismatch);
 
