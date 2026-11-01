@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import { useMemo } from "react";
 import { PageContainer } from "~/components/PageContainer";
+import { Popover } from "~/components/Popover";
 import { AccountCard } from "~/modules/accounts/AccountCard";
 import { computeAccountActivity } from "~/modules/accounts/compute-account-activity";
 import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
@@ -26,30 +27,54 @@ export function AccountsScreen() {
 
   return (
     <PageContainer>
-      <main aria-labelledby="money-heading" className="mx-auto max-w-2xl space-y-8 py-2 md:py-6">
+      <main aria-labelledby="money-heading" className="mx-auto max-w-2xl space-y-6 py-2 md:py-6">
         <header>
-          <h1 id="money-heading" className="text-text mb-4 text-2xl font-bold">
-            Money
-          </h1>
-          <section aria-labelledby="balance-heading" className="bg-surface rounded-lg p-4">
-            <h2 id="balance-heading" className="text-text font-medium">
-              Total balance
-            </h2>
-            <p
-              className="text-text mt-2 font-mono text-3xl font-semibold break-all"
-              data-testid="accounts-total"
-            >
-              {complete ? `≈ ${formatMoney(total.balanceUsd, "USD")}` : "Loading…"}
-            </p>
-            <p className="text-text-muted mt-2 text-sm">
-              Approximate USD value · Includes archived accounts
-            </p>
-          </section>
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+            <h1 id="money-heading" className="text-text text-2xl font-bold">
+              Money
+            </h1>
+            <section aria-labelledby="balance-heading" className="min-w-0 text-right">
+              <div className="flex items-center justify-end">
+                <h2 id="balance-heading" className="text-text-muted text-sm font-medium">
+                  Total balance
+                </h2>
+                <Popover
+                  aria-label="About total balance"
+                  renderTrigger={({ onOpen }) => (
+                    <button
+                      type="button"
+                      onClick={onOpen}
+                      aria-label="About total balance"
+                      data-testid="total-balance-info"
+                      className="text-text-muted hover:text-text focus-visible:ring-accent inline-flex size-11 shrink-0 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+                    >
+                      <InfoIcon aria-hidden="true" className="size-4" />
+                    </button>
+                  )}
+                >
+                  <p
+                    className="w-64 max-w-[calc(100vw-3.5rem)] text-sm"
+                    data-testid="total-balance-help"
+                  >
+                    Approximate total in USD, converted using your cached exchange rates. Includes
+                    active and archived accounts. Spheres divide this same money; their balances are
+                    not added to the total.
+                  </p>
+                </Popover>
+              </div>
+              <p
+                className="text-text font-mono text-xl font-semibold break-all sm:text-2xl"
+                data-testid="accounts-total"
+              >
+                {complete ? `≈ ${formatMoney(total.balanceUsd, "USD")}` : "Loading…"}
+              </p>
+            </section>
+          </div>
           {!complete && (
             <output className="text-warning mt-3 block text-sm" data-testid="money-incomplete">
               {interrupted
                 ? "Balances are incomplete. Check synchronization in Settings to finish loading."
-                : "Loading balances. Totals will appear when account and purpose data are complete."}
+                : "Loading balances. Totals will appear when account and sphere data are complete."}
             </output>
           )}
         </header>

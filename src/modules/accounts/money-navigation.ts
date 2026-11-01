@@ -9,8 +9,8 @@ type MoneyListPath =
 const labels: Record<MoneyListPath, string> = {
   "/accounts": "Money",
   "/accounts/archived": "Archived accounts",
-  "/accounts/purposes": "Purposes",
-  "/accounts/purposes/archived": "Archived purposes",
+  "/accounts/purposes": "Spheres",
+  "/accounts/purposes/archived": "Archived spheres",
 };
 
 declare module "@tanstack/react-router" {

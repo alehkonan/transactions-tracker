@@ -5,7 +5,7 @@ primary_target: "src/modules/spheres/NamedSpheres.tsx"
 related_targets: ["src/routes/_client.accounts.tsx"]
 ---
 
-# Purpose balances
+# Sphere balances
 
 ## Scope
 
@@ -27,15 +27,15 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 ## Reading order and composition
 
-- Lead with “What your money is for” and the existing explanation, with Create sphere as the section action.
+- Name the section Spheres, with Create sphere as the section action. Place a 44px info target after the title; its click/tap popover holds the account/sphere balance explanation and reconciliation status instead of an inline introduction or footer disclosure. Keep warnings visible in the main content.
 - Keep one linear ledger in the same 42rem (672px) content column as Accounts.
 - Render Operating and named spheres in one surface with straight row separators, exactly like the Accounts list. Keep Operating first, followed by Funds and Capital in alphabetical order within each type. Show types only in row subtitles; omit separate type headings and descriptions.
 - Rows link to `/accounts/purposes/$sphereId` and show the sphere name, approximate combined USD balance, forward chevron, and any essential warning indicator. Keep totals right-aligned at every width; allow long names to wrap.
-- Place the separate `/accounts/purposes/archived` destination and balance-help disclosure beneath the active ledger with 4px gaps. Archived purposes use one alphabetized list and link to the same stable detail pages. Allocation history belongs to the selected sphere's detail page.
+- Place Archived spheres at `/accounts/purposes/archived` beneath the active ledger. Archived spheres use one alphabetized list and link to the same stable detail pages. Allocation history belongs to the selected sphere's detail page.
 
 ## Detail content
 
-- Lead each detail page with its sphere name and a parent-labeled Back control for the originating list: Money, Purposes, or Archived purposes. Restore its scroll position. Direct links fall back to Purposes or Archived purposes. Keep the detail column at most 42rem (672px) wide.
+- Lead each detail page with its sphere name and a parent-labeled Back control for the originating list: Money, Spheres, or Archived spheres. Restore its scroll position. Direct links fall back to Spheres or Archived spheres. Keep the detail column at most 42rem (672px) wide.
 - Show an approximate USD total and exact currency balances in a flat group. Use a definition list with currency codes left and monetary values right, separated vertically by 8px; Operating's list is at most 24rem (384px) wide.
 - On phones, Assign money and Move money share two equal columns when both are present; Manage occupies a separate line. From 640px, allocation actions sit together on the left and Manage aligns right.
 - Keep empty-state copy in the space otherwise occupied by balances; do not retain an empty list that introduces an extra gap.

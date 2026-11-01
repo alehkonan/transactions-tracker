@@ -1,8 +1,9 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
+import { Popover } from "~/components/Popover";
 import { currencyCodeEnum } from "~/database/enums";
 import { useMoneyNavigation } from "~/modules/accounts/money-navigation";
 import { FormTaskContext } from "~/modules/forms/form-task";
@@ -23,8 +24,6 @@ import type { ReallocationPayload, SyncedSphere } from "~/modules/sync/sync-type
 
 const fieldClass =
   "border-border bg-surface text-text focus-visible:ring-accent h-11 min-w-0 rounded-lg border px-3 focus-visible:ring-2 focus-visible:outline-none";
-const supportingSummaryClass =
-  "text-text-muted hover:bg-surface-hover hover:text-text active:bg-surface-active focus-visible:ring-accent focus-visible:ring-offset-background flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none motion-reduce:transition-none [&::-webkit-details-marker]:hidden";
 const sphereActionClass = "px-2 text-sm sm:px-3";
 const sphereBalancesClass = "max-w-sm space-y-2";
 const currencyBalanceClass = "grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1";
@@ -223,17 +222,52 @@ export function NamedSpheres({
   }
   return (
     <section
-      aria-label={
-        selectedSphere ? "Sphere details" : archivedView ? "Archived purposes" : "Purposes"
-      }
+      aria-label={selectedSphere ? "Sphere details" : archivedView ? "Archived spheres" : "Spheres"}
       data-testid="named-spheres"
       className={`flex max-w-4xl flex-col ${overview ? "gap-3" : "gap-6"}`}
     >
       {!selectedSphere && !archivedView && (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="named-spheres-heading" className="text-text text-lg font-semibold">
-            {overview ? "Purposes" : "What your money is for"}
-          </h2>
+          <div className="flex min-w-0 items-center">
+            <h2 id="named-spheres-heading" className="text-text text-lg font-semibold">
+              Spheres
+            </h2>
+            <Popover
+              aria-label="How sphere balances work"
+              renderTrigger={({ onOpen }) => (
+                <button
+                  type="button"
+                  onClick={onOpen}
+                  aria-label="How sphere balances work"
+                  data-testid="sphere-balances-info"
+                  className="text-text-muted hover:text-text focus-visible:ring-accent inline-flex size-11 shrink-0 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <InfoIcon aria-hidden="true" className="size-4" />
+                </button>
+              )}
+            >
+              <div
+                className="w-64 max-w-[calc(100vw-3.5rem)] text-sm"
+                data-testid="sphere-balances-help"
+              >
+                <p>
+                  Spheres group the same money across your accounts. In each currency, Operating +
+                  Funds + Capital equals your account total, including archived accounts. These are
+                  not extra balances to add to your accounts.
+                </p>
+                <output
+                  className="text-text-muted mt-2 block text-xs"
+                  data-testid="operating-reconciliation"
+                >
+                  {!complete
+                    ? "Balances are incomplete — synchronize to finish loading."
+                    : operatingDiverged
+                      ? "Balances differ — check synchronization in Settings."
+                      : "Sphere totals match account totals in every currency."}
+                </output>
+              </div>
+            </Popover>
+          </div>
           <Button
             ref={createButtonRef}
             data-testid="sphere-create-open"
@@ -243,11 +277,6 @@ export function NamedSpheres({
           >
             Create sphere
           </Button>
-          <p className="text-text-muted order-last basis-full text-sm">
-            {overview
-              ? "The same money, by purpose."
-              : "The same money, grouped by purpose across all accounts."}
-          </p>
         </div>
       )}
       <output className="text-text block text-sm empty:hidden">{notice}</output>
@@ -259,7 +288,7 @@ export function NamedSpheres({
       )}
       {operatingDiverged && !selectedSphere && !archivedView && (
         <p role="alert" className="text-warning text-sm" data-testid="money-reconciliation-warning">
-          Purpose totals differ from account balances. Open Operating for currency differences and
+          Sphere totals differ from account balances. Open Operating for currency differences and
           check synchronization in Settings.
         </p>
       )}
@@ -312,7 +341,7 @@ export function NamedSpheres({
                       <dd className="text-warning col-span-2 max-w-prose text-xs">
                         {Number(balance.accountBalance) < 0
                           ? "Your accounts total is also below zero in this currency."
-                          : "More assigned to purposes than held in this currency."}
+                          : "More assigned to spheres than held in this currency."}
                       </dd>
                     )}
                   </div>
@@ -345,7 +374,7 @@ export function NamedSpheres({
                       <div key={row.currencyCode} className="text-warning text-sm">
                         <dt>{row.currencyCode} reconciliation</dt>
                         <dd>
-                          Accounts {formatMoney(row.accountBalance, row.currencyCode)} · Purposes{" "}
+                          Accounts {formatMoney(row.accountBalance, row.currencyCode)} · Spheres{" "}
                           {formatMoney(purposeTotal, row.currencyCode)} · Difference{" "}
                           {formatMoney(
                             sumMoney([row.accountBalance, negateMoney(purposeTotal)]),
@@ -359,7 +388,7 @@ export function NamedSpheres({
             )}
             {operatingDiverged && (
               <p role="alert" className="text-warning text-sm">
-                Purpose totals differ from account balances. Check synchronization in Settings.
+                Sphere totals differ from account balances. Check synchronization in Settings.
               </p>
             )}
             {named.length > 0 && (
@@ -743,7 +772,7 @@ export function NamedSpheres({
           data-testid="purposes-show-all"
           className="bg-surface text-accent hover:bg-surface-hover focus-visible:ring-accent flex min-h-11 items-center justify-between gap-3 rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
         >
-          <span>Show all purposes ({sortedNamed.length})</span>
+          <span>Show all spheres ({sortedNamed.length})</span>
           <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
         </Link>
       )}
@@ -755,7 +784,7 @@ export function NamedSpheres({
             className="bg-surface text-text hover:bg-surface-hover focus-visible:ring-accent flex min-h-11 items-center justify-between rounded-lg px-4 py-3 focus-visible:ring-2"
             data-testid="archived-spheres"
           >
-            <span>Archived purposes{complete ? ` (${archived.length})` : ""}</span>{" "}
+            <span>Archived spheres{complete ? ` (${archived.length})` : ""}</span>{" "}
             <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
           </Link>
         )}
@@ -771,7 +800,7 @@ export function NamedSpheres({
             </ul>
           ) : (
             <p className="bg-surface text-text-muted rounded-lg p-4">
-              {complete ? "No archived purposes." : "Loading archived purposes…"}
+              {complete ? "No archived spheres." : "Loading archived spheres…"}
             </p>
           ))}
         {selectedSphere && <SphereActivity sphere={selectedSphere} complete={complete} />}
@@ -938,30 +967,6 @@ export function NamedSpheres({
             </div>
           )}
         </Dialog>
-        <details className="group/disclosure">
-          <summary className={supportingSummaryClass} data-testid="purpose-balances-help">
-            <span>How purpose balances work</span>
-            <ChevronDownIcon
-              aria-hidden="true"
-              className="size-4 shrink-0 group-open/disclosure:rotate-180"
-            />
-          </summary>
-          <p className="text-text-muted max-w-prose text-sm">
-            In each currency, Operating + Funds + Capital equals your account total, including
-            archived accounts. These are the same money viewed by purpose, not extra balances to add
-            to your accounts.
-          </p>
-          <output
-            className="text-text-muted mt-2 block text-xs"
-            data-testid="operating-reconciliation"
-          >
-            {!complete
-              ? "Balances are incomplete — synchronize to finish loading."
-              : operatingDiverged
-                ? "Balances differ — check synchronization in Settings."
-                : "Purpose totals match account totals in every currency."}
-          </output>
-        </details>
       </div>
     </section>
   );

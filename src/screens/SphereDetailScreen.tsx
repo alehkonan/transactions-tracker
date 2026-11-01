@@ -28,7 +28,7 @@ function SphereDetail({ sphereId }: { sphereId: string }) {
   return (
     <PageContainer className="pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
       <main className="mx-auto w-full max-w-2xl py-2 md:py-6" aria-label="Sphere details">
-        <PageHeader title={sphere?.name ?? "Purpose"} backLabel={backLabel} onBack={back} />
+        <PageHeader title={sphere?.name ?? "Sphere"} backLabel={backLabel} onBack={back} />
         {sphere ? (
           <>
             <p className="text-text-muted mb-4 text-sm">
@@ -51,13 +51,13 @@ function SphereDetail({ sphereId }: { sphereId: string }) {
             <h2 className="font-semibold">
               {loading
                 ? interrupted
-                  ? "Purpose not loaded yet"
-                  : "Loading purpose…"
-                : "Purpose unavailable"}
+                  ? "Sphere not loaded yet"
+                  : "Loading sphere…"
+                : "Sphere unavailable"}
             </h2>
             <p className="text-text-muted mt-2 text-sm">
               {loading
-                ? "This purpose has not reached this device yet. Return to Purposes or check synchronization to continue."
+                ? "This sphere has not reached this device yet. Return to Spheres or check synchronization to continue."
                 : "It may have been deleted, belong to another profile, or no longer be accessible in this profile."}
             </p>
             <Button className="mt-4" variant="secondary" onClick={back}>
