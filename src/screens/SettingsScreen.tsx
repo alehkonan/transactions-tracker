@@ -17,7 +17,7 @@ export function SettingsScreen() {
 
   return (
     <PageContainer className="pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-      <main aria-labelledby="settings-heading" className="mx-auto max-w-3xl">
+      <main aria-labelledby="settings-heading" className="mx-auto">
         <h1 id="settings-heading" className="mb-6 text-2xl font-bold tracking-tight">
           Settings
         </h1>
@@ -62,12 +62,6 @@ export function SettingsScreen() {
           </SettingsGroup>
 
           <SettingsGroup title="Data & this device">
-            <SettingsLink
-              to="/transactions-import"
-              label="Import transactions"
-              description="Choose a CSV file and review it before importing into this profile."
-              data-testid="settings-import"
-            />
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h3 className="font-medium">Export transactions</h3>

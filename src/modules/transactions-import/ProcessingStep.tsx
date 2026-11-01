@@ -163,14 +163,6 @@ export function ProcessingStep() {
               </Button>
             )}
             <Button
-              data-testid="import-return-settings"
-              variant="secondary"
-              disabled={isCancelling}
-              onClick={() => void navigate({ to: "/settings" })}
-            >
-              Back to Settings
-            </Button>
-            <Button
               data-testid="import-proceed"
               variant="primary"
               disabled={isCancelling}

@@ -81,7 +81,7 @@ function TransactionDetail({ transactionId }: { transactionId?: string }) {
 
   return (
     <PageContainer className="pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-      <main className="mx-auto w-full max-w-2xl">
+      <main className="mx-auto w-full">
         <PageHeader
           title={transactionId ? "Transaction" : "Add transaction"}
           backLabel="Transactions"

@@ -249,6 +249,8 @@ test("successful sign-out clears financial rows, import draft, and outbox before
   await expect(page.getByText(DRAFT_FILE_NAME, { exact: true })).toBeVisible();
   await page.getByTestId("parent-back").click();
   await page.getByTestId("import-leave").click();
+  await expect(page).toHaveURL(/\/transactions$/);
+  await page.getByTestId("nav-settings").click();
   await expect(page).toHaveURL(/\/settings$/);
 
   const before = await readReplicaSnapshot(page);
@@ -281,8 +283,7 @@ test("successful sign-out clears financial rows, import draft, and outbox before
   await expect(page).toHaveURL(/\/transactions$/);
   await expect(page.getByText(LOCAL_TRANSACTION_COMMENT, { exact: false })).toHaveCount(0);
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await page.getByRole("link", { name: "Import transactions", exact: true }).click();
+  await page.getByTestId("transaction-import").click();
   await expect(page).toHaveURL(/\/transactions-import$/);
   await expect(page.getByText(DRAFT_FILE_NAME, { exact: true })).toHaveCount(0);
   await expect(page.locator('input[type="file"]')).toHaveValue("");

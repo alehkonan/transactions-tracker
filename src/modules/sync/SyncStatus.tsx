@@ -60,7 +60,7 @@ export function SyncStatus() {
         aria-label={`${view.label}. ${view.title}`}
         title={view.title}
         className={twJoin(
-          "focus-visible:ring-accent mx-auto flex min-h-11 w-full max-w-7xl items-center gap-3 px-4 py-2 text-left text-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+          "max-w-page focus-visible:ring-accent mx-auto flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-sm focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
           view.tone === "danger" ? "text-danger" : "text-text-muted",
           "not-disabled:hover:bg-surface-hover transition-colors motion-reduce:transition-none",
         )}

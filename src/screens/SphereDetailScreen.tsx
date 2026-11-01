@@ -27,7 +27,7 @@ function SphereDetail({ sphereId }: { sphereId: string }) {
   );
   return (
     <PageContainer className="pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-      <main className="mx-auto w-full max-w-2xl py-2 md:py-6" aria-label="Sphere details">
+      <main className="mx-auto w-full py-2 md:py-6" aria-label="Sphere details">
         <PageHeader title={sphere?.name ?? "Sphere"} backLabel={backLabel} onBack={back} />
         {sphere ? (
           <>

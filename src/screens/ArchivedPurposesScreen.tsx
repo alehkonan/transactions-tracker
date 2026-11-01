@@ -13,7 +13,7 @@ export function ArchivedPurposesScreen() {
   const { complete, operating } = usePurposeBalances();
   return (
     <PageContainer>
-      <main className="mx-auto w-full max-w-2xl py-2 md:py-6">
+      <main className="mx-auto w-full py-2 md:py-6">
         <PageHeader title="Archived spheres" backLabel={backLabel} onBack={back} />
         <p className="text-text-muted mb-4 text-sm">
           Archived spheres keep their history. Open a sphere to restore it.

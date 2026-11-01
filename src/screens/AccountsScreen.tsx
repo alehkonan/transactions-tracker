@@ -27,7 +27,7 @@ export function AccountsScreen() {
 
   return (
     <PageContainer>
-      <main aria-labelledby="money-heading" className="mx-auto max-w-2xl space-y-6 py-2 md:py-6">
+      <main aria-labelledby="money-heading" className="mx-auto space-y-6 py-2 md:py-6">
         <header>
           <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
             <h1 id="money-heading" className="text-text text-2xl font-bold">

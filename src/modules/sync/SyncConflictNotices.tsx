@@ -29,7 +29,7 @@ export function SyncConflictNotices() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pt-4">
+    <div className="max-w-page mx-auto w-full shrink-0 px-4 pt-4">
       <details data-testid="sync-conflicts" className="bg-surface rounded-lg">
         <summary className="text-danger focus-visible:ring-accent min-h-11 cursor-pointer rounded-lg p-4 font-medium focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset">
           <output>

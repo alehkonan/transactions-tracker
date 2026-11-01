@@ -16,7 +16,7 @@ export function ArchivedAccountsScreen() {
   const { back } = useMoneyNavigation();
   return (
     <PageContainer>
-      <main className="mx-auto max-w-2xl py-2 md:py-6">
+      <main className="mx-auto py-2 md:py-6">
         <PageHeader title="Archived accounts" backLabel="Money" onBack={back} />
         <p className="text-text-muted mb-4 text-sm">
           Archived accounts remain in your total balance. Open an account to restore it.

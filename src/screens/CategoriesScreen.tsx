@@ -15,7 +15,7 @@ export function CategoriesScreen() {
 
   return (
     <PageContainer>
-      <main className="mx-auto max-w-3xl">
+      <main className="mx-auto">
         <PageHeader title="Categories" backTo="/settings" backLabel="Settings" />
         <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-text-muted min-w-0 text-sm wrap-anywhere">

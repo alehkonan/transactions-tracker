@@ -11,7 +11,7 @@ export function PurposesScreen() {
   const { back } = useMoneyNavigation();
   return (
     <PageContainer>
-      <main className="mx-auto max-w-2xl py-2 md:py-6">
+      <main className="mx-auto py-2 md:py-6">
         <PageHeader title="Spheres" backLabel="Money" onBack={back} />
         <NamedSpheres
           key={`${replicaContext?.replicaId}:${selectedProfileId}`}

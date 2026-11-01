@@ -61,7 +61,7 @@ export function Navbar() {
       aria-label="Main navigation"
       className="bg-surface border-border w-full border-t pb-[env(safe-area-inset-bottom)]"
     >
-      <ul className={twJoin("mx-auto grid w-full max-w-2xl grid-cols-4 gap-1 px-2")}>
+      <ul className={twJoin("max-w-page mx-auto grid w-full grid-cols-4 gap-1 px-2")}>
         {navItems.map((link) => (
           <li key={link.to} className="min-w-0">
             <NavLink

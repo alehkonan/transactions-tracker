@@ -44,8 +44,8 @@ export function TransactionsImportScreen() {
   const activeStep = report ? 2 : step === "upload" ? 0 : 1;
   return (
     <PageContainer className="pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-      <main className="mx-auto w-full max-w-2xl">
-        <PageHeader title="Import transactions" backTo="/settings" backLabel="Settings" />
+      <main className="mx-auto w-full">
+        <PageHeader title="Import transactions" backTo="/transactions" backLabel="Transactions" />
         <p className="text-text-muted mb-5 text-sm wrap-anywhere">
           Import into{" "}
           <span className="text-text font-medium">{profile?.name ?? "this profile"}</span>.

@@ -51,7 +51,7 @@ function AccountDetail({ accountId, listStatus }: Props) {
 
   return (
     <PageContainer className="pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-      <main aria-label="Account details" className="mx-auto w-full max-w-2xl py-2 md:py-6">
+      <main aria-label="Account details" className="mx-auto w-full py-2 md:py-6">
         <PageHeader
           title={account?.name ?? "Account"}
           backLabel={backLabel}

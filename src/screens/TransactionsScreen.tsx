@@ -199,7 +199,7 @@ export function TransactionsScreen() {
     <PageContainer className="flex min-h-0 w-full flex-1">
       <main
         aria-label="Transactions"
-        className="mx-auto grid min-h-0 w-full max-w-4xl flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 py-2 md:py-6"
+        className="mx-auto grid min-h-0 w-full flex-1 grid-rows-[auto_auto_minmax(0,1fr)] gap-4 py-2 md:py-6"
       >
         <div>
           {linkedAccount ? (

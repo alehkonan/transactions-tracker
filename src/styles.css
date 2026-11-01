@@ -2,6 +2,8 @@
 @import "./styles/dark.css" layer(dark-theme);
 
 @theme {
+  --container-page: 56rem;
+
   /* Flat grouped lists, with warmth confined to the page background. */
   --color-ink: #000000;
   --color-paper: #fff3dd;

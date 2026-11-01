@@ -40,7 +40,7 @@ export function ProfilesScreen() {
 
   return (
     <PageContainer className="pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-      <main className="mx-auto max-w-3xl">
+      <main className="mx-auto">
         {selectedProfileId ? (
           <PageHeader title="Choose a profile" backTo="/settings" backLabel="Settings" />
         ) : (
