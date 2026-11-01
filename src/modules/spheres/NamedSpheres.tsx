@@ -81,6 +81,10 @@ export function NamedSpheres({
     .toSorted((a, b) => a.name.localeCompare(b.name));
   const operatingId = active.find((sphere) => sphere.type === "OPERATING")?.id ?? "";
   const operatingSphere = active.find((sphere) => sphere.type === "OPERATING");
+  const onlyOperating = operatingSphere != null && owned.length === 1;
+  const allMoneyInOperating = operating.every(
+    (row) => row.status === "reconciled" && row.sphereBalance === row.accountBalance,
+  );
   const operatingUsd = operating.reduce(
     (total, row) => total + toUsd(row.sphereBalance, row.currencyCode, usdRates),
     0,
@@ -280,7 +284,9 @@ export function NamedSpheres({
         >
           <div className="space-y-4 p-4">
             <h2 className="font-semibold">Balance by currency</h2>
-            <p className="text-text-muted text-sm">Everyday money · Permanent system sphere</p>
+            <p className="text-text-muted text-sm">
+              Money you use every day. Operating is a permanent system sphere.
+            </p>
             <p className="font-mono text-lg" data-testid="operating-total">
               {complete ? `≈ ${formatMoney(operatingUsd.toFixed(2), "USD")}` : "Loading…"}
             </p>
@@ -373,9 +379,11 @@ export function NamedSpheres({
       {!selectedSphere && !archivedView && named.length === 0 && complete && (
         <div className="max-w-prose">
           <h3 className="text-text font-semibold">Give your money a purpose</h3>
-          <p className="text-text-muted mt-1 text-sm">
-            Create a sphere for a trip, an emergency reserve or investments. Then assign money from
-            Operating, now or later.
+          <p className="text-text-muted mt-1 text-sm" data-testid="purposes-empty">
+            {onlyOperating &&
+              allMoneyInOperating &&
+              "All your money is in Operating, so its balance matches your total balance. "}
+            To assign money to a specific purpose, create a new sphere and assign money to it.
           </p>
         </div>
       )}
@@ -747,11 +755,6 @@ export function NamedSpheres({
             </section>
           );
         })}
-      {!selectedSphere && !archivedView && complete && named.length === 0 && (
-        <p className="text-text-muted text-sm" data-testid="purposes-empty">
-          No named purposes yet. Create a sphere for a goal, reserve, or investment.
-        </p>
-      )}
       {overview && sortedNamed.length > 4 && (
         <Link
           to="/accounts/purposes"

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { useMoneyNavigation } from "~/modules/accounts/money-navigation";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
@@ -31,24 +31,26 @@ export function SphereLink({
         to="/accounts/purposes/$sphereId"
         params={{ sphereId: sphere.id }}
         state={listState}
-        className="text-text hover:bg-surface-hover focus-visible:ring-accent grid min-h-16 grid-cols-[minmax(0,1fr)_1rem] items-center gap-3 px-4 py-3 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+        className="text-text hover:bg-surface-hover focus-visible:ring-accent grid min-h-16 w-full min-w-0 grid-cols-[minmax(0,1fr)_1rem] items-center gap-3 px-4 py-3 text-left focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
         data-testid="sphere-open"
       >
-        <span className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <span className="min-w-0 flex-1 basis-28 font-medium wrap-anywhere">{sphere.name}</span>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0 flex-1 basis-28">
+            <span className="block font-medium wrap-anywhere">{sphere.name}</span>
+            <span className="text-text-muted block text-xs">
+              {sphere.type === "OPERATING"
+                ? "Money you use every day."
+                : sphere.type === "FUNDS"
+                  ? "Funds"
+                  : "Capital"}
+            </span>
+          </div>
           <span
             className={`ml-auto max-w-full text-right font-mono text-sm break-all tabular-nums ${complete && (belowZero || diverged) ? "text-warning" : "text-text"}`}
             data-testid="sphere-total"
           >
-            <span className="inline-flex max-w-full items-center gap-1">
-              {complete && (belowZero || diverged) && (
-                <TriangleAlertIcon aria-hidden="true" className="size-4 shrink-0" />
-              )}
-              <span className="min-w-0">
-                <span className="sr-only">Approximate balance in USD: </span>
-                {complete ? `≈ ${formatMoney(total.toFixed(2), "USD")}` : "Loading…"}
-              </span>
-            </span>
+            <span className="sr-only">Approximate balance in USD: </span>
+            {complete ? `≈ ${formatMoney(total.toFixed(2), "USD")}` : "Loading…"}
             {complete && belowZero && (
               <span className="block font-sans text-xs">Currency below zero</span>
             )}
@@ -56,8 +58,8 @@ export function SphereLink({
               <span className="block font-sans text-xs">Balances differ</span>
             )}
           </span>
-        </span>
-        <ChevronRightIcon aria-hidden="true" className="text-text-muted size-4" />
+        </div>
+        <ChevronRightIcon aria-hidden="true" className="text-text-muted size-4 shrink-0" />
       </Link>
     </li>
   );
