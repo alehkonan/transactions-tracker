@@ -276,7 +276,7 @@ export function NamedSpheres({
             aria-haspopup="dialog"
           >
             <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
-            Create sphere
+            Add sphere
           </Button>
         </div>
       )}
@@ -421,12 +421,12 @@ export function NamedSpheres({
             {onlyOperating &&
               allMoneyInOperating &&
               "All your money is in Operating, so its balance matches your total balance. "}
-            To assign money to a specific purpose, create a new sphere and assign money to it.
+            To assign money to a specific purpose, add a new sphere and assign money to it.
           </p>
         </div>
       )}
       <Dialog
-        title={creating ? "Create a sphere" : editingId ? "Edit allocation" : "Assign money"}
+        title={creating ? "Add sphere" : editingId ? "Edit allocation" : "Assign money"}
         open={creating || editorOpen}
         isDirty={
           creating
@@ -747,7 +747,7 @@ export function NamedSpheres({
                 disabled={pending || !context || !selectedProfileId}
                 data-testid="sphere-create"
               >
-                {pending ? "Creating…" : "Create and assign money"}
+                {pending ? "Adding…" : "Add and assign money"}
               </Button>
               <FormTaskContext.Consumer>
                 {({ onCancel }) => (

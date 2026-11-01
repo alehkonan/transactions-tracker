@@ -27,7 +27,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 ## Reading order and composition
 
-- Name the section Spheres, with Create sphere as the section action. Place a 44px info target after the title; its click/tap popover holds the account/sphere balance explanation and reconciliation status instead of an inline introduction or footer disclosure. Keep warnings visible in the main content.
+- Name the section Spheres, with Add sphere as the section action, matching Add account. Place a 44px info target after the title; its click/tap popover holds the account/sphere balance explanation and reconciliation status instead of an inline introduction or footer disclosure. Keep warnings visible in the main content.
 - Keep one linear ledger in the same 42rem (672px) content column as Accounts.
 - Render Operating and named spheres in one surface with straight row separators, exactly like the Accounts list. Keep Operating first, followed by Funds and Capital in alphabetical order within each type. Show types only in row subtitles; omit separate type headings and descriptions.
 - Rows link to `/accounts/purposes/$sphereId` and show the sphere name, approximate combined USD balance, forward chevron, and any essential warning indicator. Keep totals right-aligned at every width; allow long names to wrap.
