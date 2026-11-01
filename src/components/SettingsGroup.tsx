@@ -15,7 +15,7 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
 }
 
 type SettingsLinkProps = {
-  to: "/profile" | "/settings/categories" | "/settings/security" | "/transactions-import";
+  to: "/profile" | "/settings/categories" | "/settings/security";
   label: string;
   description?: string;
   "data-testid"?: string;

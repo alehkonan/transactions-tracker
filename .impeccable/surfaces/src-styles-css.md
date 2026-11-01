@@ -27,7 +27,7 @@ OWN-WORLD: `#FFF3DD` light background, restrained 8px group corners, solid separ
 
 STORY: The user can scan transactions and retain search/filter context across the four destinations. Local availability, synchronization, expired sessions, conflicts, and recovery remain explicit.
 
-FIRST VIEWPORT: A visible Transactions heading and count sit above search, filters, and Add transaction. The remaining-height white group contains virtualized transaction rows and pinned daily headers. Labeled Money, Transactions, Statistics, and Settings navigation stays at the bottom on phones and desktop.
+FIRST VIEWPORT: A visible Transactions heading has Import and Add transaction aligned to its right, with the count below. Search and filters occupy the next row. The remaining-height white group contains virtualized transaction rows and pinned daily headers. Labeled Money, Transactions, Statistics, and Settings navigation stays at the bottom on phones and desktop.
 
 FORM: The Grouped Ledger; code-led implementation of the direction explicitly approved in #34. The navigation footer occupies layout space, respects the safe area, and never covers the transaction list. Active state includes a top rule. Tab activation opens the destination root at the top while retaining filters/search; router and virtual-list restoration support Back.
 

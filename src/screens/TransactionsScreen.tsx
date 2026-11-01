@@ -1,6 +1,6 @@
 import { Link, useNavigate, useSearch, useRouter } from "@tanstack/react-router";
 import { parseISO } from "date-fns";
-import { ListFilterIcon, PlusIcon, XIcon } from "lucide-react";
+import { ListFilterIcon, PlusIcon, UploadIcon, XIcon } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
@@ -168,6 +168,33 @@ export function TransactionsScreen() {
       <TransactionsEmptyState kind="filters" onClearFilters={() => void clearFilters()} />
     );
 
+  const transactionActions = (
+    <div className="flex shrink-0 items-center gap-2">
+      <Link
+        to="/transactions-import"
+        aria-label="Import transactions"
+        title="Import transactions"
+        data-testid="transaction-import"
+        className="border-border bg-surface text-text hover:bg-surface-hover focus-visible:ring-accent inline-flex size-11 items-center justify-center gap-1 rounded-lg border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none md:h-9 md:w-auto md:px-3"
+      >
+        <UploadIcon aria-hidden="true" className="size-4 shrink-0" />
+        <span className="hidden md:block">Import</span>
+      </Link>
+      <Button
+        variant="primary"
+        aria-label="Add transaction"
+        data-testid="transaction-create"
+        className="size-11 p-0 md:h-9 md:w-auto md:px-3"
+        onClick={() => openTransaction()}
+        disabled={activeAccounts.length === 0}
+        title={activeAccounts.length === 0 ? "Create an active account first" : undefined}
+      >
+        <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
+        <span className="hidden md:block">Add transaction</span>
+      </Button>
+    </div>
+  );
+
   return (
     <PageContainer className="flex min-h-0 w-full flex-1">
       <main
@@ -178,6 +205,7 @@ export function TransactionsScreen() {
           {linkedAccount ? (
             <PageHeader
               title="Transactions"
+              actions={transactionActions}
               backLabel={linkedAccount.name}
               onBack={() =>
                 void navigate({
@@ -188,7 +216,10 @@ export function TransactionsScreen() {
               }
             />
           ) : (
-            <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="min-w-0 text-2xl font-bold tracking-tight">Transactions</h1>
+              {transactionActions}
+            </div>
           )}
           <p aria-live="polite" className="text-text-muted text-sm">
             {transactionCountLabel}
@@ -239,19 +270,6 @@ export function TransactionsScreen() {
                 <TransactionsCategoryFilter categories={categories} selected={categoryFilter} />
               </div>
             </Dialog>
-
-            <Button
-              variant="primary"
-              aria-label="Add transaction"
-              data-testid="transaction-create"
-              className="size-11 p-0 md:h-9 md:w-auto md:px-3"
-              onClick={() => openTransaction()}
-              disabled={activeAccounts.length === 0}
-              title={activeAccounts.length === 0 ? "Create an active account first" : undefined}
-            >
-              <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
-              <span className="hidden md:block">Add transaction</span>
-            </Button>
           </div>
         </div>
 

@@ -24,7 +24,7 @@ OWN-WORLD: Inherit the approved flat grouped-list system, semantic theme tokens,
 
 STORY: Identify the current user and profile, open management pages, and return through labeled Back links. Short edits retain explicit saves and protected dismissal.
 
-FIRST VIEWPORT: A Settings title followed by three stacked groups. Credentials and categories open dedicated pages. Import, export, local storage, integrity, and explicit sign-out remain discoverable.
+FIRST VIEWPORT: A Settings title followed by three stacked groups. Credentials and categories open dedicated pages. Export, local storage, integrity, and explicit sign-out remain discoverable. Import lives beside Add transaction in the Transactions header.
 
 FORM: The issue-specified grouped list, code-led; no concept seed because the structure and visual direction are approved in #40. Profile rows expose selection, current state, editing, deletion, and financial summaries.
 

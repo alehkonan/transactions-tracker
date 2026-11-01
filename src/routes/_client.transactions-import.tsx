@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_client/transactions-import")({
 
     return (
       <PageContainer>
-        <PageHeader title="Import transactions" backTo="/settings" backLabel="Settings" />
+        <PageHeader title="Import transactions" backTo="/transactions" backLabel="Transactions" />
         <Stepper>
           <Step
             icon={<UploadIcon className="size-4" />}

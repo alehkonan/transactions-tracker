@@ -270,7 +270,7 @@ System sans (`ui-sans-serif`, `system-ui`, platform fallbacks) serves headings, 
 
 ## Layout
 
-The shared page container is centered at a maximum width of `80rem`, with `16px` padding. The transaction screen narrows to `56rem`, separating its title/count, search/actions, and remaining-height list into three rows. Active filter indicators wrap above the list. The list itself scrolls and virtualizes transaction rows, retaining a pinned day header.
+The shared page container is centered at a maximum width of `80rem`, with `16px` padding. The transaction screen narrows to `56rem`, separating its title/count, search/filters, and remaining-height list into three rows. Import and Add transaction align to the right of the title; search and Filters occupy the next row. Import returns to Transactions through its Back link. Active filter indicators wrap above the list. The list itself scrolls and virtualizes transaction rows, retaining a pinned day header.
 
 Statistics uses the shared wide container. Phones show a single stack: runway, daily Operating Spending, daily income, cumulative spending chart, and ranked categories. From `640px`, the runway spans the row above the two daily metrics. From `1024px`, runway and daily metrics share a `2:1:1` row, while the wider chart sits beside categories in a `1.7:1` row. Filter headers wrap, and long names and amounts remain within their groups.
 
@@ -318,7 +318,7 @@ Account rows link to stable `/accounts/$accountId` details with a Money or Archi
 
 ### Settings and Profiles
 
-Settings, profile selection, categories, and sign-in methods use centered content with a maximum width of `768px`. Settings presents three flat groups—Identity & access, Current profile, and Data & this device—with muted group headings, straight separators, and full-width links with chevrons. Username, selected profile, category count, sign-out consequences, import/export, local storage, and integrity remain visible in their relevant groups.
+Settings, profile selection, categories, and sign-in methods use centered content with a maximum width of `768px`. Settings presents three flat groups—Identity & access, Current profile, and Data & this device—with muted group headings, straight separators, and full-width links with chevrons. Username, selected profile, category count, sign-out consequences, export, local storage, and integrity remain visible in their relevant groups. Import is available in the Transactions header.
 
 Categories and sign-in methods have dedicated pages with a Settings Back link. Editable categories use full-width native button rows with a stable color marker, wrapping name, and edit icon; read-only category pills retain their existing appearance. Profile rows show the current-profile label, approximate USD balance, account/transaction counts, and explicit Open, Edit, and Delete actions. Selection returns to Settings when a profile was already selected and enters the ledger during onboarding; selection failures remain visible.
 
