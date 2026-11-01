@@ -33,41 +33,39 @@ export function AccountsScreen() {
             <h1 id="money-heading" className="text-text text-2xl font-bold">
               Money
             </h1>
-            <section aria-labelledby="balance-heading" className="min-w-0 text-right">
-              <div className="flex items-center justify-end">
-                <h2 id="balance-heading" className="text-text-muted text-sm font-medium">
-                  Total balance
-                </h2>
-                <Popover
-                  aria-label="About total balance"
-                  renderTrigger={({ onOpen }) => (
-                    <button
-                      type="button"
-                      onClick={onOpen}
-                      aria-label="About total balance"
-                      data-testid="total-balance-info"
-                      className="text-text-muted hover:text-text focus-visible:ring-accent inline-flex size-11 shrink-0 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
-                    >
-                      <InfoIcon aria-hidden="true" className="size-4" />
-                    </button>
-                  )}
-                >
-                  <p
-                    className="w-64 max-w-[calc(100vw-3.5rem)] text-sm"
-                    data-testid="total-balance-help"
-                  >
-                    Approximate total in USD, converted using your cached exchange rates. Includes
-                    active and archived accounts. Spheres divide this same money; their balances are
-                    not added to the total.
-                  </p>
-                </Popover>
-              </div>
+            <section
+              aria-label="Total balance"
+              className="flex min-w-0 items-center justify-end text-right"
+            >
               <p
-                className="text-text font-mono text-xl font-semibold break-all sm:text-2xl"
+                className="text-text min-w-0 font-mono text-xl font-semibold break-all sm:text-2xl"
                 data-testid="accounts-total"
               >
                 {complete ? `≈ ${formatMoney(total.balanceUsd, "USD")}` : "Loading…"}
               </p>
+              <Popover
+                aria-label="About total balance"
+                renderTrigger={({ onOpen }) => (
+                  <button
+                    type="button"
+                    onClick={onOpen}
+                    aria-label="About total balance"
+                    data-testid="total-balance-info"
+                    className="text-text-muted hover:text-text focus-visible:ring-accent inline-flex size-11 shrink-0 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    <InfoIcon aria-hidden="true" className="size-4" />
+                  </button>
+                )}
+              >
+                <p
+                  className="w-64 max-w-[calc(100vw-3.5rem)] text-sm"
+                  data-testid="total-balance-help"
+                >
+                  Approximate total in USD, converted using your cached exchange rates. Includes
+                  active and archived accounts. Spheres divide this same money; their balances are
+                  not added to the total.
+                </p>
+              </Popover>
             </section>
           </div>
           {!complete && (
