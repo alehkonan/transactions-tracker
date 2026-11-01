@@ -222,8 +222,9 @@ the one a row names belongs to the caller.
 in practice — no CRDTs. Each mutation carries `baseUpdatedAt` so the server can _detect_ a clobber.
 When it does, acceptance stores the actual canonical result, its classification, frozen profile and
 entity labels, and the base/server/acceptance timeline on the receipt; identical retries replay those
-acceptance-time facts even if the entity has moved again. The current client surfaces the result as a
-toast. There is no merge UI: conflicts are reported, never resolved.
+acceptance-time facts even if the entity has moved again. The current client keeps the result in
+memory as an inline notice until explicit acknowledgment, grouped by its acceptance-time profile
+with its entity label and actual outcome. There is no merge UI: conflicts are reported, never resolved.
 
 ### Local profile selection and one deliberate asymmetry
 

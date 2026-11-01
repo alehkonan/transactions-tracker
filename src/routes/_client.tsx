@@ -15,6 +15,9 @@ const Navbar = lazy(() =>
 const SyncGate = lazy(() =>
   import("~/modules/sync/SyncGate").then((module) => ({ default: module.SyncGate })),
 );
+const SyncStatus = lazy(() =>
+  import("~/modules/sync/SyncStatus").then((module) => ({ default: module.SyncStatus })),
+);
 
 export const Route = createFileRoute("/_client")({
   ssr: false,
@@ -34,6 +37,13 @@ function ClientLayout() {
   return (
     <Toast.Provider>
       <ServiceWorkerRegistration />
+      {isHydrated && !isLogin && (
+        <header className="shrink-0">
+          <Suspense fallback={null}>
+            <SyncStatus />
+          </Suspense>
+        </header>
+      )}
       {isHydrated && (
         <footer hidden={!showNavbar} className="z-navbar order-last shrink-0">
           <Suspense fallback={<div className="h-16" />}>
@@ -46,8 +56,7 @@ function ClientLayout() {
         data-tab-scroll
         className={twJoin(
           "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto",
-          !isLogin &&
-            "pt-[calc(env(safe-area-inset-top)+3rem)] md:pt-[calc(env(safe-area-inset-top)+3.5rem)]",
+          !isLogin && !isHydrated && "pt-[env(safe-area-inset-top)]",
         )}
       >
         {isLogin ? (

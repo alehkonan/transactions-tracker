@@ -87,7 +87,7 @@ type SyncState = {
   isPushing: boolean;
   /**
    * Acceptance outcomes that overwrote newer data or could not apply the submitted intent.
-   * Reported by `SyncConflictToasts`; guarded writes can preserve the server state instead.
+   * Shown by `SyncConflictNotices` until acknowledgment; guarded writes can preserve server state.
    */
   conflicts: PushConflict[];
 
@@ -250,7 +250,7 @@ export async function refreshOutboxState(expected?: ReplicaContext): Promise<voi
   replaceOutboxState(await readOutboxState(expected));
 }
 
-/** Marks a batch of conflicts as reported, so it is not shown again. */
+/** Acknowledges the displayed conflicts without changing their records. */
 export function clearConflicts(reported: PushConflict[]): void {
   const seen = new Set(reported.map((conflict) => conflict.mutationId));
   useSyncStore.setState((state) => ({

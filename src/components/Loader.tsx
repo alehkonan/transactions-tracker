@@ -1,12 +1,15 @@
 import { LoaderCircleIcon } from "lucide-react";
 import { PwaRecoveryLink } from "~/modules/pwa/PwaRecoveryLink";
 
-export function Loader() {
+export function Loader({ label = "Loading app…" }: { label?: string }) {
   return (
-    <div className="grid place-items-center gap-3 p-20 text-center">
-      <output>
-        <LoaderCircleIcon aria-hidden="true" className="text-accent size-8 animate-spin" />
-        <span className="sr-only">Loading…</span>
+    <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+      <output className="text-text-muted flex flex-col items-center gap-3 text-sm">
+        <LoaderCircleIcon
+          aria-hidden="true"
+          className="size-6 animate-spin motion-reduce:animate-none"
+        />
+        <span>{label}</span>
       </output>
       <PwaRecoveryLink />
     </div>

@@ -31,7 +31,11 @@ export function LocalRecoveryPanel() {
   };
 
   return (
-    <div className="flex max-w-lg flex-col gap-4 p-4 text-center">
+    <section
+      aria-label="Local data recovery"
+      data-testid="local-recovery-panel"
+      className="bg-surface flex w-full max-w-lg flex-col gap-4 rounded-lg p-4"
+    >
       <div className="flex flex-col gap-1">
         <Title variant="card">Local data needs recovery</Title>
         <p className="text-text-muted text-sm">
@@ -43,8 +47,12 @@ export function LocalRecoveryPanel() {
         Download the device-only recovery file before discarding this local copy. The file contains
         financial data and pending changes; store it securely.
       </p>
-      {error && <p className="text-danger text-sm">{error}</p>}
-      <div className="flex flex-wrap justify-center gap-2">
+      {error && (
+        <p role="alert" className="text-danger text-sm">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <Button
           variant="secondary"
           onClick={() => void downloadRecovery()}
@@ -55,6 +63,6 @@ export function LocalRecoveryPanel() {
         </Button>
         <SignOutButton label="Discard local data" />
       </div>
-    </div>
+    </section>
   );
 }

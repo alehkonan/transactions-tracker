@@ -332,7 +332,9 @@ Use Spheres consistently in visible titles, navigation, archive links, and detai
 
 The Money preview and complete Spheres page use one continuous list with the same surface, corners, separators, and row layout as Accounts. Operating comes first, followed by named spheres ordered by type and alphabetically within each type. Funds and Capital appear only as row subtitles, with no separate type headings or descriptions. Archived spheres also use a single list. Rows link to `/accounts/purposes/$sphereId` details. Exact per-currency balances, approximate USD totals, sphere-scoped allocation history, and account activity in batches of 50 use shared flat groups. Creation, assignment, movement, and management reuse protected short sheets with local-first persistence, lifecycle safeguards, retained drafts on failure, and shared dirty-dismiss, browser Back, and refresh protection. The sphere-specific brief records this surface's behavior within the shared visual direction.
 
-Synchronization, local recovery, expired-session notices, and conflict acknowledgment retain their existing behavior and visibility. Their further visual adaptation belongs to #41. The illustrated application icon remains unchanged.
+Sign-in uses a narrow, scrollable screen with a page title and separate flat password and passkey groups. Native inputs retain credential autofill, validation, 44px phone targets, and next/go keyboard hints. An existing local workspace exposes continued local access and the protected sign-out action. Local inspection failure has an explicit retry and offline-app repair link; ambiguous ownership retains recovery export and protected discard.
+
+Synchronization occupies a normal-flow header above the scrolling content, leaving forms and bottom navigation unobstructed. Pending writes, offline availability, session expiry, owner mismatch, and retry actions remain explicit; session expiry still permits local reads and edits. Conflict notices use an inline native disclosure with acceptance-time profile/entity context and individual acknowledgment instead of automatically disappearing. Initial app loading, local opening, data loading, and recovery/error states have visible labels and repair access. The standalone repair page mirrors the semantic palette without depending on app assets. The illustrated application icon remains unchanged.
 
 ### Statistics
 
@@ -349,7 +351,7 @@ The cumulative spending chart uses a solid expense line and muted fill without g
 - **Do** keep bottom navigation visible on mobile and desktop without covering content.
 - **Do** use native controls, visible focus, safe-area spacing, and 44px phone targets.
 - **Do** keep financial comparisons aligned in tabular monospace.
-- **Do** treat issues #35 and #41–#42 as the remaining screen/workflow migration scope.
+- **Do** treat issues #35 and #42 as the remaining screen/workflow migration scope.
 
 ### Don't:
 
