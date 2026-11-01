@@ -218,7 +218,7 @@ components:
 
 Cracker Tracker uses the iOS-inspired grouped-list direction approved in issue #34: a flat pale-yellow page, white groups, black text, restrained corners, and straight separators. System typography and aligned monetary values keep everyday bookkeeping readable on phones and desktop screens. The illustrated cracker remains the application icon; the working interface uses no decorative textures or food motifs.
 
-This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell, transaction list, account details, purpose details, combined Money overview, and statistics composition are implemented. Routed transaction forms, settings, authentication states, and import adaptation continue in issues #35 and #40–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
+This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell, transaction list, account details, purpose details, combined Money overview, and statistics composition are implemented. Routed transaction forms, authentication states, and import adaptation continue in issues #35 and #41–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
 
 **Key Characteristics:**
 
@@ -316,6 +316,14 @@ The bottom navigation shows an icon and a visible label for every destination at
 
 Account rows link to stable `/accounts/$accountId` details with a Money or Archived accounts Back control and the account name as the title. Flat groups show the exact balance, currency, status, initial balance, and activity; View transactions applies the `accountId` filter and provides a labeled return to the account. Loading or incomplete balances, empty activity, and unavailable accounts—including missing accounts or accounts from another profile—remain explicit. Editing, archiving, and deletion reuse the protected `AccountForm`/`Dialog` flow; creation retains `CreateAccountButton`. Explicit saves, discard protection, and retained drafts on failure follow the shared sheet behavior.
 
+### Settings and Profiles
+
+Settings, profile selection, categories, and sign-in methods use centered content with a maximum width of `768px`. Settings presents three flat groups—Identity & access, Current profile, and Data & this device—with muted group headings, straight separators, and full-width links with chevrons. Username, selected profile, category count, sign-out consequences, import/export, local storage, and integrity remain visible in their relevant groups.
+
+Categories and sign-in methods have dedicated pages with a Settings Back link. Editable categories use full-width native button rows with a stable color marker, wrapping name, and edit icon; read-only category pills retain their existing appearance. Profile rows show the current-profile label, approximate USD balance, account/transaction counts, and explicit Open, Edit, and Delete actions. Selection returns to Settings when a profile was already selected and enters the ledger during onboarding; selection failures remain visible.
+
+Profile and category edits, creation, and destructive confirmations reuse the protected short-task sheets. New group/link wrappers stay thin and use native elements, shared focus feedback, semantic tokens, and existing restrained corners. No new design tokens or raster assets are introduced.
+
 ### Existing Financial and System Surfaces
 
 Money places the approximate total balance to the right of its title in a compact header, followed by Spheres and Accounts. The amount has no visible Total balance label; its region retains that accessible name. A 44px info target immediately after the amount opens an accessible click/tap popover explaining USD conversion, archived accounts, and the account-only total. The info target after Spheres explains how sphere balances relate to account balances and reports reconciliation status; the former inline introduction and balance-help disclosure are removed. Popovers support keyboard activation, Escape, focus return, and outside-click dismissal, and fit narrow screens. Loading and reconciliation warnings remain visible outside these explanations.
@@ -341,7 +349,7 @@ The cumulative spending chart uses a solid expense line and muted fill without g
 - **Do** keep bottom navigation visible on mobile and desktop without covering content.
 - **Do** use native controls, visible focus, safe-area spacing, and 44px phone targets.
 - **Do** keep financial comparisons aligned in tabular monospace.
-- **Do** treat issues #35 and #40–#42 as the remaining screen/workflow migration scope.
+- **Do** treat issues #35 and #41–#42 as the remaining screen/workflow migration scope.
 
 ### Don't:
 

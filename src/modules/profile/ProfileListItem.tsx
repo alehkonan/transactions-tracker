@@ -1,4 +1,4 @@
-import { FolderOpenIcon, PencilIcon, TrashIcon } from "lucide-react";
+import { CheckIcon, FolderOpenIcon, PencilIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
@@ -12,11 +12,13 @@ import type { ProfileSummary } from "~/modules/accounts/compute-balances";
 
 type Props = {
   profile: ProfileSummary;
+  isSelected: boolean;
+  disabled: boolean;
   onOpen: () => void;
 };
 
-/** A profile summary with explicit open, edit, and delete actions in its footer. */
-export function ProfileCard({ profile, onOpen }: Props) {
+/** One profile in the grouped list, with explicit selection and management actions. */
+export function ProfileListItem({ profile, isSelected, disabled, onOpen }: Props) {
   const replicaContext = useReplicaBinding();
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -31,11 +33,17 @@ export function ProfileCard({ profile, onOpen }: Props) {
   };
 
   return (
-    <div className="bg-surface border-border flex flex-col rounded-xl border">
-      <div className="flex flex-col gap-3 p-4">
-        <span className="text-text text-xl font-semibold">{profile.name}</span>
+    <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-col gap-2 p-4">
+        <h2 className="text-lg font-semibold wrap-anywhere">{profile.name}</h2>
+        {isSelected && (
+          <p className="flex items-center gap-1 text-sm">
+            <CheckIcon className="size-4 shrink-0" aria-hidden="true" />
+            Current profile
+          </p>
+        )}
         <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
             <span className="text-text-muted">Approx. total balance</span>
             <span className="font-mono">≈ {formatMoney(profile.balanceUsd, "USD")}</span>
           </div>
@@ -45,9 +53,14 @@ export function ProfileCard({ profile, onOpen }: Props) {
           {profile.transactionCount} transaction{profile.transactionCount === 1 ? "" : "s"}
         </span>
       </div>
-      <div className="border-border flex flex-wrap gap-2 border-t p-3">
-        <Button variant="primary" onClick={onOpen} data-testid="profile-open">
-          <FolderOpenIcon className="size-4" />
+      <div className="flex flex-wrap gap-2 px-4 pb-4">
+        <Button
+          variant="primary"
+          disabled={disabled || isDeleting}
+          onClick={onOpen}
+          data-testid="profile-open"
+        >
+          <FolderOpenIcon className="size-4" aria-hidden="true" />
           Open
         </Button>
         <Dialog
@@ -56,9 +69,10 @@ export function ProfileCard({ profile, onOpen }: Props) {
             <Button
               variant="secondary"
               aria-label={`Edit profile ${profile.name}`}
+              disabled={disabled || isDeleting}
               onClick={openEdit}
             >
-              <PencilIcon className="size-4" />
+              <PencilIcon className="size-4" aria-hidden="true" />
               Edit
             </Button>
           )}
@@ -69,8 +83,8 @@ export function ProfileCard({ profile, onOpen }: Props) {
           sheet
           aria-label="Remove profile"
           renderTrigger={({ onOpen: openDelete }) => (
-            <Button variant="danger" disabled={isDeleting} onClick={openDelete}>
-              <TrashIcon className="size-4" />
+            <Button variant="danger" disabled={disabled || isDeleting} onClick={openDelete}>
+              <TrashIcon className="size-4" aria-hidden="true" />
               Delete
             </Button>
           )}

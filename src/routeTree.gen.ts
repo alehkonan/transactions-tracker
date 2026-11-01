@@ -22,6 +22,8 @@ import { Route as ApiPushRouteImport } from './routes/api/push'
 import { Route as ClientAccountsAccountIdRouteImport } from './routes/_client.accounts_.$accountId'
 import { Route as ClientAccountsArchivedRouteImport } from './routes/_client.accounts_.archived'
 import { Route as ClientAccountsPurposesRouteImport } from './routes/_client.accounts_.purposes_'
+import { Route as ClientSettingsCategoriesRouteImport } from './routes/_client.settings_.categories'
+import { Route as ClientSettingsSecurityRouteImport } from './routes/_client.settings_.security'
 import { Route as ClientTransactionsTransactionIdRouteImport } from './routes/_client.transactions_.$transactionId'
 import { Route as ClientTransactionsNewRouteImport } from './routes/_client.transactions_.new'
 import { Route as ClientAccountsPurposesSphereIdRouteImport } from './routes/_client.accounts_.purposes.$sphereId'
@@ -92,6 +94,17 @@ const ClientAccountsPurposesRoute = ClientAccountsPurposesRouteImport.update({
   path: '/accounts/purposes',
   getParentRoute: () => ClientRoute,
 } as any)
+const ClientSettingsCategoriesRoute =
+  ClientSettingsCategoriesRouteImport.update({
+    id: '/settings_/categories',
+    path: '/settings/categories',
+    getParentRoute: () => ClientRoute,
+  } as any)
+const ClientSettingsSecurityRoute = ClientSettingsSecurityRouteImport.update({
+  id: '/settings_/security',
+  path: '/settings/security',
+  getParentRoute: () => ClientRoute,
+} as any)
 const ClientTransactionsTransactionIdRoute =
   ClientTransactionsTransactionIdRouteImport.update({
     id: '/transactions_/$transactionId',
@@ -129,6 +142,8 @@ export interface FileRoutesByFullPath {
   '/accounts/$accountId': typeof ClientAccountsAccountIdRoute
   '/accounts/archived': typeof ClientAccountsArchivedRoute
   '/accounts/purposes': typeof ClientAccountsPurposesRoute
+  '/settings/categories': typeof ClientSettingsCategoriesRoute
+  '/settings/security': typeof ClientSettingsSecurityRoute
   '/transactions/$transactionId': typeof ClientTransactionsTransactionIdRoute
   '/transactions/new': typeof ClientTransactionsNewRoute
   '/accounts/purposes/$sphereId': typeof ClientAccountsPurposesSphereIdRoute
@@ -147,6 +162,8 @@ export interface FileRoutesByTo {
   '/accounts/$accountId': typeof ClientAccountsAccountIdRoute
   '/accounts/archived': typeof ClientAccountsArchivedRoute
   '/accounts/purposes': typeof ClientAccountsPurposesRoute
+  '/settings/categories': typeof ClientSettingsCategoriesRoute
+  '/settings/security': typeof ClientSettingsSecurityRoute
   '/transactions/$transactionId': typeof ClientTransactionsTransactionIdRoute
   '/transactions/new': typeof ClientTransactionsNewRoute
   '/accounts/purposes/$sphereId': typeof ClientAccountsPurposesSphereIdRoute
@@ -167,6 +184,8 @@ export interface FileRoutesById {
   '/_client/accounts_/$accountId': typeof ClientAccountsAccountIdRoute
   '/_client/accounts_/archived': typeof ClientAccountsArchivedRoute
   '/_client/accounts_/purposes_': typeof ClientAccountsPurposesRoute
+  '/_client/settings_/categories': typeof ClientSettingsCategoriesRoute
+  '/_client/settings_/security': typeof ClientSettingsSecurityRoute
   '/_client/transactions_/$transactionId': typeof ClientTransactionsTransactionIdRoute
   '/_client/transactions_/new': typeof ClientTransactionsNewRoute
   '/_client/accounts_/purposes/$sphereId': typeof ClientAccountsPurposesSphereIdRoute
@@ -187,6 +206,8 @@ export interface FileRouteTypes {
     | '/accounts/$accountId'
     | '/accounts/archived'
     | '/accounts/purposes'
+    | '/settings/categories'
+    | '/settings/security'
     | '/transactions/$transactionId'
     | '/transactions/new'
     | '/accounts/purposes/$sphereId'
@@ -205,6 +226,8 @@ export interface FileRouteTypes {
     | '/accounts/$accountId'
     | '/accounts/archived'
     | '/accounts/purposes'
+    | '/settings/categories'
+    | '/settings/security'
     | '/transactions/$transactionId'
     | '/transactions/new'
     | '/accounts/purposes/$sphereId'
@@ -224,6 +247,8 @@ export interface FileRouteTypes {
     | '/_client/accounts_/$accountId'
     | '/_client/accounts_/archived'
     | '/_client/accounts_/purposes_'
+    | '/_client/settings_/categories'
+    | '/_client/settings_/security'
     | '/_client/transactions_/$transactionId'
     | '/_client/transactions_/new'
     | '/_client/accounts_/purposes/$sphereId'
@@ -328,6 +353,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientAccountsPurposesRouteImport
       parentRoute: typeof ClientRoute
     }
+    '/_client/settings_/categories': {
+      id: '/_client/settings_/categories'
+      path: '/settings/categories'
+      fullPath: '/settings/categories'
+      preLoaderRoute: typeof ClientSettingsCategoriesRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/settings_/security': {
+      id: '/_client/settings_/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof ClientSettingsSecurityRouteImport
+      parentRoute: typeof ClientRoute
+    }
     '/_client/transactions_/$transactionId': {
       id: '/_client/transactions_/$transactionId'
       path: '/transactions/$transactionId'
@@ -371,6 +410,8 @@ interface ClientRouteChildren {
   ClientAccountsAccountIdRoute: typeof ClientAccountsAccountIdRoute
   ClientAccountsArchivedRoute: typeof ClientAccountsArchivedRoute
   ClientAccountsPurposesRoute: typeof ClientAccountsPurposesRoute
+  ClientSettingsCategoriesRoute: typeof ClientSettingsCategoriesRoute
+  ClientSettingsSecurityRoute: typeof ClientSettingsSecurityRoute
   ClientTransactionsTransactionIdRoute: typeof ClientTransactionsTransactionIdRoute
   ClientTransactionsNewRoute: typeof ClientTransactionsNewRoute
   ClientAccountsPurposesSphereIdRoute: typeof ClientAccountsPurposesSphereIdRoute
@@ -389,6 +430,8 @@ const ClientRouteChildren: ClientRouteChildren = {
   ClientAccountsAccountIdRoute: ClientAccountsAccountIdRoute,
   ClientAccountsArchivedRoute: ClientAccountsArchivedRoute,
   ClientAccountsPurposesRoute: ClientAccountsPurposesRoute,
+  ClientSettingsCategoriesRoute: ClientSettingsCategoriesRoute,
+  ClientSettingsSecurityRoute: ClientSettingsSecurityRoute,
   ClientTransactionsTransactionIdRoute: ClientTransactionsTransactionIdRoute,
   ClientTransactionsNewRoute: ClientTransactionsNewRoute,
   ClientAccountsPurposesSphereIdRoute: ClientAccountsPurposesSphereIdRoute,

@@ -13,6 +13,8 @@ export const UI_PATHS = [
   "/transactions/:transactionId",
   "/statistics",
   "/settings",
+  "/settings/categories",
+  "/settings/security",
   "/transactions-import",
 ] as const;
 

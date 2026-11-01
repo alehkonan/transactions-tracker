@@ -20,7 +20,7 @@ export function SecuritySection() {
     <div className="p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
         <div className="max-w-xl">
-          <h3 className="text-text font-bold">Sign-in methods</h3>
+          <h2 className="text-text font-semibold">Account security</h2>
           <p className="text-text-muted text-sm">
             Credential details come directly from the server and are never stored on this device.
           </p>
@@ -37,7 +37,7 @@ export function SecuritySection() {
       </div>
 
       {!isOnline ? (
-        <div className="border-border bg-surface-muted mt-4 rounded-xl border p-3">
+        <div className="border-border mt-4 border-t pt-4">
           <p className="text-text font-bold">Connect to manage account security</p>
           <p className="text-text-muted mt-1 text-sm">
             The rest of settings remains available offline. Security details require a connection so

@@ -7,7 +7,7 @@ import type { Color } from "~/modules/sync/sync-types";
 
 type Props =
   | {
-      /** Editable: clicking the tag opens the dialog that renames, recolors or deletes the category. */
+      /** Editable: a list row opens the sheet to rename, recolor, or delete the category. */
       category: CategoryRow;
       colors: Color[];
       name?: undefined;
@@ -21,7 +21,7 @@ type Props =
       colors?: undefined;
     };
 
-/** Category pill tinted with that category's own color, picked from the shared palette. */
+/** A read-only category pill, or a full-width management row when editable. */
 export function CategoryTag(props: Props) {
   const name = props.category?.name ?? props.name;
   const colorHex = props.category?.colorHex ?? props.colorHex;
@@ -29,10 +29,7 @@ export function CategoryTag(props: Props) {
   const tag = (
     <span
       className={twMerge(
-        "inline-flex max-w-full items-center gap-1 truncate rounded-full border text-center font-medium whitespace-nowrap",
-        props.category
-          ? "min-h-11 px-3 py-1.5 text-sm sm:min-h-0 sm:px-2 sm:py-0.5 sm:text-xs"
-          : "px-2 py-0.5 text-xs",
+        "inline-flex max-w-full items-center gap-1 truncate rounded-full border px-2 py-0.5 text-center text-xs font-medium whitespace-nowrap",
         !name && "border-border text-text-muted",
       )}
       style={
@@ -46,7 +43,6 @@ export function CategoryTag(props: Props) {
       }
     >
       {name ?? "No category"}
-      {props.category && <PencilIcon className="size-3 shrink-0" aria-hidden="true" />}
     </span>
   );
 
@@ -60,11 +56,15 @@ export function CategoryTag(props: Props) {
           type="button"
           aria-label={`Edit category ${props.category.name}`}
           onClick={onOpen}
-          // Editable chips are thumb-sized on phones because they are the only route to category editing;
-          // the visual chip itself owns that height so wrapped rows keep an honest, even rhythm.
-          className="focus-visible:ring-accent inline-flex max-w-full cursor-pointer items-center rounded-full transition-shadow hover:shadow focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          className="hover:bg-surface-hover focus-visible:ring-accent flex min-h-11 w-full cursor-pointer items-center gap-3 p-4 text-left focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
         >
-          {tag}
+          <span
+            className="size-3 shrink-0 rounded-full"
+            style={{ backgroundColor: colorHex ?? "var(--color-text-muted)" }}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 wrap-anywhere">{name}</span>
+          <PencilIcon className="text-text-muted size-4 shrink-0" aria-hidden="true" />
         </button>
       )}
     >
