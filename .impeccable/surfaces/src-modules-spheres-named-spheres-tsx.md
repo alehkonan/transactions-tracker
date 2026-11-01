@@ -9,7 +9,7 @@ related_targets: ["src/routes/_client.accounts.tsx"]
 
 ## Scope
 
-Mode: Operate. The Purposes view at `/accounts?view=purposes` under Money groups the same money by financial purpose across accounts and retains the Accounts total, including archived accounts. Preserve the application identity in DESIGN.md and the local-first data flow. This brief describes the implemented sphere surface, not a new global page template.
+Mode: Operate. Money at `/accounts` previews Operating and at most four active named purposes. The full list at `/accounts/purposes` groups the same money by financial purpose across accounts. Legacy `/accounts?view=purposes` links redirect to the full list. Preserve the application identity in DESIGN.md and the local-first data flow. This brief describes the implemented sphere surface, not a new global page template.
 
 ## Direction contract
 
@@ -35,7 +35,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
 ## Detail content
 
-- Lead each detail page with its sphere name and a parent-labeled Back control: Purposes for active spheres, Archived purposes for archived spheres. Keep the detail column at most 42rem (672px) wide.
+- Lead each detail page with its sphere name and a parent-labeled Back control for the originating list: Money, Purposes, or Archived purposes. Restore its scroll position. Direct links fall back to Purposes or Archived purposes. Keep the detail column at most 42rem (672px) wide.
 - Show an approximate USD total and exact currency balances in a flat group. Use a definition list with currency codes left and monetary values right, separated vertically by 8px; Operating's list is at most 24rem (384px) wide.
 - On phones, Assign money and Move money share two equal columns when both are present; Manage occupies a separate line. From 640px, allocation actions sit together on the left and Manage aligns right.
 - Keep empty-state copy in the space otherwise occupied by balances; do not retain an empty list that introduces an extra gap.

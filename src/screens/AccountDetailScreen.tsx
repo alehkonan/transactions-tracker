@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { ChevronRightIcon, PencilIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -8,6 +8,7 @@ import { PageContainer } from "~/components/PageContainer";
 import { PageHeader } from "~/components/PageHeader";
 import { AccountForm } from "~/modules/accounts/AccountForm";
 import { computeAccountActivity } from "~/modules/accounts/compute-account-activity";
+import { useMoneyNavigation } from "~/modules/accounts/money-navigation";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { useSelectedProfileId } from "~/modules/profile/local-selection";
 import { useSyncStore } from "~/modules/sync/useSyncStore";
@@ -25,7 +26,6 @@ export function AccountDetailScreen(props: Props) {
 }
 
 function AccountDetail({ accountId, listStatus }: Props) {
-  const navigate = useNavigate();
   const profileId = useSelectedProfileId();
   const accounts = useAccounts();
   const account = accounts.find((row) => row.id === accountId);
@@ -45,18 +45,16 @@ function AccountDetail({ accountId, listStatus }: Props) {
   const loadingAccount = !isHydrated || pending.includes("accounts");
   const loadingActivity = loadingAccount || pending.includes("transactions");
   const interrupted = syncStatus === "error" || syncStatus === "unauthorized";
-  const returnToAccounts = () =>
-    void navigate({
-      to: "/accounts",
-      search: { status: listStatus ?? account?.status ?? "ACTIVE" },
-    });
+  const { back: returnToAccounts, backLabel } = useMoneyNavigation(
+    (listStatus ?? account?.status) === "ARCHIVED" ? "/accounts/archived" : "/accounts",
+  );
 
   return (
     <PageContainer className="pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
       <main aria-label="Account details" className="mx-auto w-full max-w-2xl py-2 md:py-6">
         <PageHeader
           title={account?.name ?? "Account"}
-          backLabel="Accounts"
+          backLabel={backLabel}
           onBack={returnToAccounts}
         />
         {!account ? (

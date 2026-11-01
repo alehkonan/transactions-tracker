@@ -66,12 +66,22 @@ export function Navbar() {
           <li key={link.to} className="min-w-0">
             <NavLink
               to={link.to}
-              search={pathname === link.to ? search : (savedSearches.current[link.to] ?? {})}
+              search={
+                link.to === "/accounts"
+                  ? {}
+                  : pathname === link.to
+                    ? search
+                    : (savedSearches.current[link.to] ?? {})
+              }
               onClick={(event) =>
                 void openTab(
                   event,
                   link.to,
-                  pathname === link.to ? search : (savedSearches.current[link.to] ?? {}),
+                  link.to === "/accounts"
+                    ? {}
+                    : pathname === link.to
+                      ? search
+                      : (savedSearches.current[link.to] ?? {}),
                 )
               }
               data-testid={`nav${link.to.replaceAll("/", "-")}`}

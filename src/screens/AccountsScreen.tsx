@@ -1,11 +1,12 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
+import { ChevronRightIcon } from "lucide-react";
 import { useMemo } from "react";
 import { PageContainer } from "~/components/PageContainer";
-import { Select } from "~/components/Select";
 import { AccountCard } from "~/modules/accounts/AccountCard";
 import { computeAccountActivity } from "~/modules/accounts/compute-account-activity";
 import { computeBalanceTotals } from "~/modules/accounts/compute-balances";
 import { CreateAccountButton } from "~/modules/accounts/CreateAccountButton";
+import { useMoneyNavigation } from "~/modules/accounts/money-navigation";
 import { useAccounts } from "~/modules/accounts/useAccounts";
 import { NamedSpheres } from "~/modules/spheres/NamedSpheres";
 import { usePurposeBalances } from "~/modules/spheres/usePurposeBalances";
@@ -13,136 +14,96 @@ import { useSyncStore } from "~/modules/sync/useSyncStore";
 import { formatMoney } from "~/utils/format-money";
 
 export function AccountsScreen() {
-  const search = useSearch({ from: "/_client/accounts" });
-  const navigate = useNavigate({ from: "/accounts" });
   const accounts = useAccounts();
-  const { usdRates, transactions, selectedProfileId, replicaContext } = useSyncStore();
+  const { usdRates, transactions, selectedProfileId, replicaContext, status } = useSyncStore();
   const { complete, operating } = usePurposeBalances();
-  const status = search.status ?? "ACTIVE";
-  const view = search.view ?? "accounts";
+  const { listState } = useMoneyNavigation();
   const total = useMemo(() => computeBalanceTotals(accounts, usdRates), [accounts, usdRates]);
-  const visibleAccounts = accounts.filter(
-    (account) => status === "ALL" || account.status === status,
-  );
-  // Keyed by account id, so the rows of other profiles in the store simply never get looked up.
+  const active = accounts.filter((account) => account.status === "ACTIVE");
+  const archivedCount = accounts.length - active.length;
   const activityByAccount = useMemo(() => computeAccountActivity(transactions), [transactions]);
+  const interrupted = status === "error" || status === "unauthorized";
 
   return (
     <PageContainer>
-      <main aria-labelledby="accounts-heading" className="py-2 md:py-6">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 id="accounts-heading" className="text-text text-xl font-semibold">
-                {view === "purposes" ? "Purposes" : "Accounts"}
-              </h1>
-              <p className="text-text-muted text-sm" data-testid="accounts-total">
-                Approx. total balance:{" "}
-                <span className="text-text font-mono">
-                  {complete ? `≈ ${formatMoney(total.balanceUsd, "USD")}` : "Loading…"}
-                </span>
-              </p>
-              <p className="text-text-muted text-xs">Includes archived accounts</p>
-            </div>
+      <main aria-labelledby="money-heading" className="mx-auto max-w-2xl space-y-8 py-2 md:py-6">
+        <header>
+          <h1 id="money-heading" className="text-text mb-4 text-2xl font-bold">
+            Money
+          </h1>
+          <section aria-labelledby="balance-heading" className="bg-surface rounded-lg p-4">
+            <h2 id="balance-heading" className="text-text font-medium">
+              Total balance
+            </h2>
+            <p
+              className="text-text mt-2 font-mono text-3xl font-semibold break-all"
+              data-testid="accounts-total"
+            >
+              {complete ? `≈ ${formatMoney(total.balanceUsd, "USD")}` : "Loading…"}
+            </p>
+            <p className="text-text-muted mt-2 text-sm">
+              Approximate USD value · Includes archived accounts
+            </p>
+          </section>
+          {!complete && (
+            <output className="text-warning mt-3 block text-sm" data-testid="money-incomplete">
+              {interrupted
+                ? "Balances are incomplete. Check synchronization in Settings to finish loading."
+                : "Loading balances. Totals will appear when account and purpose data are complete."}
+            </output>
+          )}
+        </header>
+        <NamedSpheres
+          key={`${replicaContext?.replicaId}:${selectedProfileId}`}
+          complete={complete}
+          operating={operating}
+          overview
+        />
+        <section aria-labelledby="accounts-heading">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 id="accounts-heading" className="text-text text-lg font-semibold">
+              Accounts
+            </h2>
+            <CreateAccountButton />
           </div>
-          <fieldset className="border-border flex w-full gap-1 rounded-2xl border p-1 sm:w-fit">
-            <legend className="sr-only">View your money</legend>
-            {[
-              { value: "accounts", label: "Accounts", description: "Where your money is" },
-              { value: "purposes", label: "Purposes", description: "What your money is for" },
-            ].map((option) => (
-              <label
-                key={option.value}
-                className="relative min-w-0 flex-1 cursor-pointer sm:min-w-36"
-              >
-                <input
-                  type="radio"
-                  name="accounts-view"
-                  value={option.value}
-                  checked={view === option.value}
-                  onChange={() =>
-                    void navigate({
-                      search: (previous) => ({
-                        ...previous,
-                        view: option.value as "accounts" | "purposes",
-                      }),
-                      resetScroll: false,
-                    })
-                  }
-                  aria-controls={`${option.value}-view`}
-                  aria-label={`${option.label}: ${option.description}`}
-                  className="peer sr-only"
-                  data-testid={`view-${option.value}`}
-                />
-                <span className="text-text peer-checked:bg-accent peer-checked:text-surface peer-focus-visible:ring-accent flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2">
-                  {option.label}
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <section id="accounts-view" aria-label="Accounts" hidden={view !== "accounts"}>
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <h2 className="sr-only">Where your money is</h2>
-              <div className="flex min-w-0 flex-1 flex-col gap-1 sm:max-w-xs">
-                <label htmlFor="accounts-status" className="text-text text-sm font-bold">
-                  Show
-                </label>
-                <Select
-                  id="accounts-status"
-                  data-testid="accounts-status"
-                  value={status}
-                  onValueChange={(value) =>
-                    void navigate({
-                      search: (previous) => ({
-                        ...previous,
-                        status: (value ?? "ACTIVE") as "ACTIVE" | "ARCHIVED" | "ALL",
-                      }),
-                      resetScroll: false,
-                    })
-                  }
-                  options={[
-                    { value: "ACTIVE", label: "Active accounts" },
-                    { value: "ARCHIVED", label: "Archived accounts" },
-                    { value: "ALL", label: "All accounts" },
-                  ]}
-                />
-              </div>
-              <CreateAccountButton />
-            </div>
-            {visibleAccounts.length > 0 ? (
-              <div
-                className="grid grid-cols-[repeat(auto-fill,minmax(min(18rem,100%),1fr))] gap-2"
-                data-testid="accounts-list"
-              >
-                {visibleAccounts.map((account) => (
+          {active.length > 0 ? (
+            <ul
+              className="bg-surface divide-border divide-y overflow-hidden rounded-lg"
+              data-testid="accounts-list"
+            >
+              {active.map((account) => (
+                <li key={account.id}>
                   <AccountCard
-                    key={account.id}
                     account={account}
                     activity={activityByAccount.get(account.id)}
-                    listStatus={status}
+                    listStatus="ACTIVE"
+                    complete={complete}
                   />
-                ))}
-              </div>
-            ) : (
-              <p className="text-text-muted py-4" data-testid="accounts-empty">
-                {accounts.length === 0
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p
+              className="bg-surface text-text-muted rounded-lg p-4 text-sm"
+              data-testid="accounts-empty"
+            >
+              {!complete
+                ? "Loading accounts…"
+                : accounts.length === 0
                   ? "Create an account to start tracking your money."
-                  : status === "ARCHIVED"
-                    ? "No archived accounts."
-                    : "No active accounts."}
-              </p>
-            )}
-          </section>
-          {view === "purposes" && (
-            <div id="purposes-view">
-              <NamedSpheres
-                key={`${replicaContext?.replicaId}:${selectedProfileId}`}
-                complete={complete}
-                operating={operating}
-              />
-            </div>
+                  : "No active accounts. Add an account or restore an archived one."}
+            </p>
           )}
-        </div>
+          <Link
+            to="/accounts/archived"
+            state={listState}
+            className="bg-surface text-text hover:bg-surface-hover focus-visible:ring-accent mt-3 flex min-h-11 items-center justify-between gap-3 rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+            data-testid="archived-accounts"
+          >
+            <span>Archived accounts{complete ? ` (${archivedCount})` : ""}</span>
+            <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
+          </Link>
+        </section>
       </main>
     </PageContainer>
   );

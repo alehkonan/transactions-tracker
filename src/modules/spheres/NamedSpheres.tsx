@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { currencyCodeEnum } from "~/database/enums";
+import { useMoneyNavigation } from "~/modules/accounts/money-navigation";
 import { FormTaskContext } from "~/modules/forms/form-task";
 import { SheetNavigationGuard } from "~/modules/forms/SheetNavigationGuard";
 import { useReplicaBinding } from "~/modules/sync/useReplicaBinding";
@@ -33,14 +34,17 @@ export function NamedSpheres({
   operating,
   selectedSphere,
   archivedView = false,
+  overview = false,
 }: {
   complete: boolean;
   operating: ReturnType<typeof operatingBalances>;
   selectedSphere?: SyncedSphere;
   archivedView?: boolean;
+  overview?: boolean;
 }) {
   const { spheres, allocations, selectedProfileId, usdRates } = useSyncStore();
   const navigate = useNavigate();
+  const { listState } = useMoneyNavigation();
   const context = useReplicaBinding();
   const nameId = useId();
   const typeId = useId();
@@ -68,6 +72,10 @@ export function NamedSpheres({
   );
   const active = owned.filter((sphere) => !sphere.archived);
   const named = active.filter((sphere) => sphere.type !== "OPERATING");
+  const sortedNamed = (["FUNDS", "CAPITAL"] as const).flatMap((type) =>
+    named.filter((sphere) => sphere.type === type).toSorted((a, b) => a.name.localeCompare(b.name)),
+  );
+  const visibleNamed = overview ? sortedNamed.slice(0, 4) : sortedNamed;
   const archived = owned
     .filter((sphere) => sphere.archived)
     .toSorted((a, b) => a.name.localeCompare(b.name));
@@ -187,7 +195,7 @@ export function NamedSpheres({
         .getState()
         .spheres.some((row) => row.id === selectedSphere.id && row.deletedAt == null)
     ) {
-      void navigate({ to: "/accounts", search: { view: "purposes" } });
+      void navigate({ to: "/accounts/purposes" });
     }
     createButtonRef.current?.focus({ preventScroll: true });
   }
@@ -215,19 +223,13 @@ export function NamedSpheres({
         selectedSphere ? "Sphere details" : archivedView ? "Archived purposes" : "Purposes"
       }
       data-testid="named-spheres"
-      className="flex max-w-4xl flex-col gap-6"
+      className={`flex max-w-4xl flex-col ${overview ? "gap-3" : "gap-6"}`}
     >
       {!selectedSphere && !archivedView && (
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="max-w-prose">
-            <h2 id="named-spheres-heading" className="text-text text-lg font-semibold">
-              What your money is for
-            </h2>
-            <p className="text-text-muted mt-1 text-sm">
-              The same money, grouped by purpose across all accounts. Account balances stay
-              unchanged.
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="named-spheres-heading" className="text-text text-lg font-semibold">
+            {overview ? "Purposes" : "What your money is for"}
+          </h2>
           <Button
             ref={createButtonRef}
             data-testid="sphere-create-open"
@@ -237,6 +239,11 @@ export function NamedSpheres({
           >
             Create sphere
           </Button>
+          <p className="text-text-muted order-last basis-full text-sm">
+            {overview
+              ? "The same money, by purpose."
+              : "The same money, grouped by purpose across all accounts."}
+          </p>
         </div>
       )}
       <output className="text-text block text-sm empty:hidden">{notice}</output>
@@ -244,6 +251,12 @@ export function NamedSpheres({
         <p className="text-warning text-sm">
           Balances are still loading. Finish synchronization before assigning money or archiving
           spheres.
+        </p>
+      )}
+      {operatingDiverged && !selectedSphere && !archivedView && (
+        <p role="alert" className="text-warning text-sm" data-testid="money-reconciliation-warning">
+          Purpose totals differ from account balances. Open Operating for currency differences and
+          check synchronization in Settings.
         </p>
       )}
 
@@ -710,9 +723,7 @@ export function NamedSpheres({
       {!selectedSphere &&
         !archivedView &&
         (["FUNDS", "CAPITAL"] as const).map((type) => {
-          const rows = named
-            .filter((sphere) => sphere.type === type)
-            .toSorted((a, b) => a.name.localeCompare(b.name));
+          const rows = visibleNamed.filter((sphere) => sphere.type === type);
           if (rows.length === 0) return null;
           return (
             <section
@@ -720,10 +731,10 @@ export function NamedSpheres({
               aria-labelledby={`spheres-${type}-heading`}
               data-testid={`spheres-${type.toLowerCase()}`}
             >
-              <h3 id={`spheres-${type}-heading`} className="text-text font-semibold">
+              <h3 id={`spheres-${type}-heading`} className="text-text mb-2 font-semibold">
                 {type === "FUNDS" ? "Funds" : "Capital"}
               </h3>
-              <p className="text-text-muted mt-1 mb-3 text-sm">
+              <p className={`text-text-muted mt-1 mb-3 text-sm ${overview ? "sr-only" : ""}`}>
                 {type === "FUNDS"
                   ? "Goals and reserves for future spending."
                   : "Savings and investments tracked as money."}
@@ -736,14 +747,31 @@ export function NamedSpheres({
             </section>
           );
         })}
+      {!selectedSphere && !archivedView && complete && named.length === 0 && (
+        <p className="text-text-muted text-sm" data-testid="purposes-empty">
+          No named purposes yet. Create a sphere for a goal, reserve, or investment.
+        </p>
+      )}
+      {overview && sortedNamed.length > 4 && (
+        <Link
+          to="/accounts/purposes"
+          state={listState}
+          data-testid="purposes-show-all"
+          className="bg-surface text-accent hover:bg-surface-hover focus-visible:ring-accent flex min-h-11 items-center justify-between gap-3 rounded-lg px-4 py-3 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+        >
+          <span>Show all purposes ({sortedNamed.length})</span>
+          <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
+        </Link>
+      )}
       <div className="flex flex-col gap-1">
         {!selectedSphere && !archivedView && (
           <Link
             to="/accounts/purposes/archived"
+            state={listState}
             className="bg-surface text-text hover:bg-surface-hover focus-visible:ring-accent flex min-h-11 items-center justify-between rounded-lg px-4 py-3 focus-visible:ring-2"
             data-testid="archived-spheres"
           >
-            Archived purposes ({archived.length}){" "}
+            <span>Archived purposes{complete ? ` (${archived.length})` : ""}</span>{" "}
             <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
           </Link>
         )}
