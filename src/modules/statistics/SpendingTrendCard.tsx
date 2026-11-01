@@ -126,7 +126,7 @@ export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
       ) : (
         <div
           className={twJoin(
-            "h-36 sm:h-72",
+            "h-56 min-w-0 sm:h-72 lg:h-80",
             // Recharts shifts DOM focus between several of its own internal SVG
             // elements (the root surface, its z-index layer groups, ...) as you
             // interact, so every focusable descendant needs the same treatment.
@@ -144,12 +144,6 @@ export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
               aria-label={chartName}
               aria-describedby={summaryId}
             >
-              <defs>
-                <linearGradient id="spendingGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-danger)" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="var(--color-danger)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
               <XAxis
                 dataKey="day"
                 axisLine={false}
@@ -172,8 +166,9 @@ export function SpendingTrendCard({ hasSpendingData, month, trend }: Props) {
                 dataKey="cumulativeUsd"
                 stroke="var(--color-danger)"
                 strokeWidth={2}
-                fill="url(#spendingGradient)"
+                fill="var(--color-danger-muted)"
                 dot={false}
+                isAnimationActive={false}
               />
             </AreaChart>
           </ResponsiveContainer>

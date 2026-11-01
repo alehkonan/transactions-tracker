@@ -21,9 +21,9 @@ export function CategoryBreakdownCard({ spending }: Props) {
       {spending.length === 0 ? (
         <p className="text-text-muted text-sm">No spending this month.</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="divide-border divide-y">
           {spending.map((entry) => (
-            <li key={entry.categoryId ?? "none"}>
+            <li key={entry.categoryId ?? "none"} className="py-3 first:pt-0 last:pb-0">
               <div className="flex items-baseline justify-between gap-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2">
                   <span
@@ -33,15 +33,16 @@ export function CategoryBreakdownCard({ spending }: Props) {
                   />
                   <span className="wrap-anywhere">{entry.name}</span>
                 </span>
-                <span className="flex shrink-0 flex-col items-end sm:flex-row sm:items-baseline sm:gap-2">
-                  <span className="text-text-muted text-xs">
-                    {entry.count} {entry.count === 1 ? "transaction" : "transactions"}
-                  </span>
-                  <span className="font-mono font-medium tabular-nums">
-                    {formatMoney(String(entry.totalUsd), "USD")}
-                  </span>
+                <span className="max-w-[60%] min-w-0 shrink-0 text-right font-mono font-medium wrap-anywhere tabular-nums">
+                  {formatMoney(String(entry.totalUsd), "USD")}
                 </span>
               </div>
+              <p className="text-text-muted mt-1 flex flex-wrap justify-between gap-x-2 text-xs">
+                <span>
+                  {entry.count} {entry.count === 1 ? "transaction" : "transactions"}
+                </span>
+                <span className="font-mono tabular-nums">{Math.round(entry.share * 100)}%</span>
+              </p>
               <div className="bg-surface-muted mt-1.5 h-1.5 overflow-hidden rounded-full">
                 <div
                   className="h-full rounded-full"

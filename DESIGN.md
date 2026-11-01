@@ -218,7 +218,7 @@ components:
 
 Cracker Tracker uses the iOS-inspired grouped-list direction approved in issue #34: a flat pale-yellow page, white groups, black text, restrained corners, and straight separators. System typography and aligned monetary values keep everyday bookkeeping readable on phones and desktop screens. The illustrated cracker remains the application icon; the working interface uses no decorative textures or food motifs.
 
-This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell, transaction list, account details, purpose details, and combined Money overview are implemented. Routed transaction forms, statistics composition, settings, authentication states, and import adaptation continue in issues #35 and #39–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
+This is an Operate interface. Local availability, incomplete data, unsynchronized changes, expired sessions, and conflicts remain explicit. The shell, transaction list, account details, purpose details, combined Money overview, and statistics composition are implemented. Routed transaction forms, settings, authentication states, and import adaptation continue in issues #35 and #40–#42. Existing domain calculations, category identities, and accessible controls remain authoritative during that migration.
 
 **Key Characteristics:**
 
@@ -272,6 +272,8 @@ System sans (`ui-sans-serif`, `system-ui`, platform fallbacks) serves headings, 
 
 The shared page container is centered at a maximum width of `80rem`, with `16px` padding. The transaction screen narrows to `56rem`, separating its title/count, search/actions, and remaining-height list into three rows. Active filter indicators wrap above the list. The list itself scrolls and virtualizes transaction rows, retaining a pinned day header.
 
+Statistics uses the shared wide container. Phones show a single stack: runway, daily Operating Spending, daily income, cumulative spending chart, and ranked categories. From `640px`, the runway spans the row above the two daily metrics. From `1024px`, runway and daily metrics share a `2:1:1` row, while the wider chart sits beside categories in a `1.7:1` row. Filter headers wrap, and long names and amounts remain within their groups.
+
 All four primary destinations—Money, Transactions, Statistics, and Settings—remain at the bottom on mobile and desktop. The full-width footer participates in the flex layout rather than covering content. Its inner four-column navigation is limited to `42rem`, each target is `64px` high, and bottom padding respects the safe-area inset. Synchronization remains visible at the top; the content scroller reserves space for it.
 
 Tab activation goes to the destination root and resets its page/list scroll to the top while preserving that destination's query parameters. Transactions store search as `q` alongside filters in the URL; account status/view and statistics period/month remain URL state. Navbar memory stays mounted while hydrated across hidden profile/login surfaces and resets for replica/profile changes. Router scroll restoration and the virtual-list restoration ID support return navigation.
@@ -322,7 +324,13 @@ Use Spheres consistently in visible titles, navigation, archive links, and detai
 
 The Money preview and complete Spheres page use one continuous list with the same surface, corners, separators, and row layout as Accounts. Operating comes first, followed by named spheres ordered by type and alphabetically within each type. Funds and Capital appear only as row subtitles, with no separate type headings or descriptions. Archived spheres also use a single list. Rows link to `/accounts/purposes/$sphereId` details. Exact per-currency balances, approximate USD totals, sphere-scoped allocation history, and account activity in batches of 50 use shared flat groups. Creation, assignment, movement, and management reuse protected short sheets with local-first persistence, lifecycle safeguards, retained drafts on failure, and shared dirty-dismiss, browser Back, and refresh protection. The sphere-specific brief records this surface's behavior within the shared visual direction.
 
-Charts preserve their financial calculations, category identities, interactions, and data ink; their layout adaptation belongs to #39. Synchronization, local recovery, expired-session notices, and conflict acknowledgment retain their existing behavior and visibility. Their further visual adaptation belongs to #41. The illustrated application icon remains unchanged.
+Synchronization, local recovery, expired-session notices, and conflict acknowledgment retain their existing behavior and visibility. Their further visual adaptation belongs to #41. The illustrated application icon remains unchanged.
+
+### Statistics
+
+Statistics uses flat shared groups, native history radios and a month select, and a native calculation disclosure. Runway and daily metrics expose their amounts and calendar-day denominators. Runway includes all account money, including archived accounts and money assigned to Funds and Capital; the existing calculations remain unchanged. Incomplete history, unavailable estimates, and empty chart/category states remain explicit.
+
+The cumulative spending chart uses a solid expense line and muted fill without gradients, axis pills, or animation. Plain muted day and USD ticks, a visible running-total summary, keyboard tooltips, and a screen-reader data table retain the chart's meaning and access. The current month stops at today. Ranked categories use straight separators, stable category colors, tabular amounts, transaction counts, percentages, and proportional bars.
 
 ## Do's and Don'ts
 
@@ -333,7 +341,7 @@ Charts preserve their financial calculations, category identities, interactions,
 - **Do** keep bottom navigation visible on mobile and desktop without covering content.
 - **Do** use native controls, visible focus, safe-area spacing, and 44px phone targets.
 - **Do** keep financial comparisons aligned in tabular monospace.
-- **Do** treat issues #35 and #39–#42 as the remaining screen/workflow migration scope.
+- **Do** treat issues #35 and #40–#42 as the remaining screen/workflow migration scope.
 
 ### Don't:
 
