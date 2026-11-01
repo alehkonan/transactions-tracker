@@ -296,6 +296,8 @@ Canonical buttons, cards, search fields, account tiles, and active-filter contro
 
 `Button` has primary, secondary, and danger variants, `8px` corners, `12px` horizontal padding, `4px` icon gaps, and `44px`/`36px` responsive height. Primary actions use Ink Action and contrasting surface text; secondary actions use a surface with a separator border. Danger actions retain semantic destructive feedback. Disabled controls reduce opacity. Focus uses a `2px` accent ring with a `2px` page-colored offset. Buttons and native input/select wrappers use color transitions without hover shadows.
 
+Add/create entry buttons use a decorative Lucide `PlusIcon` before the label, consistently sized at `16px` with shrinking disabled. This applies to accounts, spheres, categories, profiles, transactions, and adding sign-in methods.
+
 Inputs remain native controls with associated labels, validation, and thin form wrappers. The transaction search field has an accessible label, a search icon, a clear action, and the `/` keyboard shortcut.
 
 ### Groups and Transaction Rows

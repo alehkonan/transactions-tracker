@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRightIcon, InfoIcon } from "lucide-react";
+import { ChevronRightIcon, InfoIcon, PlusIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
@@ -275,6 +275,7 @@ export function NamedSpheres({
             onClick={(event) => openCreator(event.currentTarget)}
             aria-haspopup="dialog"
           >
+            <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
             Create sphere
           </Button>
         </div>

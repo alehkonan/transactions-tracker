@@ -249,7 +249,7 @@ export function TransactionsScreen() {
               disabled={activeAccounts.length === 0}
               title={activeAccounts.length === 0 ? "Create an active account first" : undefined}
             >
-              <PlusIcon className="size-4" />
+              <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
               <span className="hidden md:block">Add transaction</span>
             </Button>
           </div>

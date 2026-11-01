@@ -1,3 +1,4 @@
+import { PlusIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { CategoryForm } from "~/modules/categories/CategoryForm";
@@ -15,6 +16,7 @@ export function CreateCategoryButton({ colors }: Props) {
       title="Add category"
       renderTrigger={({ onOpen }) => (
         <Button variant="secondary" onClick={onOpen}>
+          <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
           Add category
         </Button>
       )}

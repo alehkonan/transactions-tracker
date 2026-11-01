@@ -1,3 +1,4 @@
+import { PlusIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { Dialog } from "~/components/Dialog";
 import { AddPasswordForm } from "~/modules/auth/AddPasswordForm";
@@ -65,6 +66,7 @@ export function PasswordSettings({ hasPassword, disabled, onChanged }: Props) {
                 disabled={disabled}
                 onClick={onOpen}
               >
+                <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
                 Add password
               </Button>
             )}

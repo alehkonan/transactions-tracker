@@ -1,3 +1,4 @@
+import { PlusIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { PasskeyList } from "~/modules/auth/PasskeyList";
 import { PasswordSettings } from "~/modules/auth/PasswordSettings";
@@ -70,6 +71,7 @@ export function SecuritySection() {
                 </p>
               </div>
               <Button variant="secondary" disabled={isMutating} onClick={() => void addPasskey()}>
+                {!isMutating && <PlusIcon aria-hidden="true" className="size-4 shrink-0" />}
                 {isMutating ? "Working…" : "Add passkey"}
               </Button>
             </div>

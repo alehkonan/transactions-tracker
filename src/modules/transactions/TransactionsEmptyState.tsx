@@ -57,7 +57,7 @@ export function TransactionsEmptyState(props: Props) {
             title="Add account"
             renderTrigger={({ onOpen }) => (
               <Button variant="primary" onClick={onOpen}>
-                <PlusIcon className="size-4" />
+                <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
                 Add account
               </Button>
             )}
@@ -66,7 +66,7 @@ export function TransactionsEmptyState(props: Props) {
           </Dialog>
         ) : props.kind === "no-transactions" ? (
           <Button variant="primary" onClick={props.onAddTransaction}>
-            <PlusIcon className="size-4" />
+            <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
             Add transaction
           </Button>
         ) : props.kind === "search" ? (

@@ -10,7 +10,7 @@ export function CreateAccountButton() {
       title="Add account"
       renderTrigger={({ onOpen }) => (
         <Button variant="secondary" onClick={onOpen} data-testid="account-create">
-          <PlusIcon className="size-4" />
+          <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
           Add account
         </Button>
       )}

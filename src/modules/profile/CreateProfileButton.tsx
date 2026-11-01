@@ -9,7 +9,7 @@ export function CreateProfileButton() {
       title="Create profile"
       renderTrigger={({ onOpen }) => (
         <Button variant="primary" aria-label="New profile" onClick={onOpen}>
-          <PlusIcon />
+          <PlusIcon aria-hidden="true" className="size-4 shrink-0" />
           <span className="hidden sm:block">New profile</span>
         </Button>
       )}
