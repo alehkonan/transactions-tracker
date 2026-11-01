@@ -264,9 +264,17 @@ export function NamedSpheres({
         </p>
       )}
 
-      {!selectedSphere && !archivedView && operatingSphere && (
-        <ul className="bg-surface overflow-hidden rounded-lg" data-testid="operating-sphere">
-          <SphereLink sphere={operatingSphere} complete={complete} diverged={operatingDiverged} />
+      {!selectedSphere && !archivedView && (operatingSphere || visibleNamed.length > 0) && (
+        <ul
+          className="bg-surface divide-border divide-y overflow-hidden rounded-lg"
+          data-testid="purposes-list"
+        >
+          {operatingSphere && (
+            <SphereLink sphere={operatingSphere} complete={complete} diverged={operatingDiverged} />
+          )}
+          {visibleNamed.map((sphere) => (
+            <SphereLink key={sphere.id} sphere={sphere} complete={complete} />
+          ))}
         </ul>
       )}
       {!selectedSphere && !archivedView && !operatingSphere && (
@@ -728,33 +736,6 @@ export function NamedSpheres({
         )}
       </Dialog>
 
-      {!selectedSphere &&
-        !archivedView &&
-        (["FUNDS", "CAPITAL"] as const).map((type) => {
-          const rows = visibleNamed.filter((sphere) => sphere.type === type);
-          if (rows.length === 0) return null;
-          return (
-            <section
-              key={type}
-              aria-labelledby={`spheres-${type}-heading`}
-              data-testid={`spheres-${type.toLowerCase()}`}
-            >
-              <h3 id={`spheres-${type}-heading`} className="text-text mb-2 font-semibold">
-                {type === "FUNDS" ? "Funds" : "Capital"}
-              </h3>
-              <p className={`text-text-muted mt-1 mb-3 text-sm ${overview ? "sr-only" : ""}`}>
-                {type === "FUNDS"
-                  ? "Goals and reserves for future spending."
-                  : "Savings and investments tracked as money."}
-              </p>
-              <ul className="bg-surface divide-border divide-y overflow-hidden rounded-lg">
-                {rows.map((sphere) => (
-                  <SphereLink key={sphere.id} sphere={sphere} complete={complete} />
-                ))}
-              </ul>
-            </section>
-          );
-        })}
       {overview && sortedNamed.length > 4 && (
         <Link
           to="/accounts/purposes"
@@ -780,25 +761,14 @@ export function NamedSpheres({
         )}
         {archivedView &&
           (archived.length ? (
-            <div className="space-y-6">
-              {(["FUNDS", "CAPITAL"] as const).map((type) => {
-                const rows = archived.filter((sphere) => sphere.type === type);
-                return (
-                  rows.length > 0 && (
-                    <section key={type} aria-label={type === "FUNDS" ? "Funds" : "Capital"}>
-                      <h2 className="mb-2 font-semibold">
-                        {type === "FUNDS" ? "Funds" : "Capital"}
-                      </h2>
-                      <ul className="bg-surface divide-border divide-y overflow-hidden rounded-lg">
-                        {rows.map((sphere) => (
-                          <SphereLink key={sphere.id} sphere={sphere} complete={complete} />
-                        ))}
-                      </ul>
-                    </section>
-                  )
-                );
-              })}
-            </div>
+            <ul
+              className="bg-surface divide-border divide-y overflow-hidden rounded-lg"
+              data-testid="purposes-list"
+            >
+              {archived.map((sphere) => (
+                <SphereLink key={sphere.id} sphere={sphere} complete={complete} />
+              ))}
+            </ul>
           ) : (
             <p className="bg-surface text-text-muted rounded-lg p-4">
               {complete ? "No archived purposes." : "Loading archived purposes…"}

@@ -19,7 +19,7 @@ OWN-WORLD: Extend the approved pale-yellow page, white groups, semantic dark cou
 
 STORY: See the same account money grouped by purpose, open a sphere, then assign or manage it through protected short sheets.
 
-FIRST VIEWPORT: Parent-labeled Back and sphere name precede exact currency balances and an approximate total; relevant actions follow. The list keeps Operating first, with alphabetized Funds and Capital groups and separate archived navigation.
+FIRST VIEWPORT: Parent-labeled Back and sphere name precede exact currency balances and an approximate total; relevant actions follow. The list keeps Operating first in one continuous group, with separate archived navigation.
 
 FORM: Issue #37 pins the grouped-list and detail-page structure; no concept seed applies to this specified extension.
 
@@ -28,10 +28,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 ## Reading order and composition
 
 - Lead with “What your money is for” and the existing explanation, with Create sphere as the section action.
-- Keep one linear ledger, at most 56rem (896px) wide and aligned with the page's left content edge. Separate primary groups by 24px.
-- Show Operating first, followed by the Funds and Capital groups when they contain active named spheres. Sort names within each group. Use the same row treatment for all spheres and single closing rules for groups.
+- Keep one linear ledger in the same 42rem (672px) content column as Accounts.
+- Render Operating and named spheres in one surface with straight row separators, exactly like the Accounts list. Keep Operating first, followed by Funds and Capital in alphabetical order within each type. Show types only in row subtitles; omit separate type headings and descriptions.
 - Rows link to `/accounts/purposes/$sphereId` and show the sphere name, approximate combined USD balance, forward chevron, and any essential warning indicator. Keep totals right-aligned at every width; allow long names to wrap.
-- Place the separate `/accounts/purposes/archived` destination and balance-help disclosure beneath the active ledger with 4px gaps. Archived purposes use alphabetized Funds and Capital groups and link to the same stable detail pages. Allocation history belongs to the selected sphere's detail page.
+- Place the separate `/accounts/purposes/archived` destination and balance-help disclosure beneath the active ledger with 4px gaps. Archived purposes use one alphabetized list and link to the same stable detail pages. Allocation history belongs to the selected sphere's detail page.
 
 ## Detail content
 
