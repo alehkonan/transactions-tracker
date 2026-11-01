@@ -543,6 +543,8 @@ test("CSV transfer at a push boundary survives a lost response and reload withou
     buffer: Buffer.from([headers, ...expenses, transfer, invalid].join("\n")),
   });
   await page.getByTestId("import-next").click();
+  await expect(page.getByTestId("import-preview")).toBeVisible();
+  await page.getByTestId("import-confirm").click();
   await expect(page.getByTestId("import-report")).toBeVisible();
   await expect(page.getByTestId("import-failures")).toContainText(
     "Same-currency transfer amounts must match",

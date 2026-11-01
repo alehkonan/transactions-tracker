@@ -62,6 +62,12 @@ export function SettingsScreen() {
           </SettingsGroup>
 
           <SettingsGroup title="Data & this device">
+            <SettingsLink
+              to="/transactions-import"
+              label="Import transactions"
+              description="Choose a CSV file and review it before importing into this profile."
+              data-testid="settings-import"
+            />
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h3 className="font-medium">Export transactions</h3>

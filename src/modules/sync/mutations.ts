@@ -65,6 +65,14 @@ export type LocalChange = (UpsertChange | DeleteChange | CascadeChange) & {
 
 type RowsByTable = SyncedRows;
 
+/** The atomic local write succeeded, so callers must not retry it as an unsaved operation. */
+export class LocalCommitPersistedError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : "Could not refresh saved changes.", { cause });
+    this.name = "LocalCommitPersistedError";
+  }
+}
+
 function emptyRows(): RowsByTable {
   return {
     profiles: [],
@@ -258,15 +266,19 @@ export async function commit(
   );
   Object.assign(rows, await operatingRows(rows, state.accounts, state, transactionSpheres));
   await writeLocalMutations(replicaContext, rows, mutations);
-  await assertCurrentReplicaContext(replicaContext);
-  await refreshOutboxState(replicaContext);
-  applyLocalRows(rows);
-  // On disk is on disk: any other tab on this browser is looking at the same database and should
-  // show the change now, not once the push that carries it away has been round-tripped.
-  announceLocalWrite(replicaContext);
-  // Background Sync stays disabled until worker settlement is fenced to the replica owner. The
-  // foreground engine remains the only path allowed to send and settle this durable outbox.
-  schedulePush(undefined, replicaContext);
+  try {
+    await assertCurrentReplicaContext(replicaContext);
+    await refreshOutboxState(replicaContext);
+    applyLocalRows(rows);
+    // On disk is on disk: any other tab on this browser is looking at the same database and should
+    // show the change now, not once the push that carries it away has been round-tripped.
+    announceLocalWrite(replicaContext);
+    // Background Sync stays disabled until worker settlement is fenced to the replica owner. The
+    // foreground engine remains the only path allowed to send and settle this durable outbox.
+    schedulePush(undefined, replicaContext);
+  } catch (error) {
+    throw new LocalCommitPersistedError(error);
+  }
 }
 
 /**

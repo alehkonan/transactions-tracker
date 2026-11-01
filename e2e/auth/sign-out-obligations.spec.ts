@@ -243,7 +243,12 @@ test("successful sign-out clears financial rows, import draft, and outbox before
   await expect(page.getByText(DRAFT_FILE_NAME, { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Next", exact: true })).toBeEnabled();
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByTestId("parent-back").click();
+  await page.getByTestId("import-keep-editing").click();
+  await expect(page).toHaveURL(/\/transactions-import$/);
+  await expect(page.getByText(DRAFT_FILE_NAME, { exact: true })).toBeVisible();
+  await page.getByTestId("parent-back").click();
+  await page.getByTestId("import-leave").click();
   await expect(page).toHaveURL(/\/settings$/);
 
   const before = await readReplicaSnapshot(page);

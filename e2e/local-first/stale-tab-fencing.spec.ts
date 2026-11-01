@@ -242,7 +242,7 @@ async function submitStaleForms(options: {
     "The local replica changed while the operation was in progress.",
   );
 
-  await importPage.getByRole("button", { name: "Next", exact: true }).click();
+  await importPage.getByTestId("import-confirm").click();
   await expect(
     importPage.getByText("The local replica changed while the operation was in progress.", {
       exact: true,
@@ -397,6 +397,8 @@ authTest(
     });
     await expect(importPage.getByText(STALE_IMPORT_FILE, { exact: true })).toBeVisible();
     await expect(importPage.getByRole("button", { name: "Next", exact: true })).toBeEnabled();
+    await importPage.getByTestId("import-next").click();
+    await expect(importPage.getByTestId("import-confirm")).toBeEnabled();
 
     const signOutHold = await holdSignOut(context);
     await activePage.goto("/settings");
